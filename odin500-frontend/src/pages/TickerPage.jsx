@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Upload } from 'lucide-react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { DataInfoTip } from '../components/DataInfoTip.jsx';
 import { FigmaPagination } from '../components/FigmaPagination.jsx';
@@ -25,7 +26,15 @@ import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
 import { sectorFieldToEtfSlug } from '../utils/sectorEtfMatch.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { ReturnsChartClickableHeading } from '../components/ReturnsChartClickableTitle.jsx';
+import { ReturnsChartToolbar, ReturnsChartToolbarIconButton } from '../components/ReturnsChartToolbar.jsx';
+import { ReturnsChartIcoDownload } from '../components/returnsChartToolbarIcons.jsx';
+import { ChartFullscreenToggleIcon } from '../components/ChartFullscreenToggleIcon.jsx';
+import { ChartSnapshotExportModal } from '../components/ChartSnapshotExportModal.jsx';
+import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
+import { useIsLoggedIn } from '../hooks/useIsLoggedIn.js';
+import { applyTickerChartSnapshotCloneFixes, useChartSnapshotExport } from '../hooks/useChartSnapshotExport.js';
 import { buildRelativeStrengthTickerHref } from '../utils/relativeStrengthNavigation.js';
+import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
 
 const TIMEFRAMES = ['1D', '5D', '1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y', '20Y'];
 /** Must stay ≤ backend `OHLC_SIGNALS_MAX_RANGE_DAYS` (default 40000). */
@@ -34,8 +43,8 @@ const BENCHMARK = 'SPY';
 
 /** Persisted main-chart pixel height (drag resize). */
 const CHART_USER_H_KEY = 'odin_ticker_chart_h';
-const CHART_H_MIN = 200;
-const CHART_H_MAX = 1400;
+const CHART_H_MIN = 360;
+const CHART_H_MAX = 800;
 
 const RESIZE_KEY_ANNUAL_FIGMA = 'odin_ticker_resize_annual_figma';
 const RESIZE_KEY_QUARTERLY_FIGMA = 'odin_ticker_resize_quarterly_figma';
@@ -149,6 +158,12 @@ function pickNum(row, keys) {
     }
   }
   return null;
+}
+
+function csvEscape(s) {
+  const t = String(s ?? '');
+  if (/[",\n\r]/.test(t)) return `"${t.replace(/"/g, '""')}"`;
+  return t;
 }
 
 function toIso(d) {
@@ -552,7 +567,7 @@ function pctClass(n) {
 
 /** Main chart pixel height by viewport (Lightweight Charts is not fluid vertically). */
 function useMediaChartHeight() {
-  const [height, setHeight] = useState(320);
+  const [height, setHeight] = useState(380);
   useEffect(() => {
     const update = () => {
       const w = window.innerWidth;
@@ -1359,6 +1374,67 @@ export default function TickerPage() {
     notifyChartFullscreenLayout();
   }, []);
 
+  const buildMainChartExportFilename = useCallback(
+    () => buildTickerChartExportFilename('main-chart', sym),
+    [sym]
+  );
+
+  const downloadMainChartCsv = useCallback(() => {
+    if (!sortedChart.length) return;
+    const rangeLabel = appliedCustomRange
+      ? `${appliedCustomRange.start}_${appliedCustomRange.end}`
+      : String(timeframe).toLowerCase();
+    const headers = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'Signal'];
+    const lines = [
+      headers.join(','),
+      ...sortedChart.map((r) => {
+        const open = pickNum(r, ['Open', 'open']);
+        const high = pickNum(r, ['High', 'high']);
+        const low = pickNum(r, ['Low', 'low']);
+        const close = pickNum(r, ['Close', 'close']);
+        const volume = pickNum(r, ['Volume', 'volume', 'VOLUME']);
+        const signal = r.signal != null && r.signal !== '' ? String(r.signal) : '';
+        return [
+          csvEscape(rowDateToTimeKey(r)),
+          csvEscape(open ?? ''),
+          csvEscape(high ?? ''),
+          csvEscape(low ?? ''),
+          csvEscape(close ?? ''),
+          csvEscape(volume ?? ''),
+          csvEscape(signal)
+        ].join(',');
+      })
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${String(sym || 'ticker').toUpperCase()}-ohlc-${rangeLabel}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [sortedChart, sym, timeframe, appliedCustomRange]);
+
+  const loggedIn = useIsLoggedIn();
+  const downloadMainChartCsvClick = useGatedCsvDownload(downloadMainChartCsv);
+  const mainChartExportDisabled = chartLoading || metaBusy || !sortedChart.length;
+
+  const {
+    exportingSnapshot: chartExportingSnapshot,
+    exportModalOpen: chartExportModalOpen,
+    exportModalStatus: chartExportModalStatus,
+    exportPreviewUrl: chartExportPreviewUrl,
+    exportModalError: chartExportModalError,
+    openExportModal: openChartExportModal,
+    closeExportModal: closeChartExportModal,
+    downloadFromExportModal: downloadChartExport
+  } = useChartSnapshotExport({
+    snapshotRootRef: chartBodyRef,
+    plotHostRef: chartPlotHostRef,
+    buildFilename: buildMainChartExportFilename,
+    disabled: mainChartExportDisabled,
+    onclone: applyTickerChartSnapshotCloneFixes
+  });
+
   const lastRow = sortedChart.length ? sortedChart[sortedChart.length - 1] : null;
   const prevRow = sortedChart.length > 1 ? sortedChart[sortedChart.length - 2] : null;
   const firstRow = sortedChart.length ? sortedChart[0] : null;
@@ -1762,7 +1838,38 @@ export default function TickerPage() {
                 </DataInfoTip> */}
                 {chartLoading ? <span className="ticker-page__loading-pill">Loading chart…</span> : null}
                 {metaBusy && !chartLoading ? <span className="ticker-page__loading-pill">Loading data…</span> : null}
-                
+                <div className="ticker-page__search-row-actions">
+                  <ReturnsChartToolbar
+                    showViewMore={false}
+                    showTableToggle={false}
+                    showDownload={false}
+                    extraActions={
+                      <>
+                        <ReturnsChartToolbarIconButton
+                          label={loggedIn ? 'Download CSV' : 'Sign in to download CSV'}
+                          onClick={downloadMainChartCsvClick}
+                          disabled={mainChartExportDisabled}
+                        >
+                          <ReturnsChartIcoDownload />
+                        </ReturnsChartToolbarIconButton>
+                        <ReturnsChartToolbarIconButton
+                          label={chartExportingSnapshot ? 'Exporting chart' : 'Export chart snapshot'}
+                          onClick={openChartExportModal}
+                          disabled={mainChartExportDisabled || chartExportingSnapshot}
+                        >
+                          <Upload size={14} strokeWidth={2} aria-hidden />
+                        </ReturnsChartToolbarIconButton>
+                        <ReturnsChartToolbarIconButton
+                          label={chartFs ? 'Exit fullscreen' : 'Fullscreen'}
+                          onClick={() => toggleChartFullscreen()}
+                          active={chartFs}
+                        >
+                          <ChartFullscreenToggleIcon isFullscreen={chartFs} />
+                        </ReturnsChartToolbarIconButton>
+                      </>
+                    }
+                  />
+                </div>
               </div>
               <div className="ticker-tf-with-tip">
                 <div className="ticker-tf-row">
@@ -1856,7 +1963,11 @@ export default function TickerPage() {
               ) : null}
             </div>
 
-            <div ref={chartBodyRef} className="ticker-chart-body">
+            <div
+              ref={chartBodyRef}
+              className="ticker-chart-body ticker-chart-body--main"
+              style={chartFs ? undefined : { '--ticker-main-plot-h': `${basePixelHeight}px` }}
+            >
               
               <div className="ticker-chart-legend">
               <div className="new-one">
@@ -1884,7 +1995,6 @@ export default function TickerPage() {
               <div
                 ref={chartPlotHostRef}
                 className={'ticker-chart-plot-host' + (chartFs ? ' ticker-chart-plot-host--fs' : '')}
-                style={chartFs ? undefined : { height: basePixelHeight }}
               >
                 {chartLoading && sortedChart.length === 0 ? (
                   <div
@@ -1909,25 +2019,6 @@ export default function TickerPage() {
                   <div className="ticker-sparkline ticker-sparkline--empty">No OHLC rows in this range.</div>
                 )}
               </div>
-              <div className="ticker-chart-footer-icons">
-                <button
-                  type="button"
-                  className="ticker-chart-footer-icons__btn"
-                  onClick={() => toggleChartFullscreen()}
-                  aria-pressed={chartFs}
-                  aria-label={chartFs ? 'Exit chart fullscreen' : 'Enter chart fullscreen'}
-                >
-                  {chartFs ? (
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M4 14v6h6M20 14v6h-6M4 10V4h6M20 10V4h-6" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6" />
-                    </svg>
-                  )}
-                </button>
-              </div>
               {!chartFs ? (
                 <div
                   role="separator"
@@ -1938,7 +2029,7 @@ export default function TickerPage() {
                   className="ticker-chart-resize"
                   title="Drag to resize chart height. Double-click to reset."
                   onPointerDown={onChartResizePointerDown}
-                  onDoubleClick={onChartResizeDoubleClick}
+                  
                 />
               ) : null}
             </div>
@@ -2362,9 +2453,17 @@ export default function TickerPage() {
           />
           </section>
         </div>
-
-        
       </div>
+      <ChartSnapshotExportModal
+        open={chartExportModalOpen}
+        status={chartExportModalStatus}
+        error={chartExportModalError}
+        previewUrl={chartExportPreviewUrl}
+        onClose={closeChartExportModal}
+        onDownload={downloadChartExport}
+        title="Export chart"
+        previewAlt={`Exported chart for ${sym}`}
+      />
     </div>
   );
 }

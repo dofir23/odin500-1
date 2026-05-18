@@ -1848,7 +1848,11 @@ export default function IndexPage() {
               ) : null}
             </div>
 
-            <div ref={chartBodyRef} className="ticker-chart-body">
+            <div
+              ref={chartBodyRef}
+              className="ticker-chart-body ticker-chart-body--main"
+              style={chartFs ? undefined : { '--ticker-main-plot-h': `${basePixelHeight}px` }}
+            >
               <div className="ticker-chart-legend">
                 <div className="new-one">
                   <div className="ticker-chart-legend__quote-pills">
@@ -1877,7 +1881,6 @@ export default function IndexPage() {
               <div
                 ref={chartPlotHostRef}
                 className={'ticker-chart-plot-host' + (chartFs ? ' ticker-chart-plot-host--fs' : '')}
-                style={chartFs ? undefined : { height: basePixelHeight }}
               >
                 {metaBusy && sortedChart.length === 0 ? (
                   <div

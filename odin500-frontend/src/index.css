@@ -3341,6 +3341,10 @@ backdrop-filter: blur(12px);
   align-items: center;
   gap: 6px;
   min-width: 0;
+  text-decoration: none;
+  color: inherit;
+  line-height: 0;
+  cursor: pointer;
 }
 
 .app-sidebar__logo {
@@ -8143,6 +8147,18 @@ button:disabled {
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
+  width: 100%;
+}
+
+.ticker-page__search-row-actions {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.ticker-page__search-row-actions .returns-chart-toolbar {
+  margin-left: 0;
 }
 
 .ticker-page__search-row .ticker-symbol-search {
@@ -8627,6 +8643,9 @@ a.ticker-page__metric-label--link:hover {
 
   .ticker-page__main > :not(.ticker-page__aside) {
     grid-column: 2;
+    align-self: start;
+    width: 100%;
+    min-width: 0;
   }
 
   .ticker-page__grid--watchlist-open .ticker-page__main {
@@ -8846,12 +8865,11 @@ a.ticker-page__metric-label--link:hover {
     justify-content: center;
   }
 
-  .ticker-chart-body {
-    display: flex;
-    flex-direction: column;
+  .ticker-chart-body--main:not(:fullscreen):not(:-webkit-full-screen) {
+    --ticker-main-chart-pad-y: 50px;
     gap: 6px;
-    min-height: 200px;
     padding: 10px 8px 40px;
+    height: calc(var(--ticker-main-plot-h, 220px) + var(--ticker-main-chart-pad-y));
   }
 
   .ticker-chart-legend {
@@ -8972,7 +8990,7 @@ a.ticker-page__metric-label--link:hover {
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 10px;
   overflow: hidden;
-  margin-bottom: 16px;
+  /* margin-bottom: 16px; */
 }
 
 .ticker-card:last-child {
@@ -9024,6 +9042,11 @@ a.ticker-page__metric-label--link:hover {
 .ticker-card--main-chart .ticker-card__head {
   background: var(--ticker-chart-bg);
 } */
+
+.ticker-card--main-chart {
+  align-self: start;
+  height: fit-content;
+}
 
 .ticker-card--main-chart .ticker-card__head {
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
@@ -9821,8 +9844,25 @@ a.ticker-page__metric-label--link:hover {
 .ticker-chart-body {
   position: relative;
   background: var(--colors-opacity-bg-opacity-3, rgba(255, 255, 255, 0.03));
-  min-height: 260px;
   padding: 8px 12px 40px;
+  box-sizing: border-box;
+}
+
+/* Main OHLC chart: exact height tracks drag-resize (--ticker-main-plot-h set inline). */
+.ticker-chart-body--main:not(:fullscreen):not(:-webkit-full-screen) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: none;
+  height: calc(var(--ticker-main-plot-h, 320px) + var(--ticker-main-chart-pad-y, 48px));
+  overflow: hidden;
+}
+
+.ticker-chart-body--main:not(:fullscreen):not(:-webkit-full-screen) .ticker-chart-plot-host:not(.ticker-chart-plot-host--fs) {
+  flex: 0 0 auto;
+  height: var(--ticker-main-plot-h, 320px);
+  min-height: 0;
+  max-height: var(--ticker-main-plot-h, 320px);
 }
 
 .ticker-chart-plot-host {

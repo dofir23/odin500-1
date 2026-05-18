@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { SidebarToggleGlyph } from './SidebarToggleGlyph.jsx';
-import odinLogo from '../assets/odin500-logo.svg';
-import odinLogoLight from '../assets/odin500-logo-light.svg';
+import { Odin500BrandLink } from './Odin500BrandLink.jsx';
 import { useHeaderProfile } from '../hooks/useHeaderProfile.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { prefetchRouteChunks } from '../utils/routePrefetch.js';
@@ -302,7 +301,6 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
   const [indicesOpen, setIndicesOpen] = useState(isIndicesRoute);
   const [statsOpen, setStatsOpen] = useState(isStatsRoute);
 
-  const brandLogo = theme === 'light' ? odinLogoLight : odinLogo;
 
   useEffect(() => {
     if (isIndicesRoute) setIndicesOpen(true);
@@ -365,9 +363,13 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
       ) : (
         <>
           <div className="app-sidebar__topbar">
-            <div className="app-sidebar__brand">
-              <img src={brandLogo} alt="Odin500" className="app-sidebar__logo" />
-            </div>
+            <Odin500BrandLink
+              theme={theme}
+              className="app-sidebar__brand"
+              imgClassName="app-sidebar__logo"
+              onMouseEnter={() => prefetchRouteChunks('/market')}
+              onFocus={() => prefetchRouteChunks('/market')}
+            />
             <button
               type="button"
               className="app-sidebar__toggle app-sidebar__toggle--inline"

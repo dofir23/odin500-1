@@ -1,8 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { Odin500BrandLink } from './Odin500BrandLink.jsx';
 import { Eye, EyeOff, Moon, Sun, X } from 'lucide-react';
-import odinLogo from '../assets/odin500-logo.svg';
-import odinLogoLight from '../assets/odin500-logo-light.svg';
 import heroImage from '../assets/Hero.png';
 import { getSupabaseBrowserClient } from '../lib/supabaseBrowserClient.js';
 
@@ -143,7 +142,12 @@ export function AuthSplitShell({ title = 'Welcome Back!', children }) {
         >
           <div className="auth-form-scope relative mx-auto w-full max-w-[400px] flex-1 lg:flex-none">
             <div className="relative mb-8 flex min-h-[40px] items-start justify-center pt-1">
-              <img src={isDark ? odinLogo : odinLogoLight} alt="Odin 500" className="auth-split-logo h-8 w-auto select-none" />
+              <Odin500BrandLink
+                theme={isDark ? 'dark' : 'light'}
+                className="inline-flex leading-none"
+                imgClassName="auth-split-logo h-8 w-auto select-none"
+                alt="Odin 500"
+              />
               <button
                 type="button"
                 onClick={toggleTheme}

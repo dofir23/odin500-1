@@ -1,7 +1,6 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { TickerSymbolCombobox } from './TickerSymbolCombobox.jsx';
-import odinLogo from '../assets/odin500-logo.svg';
-import odinLogoLight from '../assets/odin500-logo-light.svg';
+import { Odin500BrandLink } from './Odin500BrandLink.jsx';
 
 function IconSun() {
   return (
@@ -58,14 +57,15 @@ export function AppMainTopBar({
 }) {
   const navigate = useNavigate();
   const isLight = theme === 'light';
-  const brandLogo = isLight ? odinLogoLight : odinLogo;
-
   return (
     <header className={'app-main-topbar' + (isMobile ? ' app-main-topbar--mobile' : '')} role="banner">
       {isMobile ? (
-        <Link to="/market" className="app-main-topbar__brand" aria-label="Odin500 home">
-          <img src={brandLogo} alt="" className="app-main-topbar__logo" />
-        </Link>
+        <Odin500BrandLink
+          theme={isLight ? 'light' : 'dark'}
+          className="app-main-topbar__brand"
+          imgClassName="app-main-topbar__logo"
+          alt=""
+        />
       ) : null}
       <div className="app-main-topbar__search">
         <TickerSymbolCombobox

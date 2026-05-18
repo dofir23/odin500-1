@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import odinLogo from '../assets/odin500-logo.svg';
-import odinLogoLight from '../assets/odin500-logo-light.svg';
+import { Odin500BrandLink } from './Odin500BrandLink.jsx';
 import { useGeneralNewsFeed } from '../hooks/useGeneralNewsFeed.js';
 import { useHeaderProfile } from '../hooks/useHeaderProfile.js';
 import { prefetchRouteChunks } from '../utils/routePrefetch.js';
@@ -96,7 +95,6 @@ export function AppHeader({ compact = false, theme = 'dark', onToggleTheme = nul
   const newsItems = feedItems.slice(0, HEADER_NEWS_LIMIT);
   const profileWrapRef = useRef(null);
   const bellWrapRef = useRef(null);
-  const headerLogo = theme === 'light' ? odinLogoLight : odinLogo;
 
   const handleNavClick = (event, to) => {
     // Keep browser affordances (new tab, middle click) intact.
@@ -132,15 +130,13 @@ export function AppHeader({ compact = false, theme = 'dark', onToggleTheme = nul
         <div className="app-header-top-accent" aria-hidden />
         <div className="app-header-inner app-header-inner--figma">
           <div className="app-header-left-figma">
-            <NavLink
-              to="/market"
+            <Odin500BrandLink
+              theme={theme}
               className="app-header-wordmark-link"
-              title="Odin500 home"
+              imgClassName="app-header-logo-img"
               onMouseEnter={() => prefetchRouteChunks('/market')}
               onFocus={() => prefetchRouteChunks('/market')}
-            >
-              <img src={headerLogo} alt="Odin500" className="app-header-logo-img" />
-            </NavLink>
+            />
           </div>
 
           <nav className="app-header-nav-figma" aria-label="Primary">
@@ -318,7 +314,13 @@ export function AppHeader({ compact = false, theme = 'dark', onToggleTheme = nul
     <header className="app-header">
       <div className="app-header-inner">
         <div className="brand">
-          <img src={headerLogo} alt="Odin500" className="brand-logo" />
+          <Odin500BrandLink
+            theme={theme}
+            className="app-header-wordmark-link"
+            imgClassName="brand-logo"
+            onMouseEnter={() => prefetchRouteChunks('/market')}
+            onFocus={() => prefetchRouteChunks('/market')}
+          />
         </div>
 
         <nav className="main-nav">

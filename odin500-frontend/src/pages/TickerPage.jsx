@@ -43,7 +43,7 @@ const BENCHMARK = 'SPY';
 
 /** Persisted main-chart pixel height (drag resize). */
 const CHART_USER_H_KEY = 'odin_ticker_chart_h';
-const CHART_H_MIN = 360;
+/** Max drag height; min height follows {@link useMediaChartHeight} (layout default per breakpoint). */
 const CHART_H_MAX = 800;
 
 const RESIZE_KEY_ANNUAL_FIGMA = 'odin_ticker_resize_annual_figma';
@@ -677,16 +677,34 @@ export default function TickerPage() {
   mediaHRef.current = mediaChartHeight;
   const resizeDragRef = useRef(/** @type {{ active: boolean, startY: number, startH: number } | null} */ (null));
 
-  const [userChartHeight, setUserChartHeight] = useState(() => {
-    try {
-      const raw = localStorage.getItem(CHART_USER_H_KEY);
-      const n = raw != null ? parseInt(raw, 10) : NaN;
-      if (Number.isFinite(n) && n >= CHART_H_MIN && n <= CHART_H_MAX) return n;
-    } catch {
-      /* ignore */
-    }
-    return null;
-  });
+  const [userChartHeight, setUserChartHeight] = useState(/** @type {number | null} */ (null));
+
+  /** Never allow plot below layout default (prevents gap above News when shrinking). */
+  useEffect(() => {
+    const minH = mediaChartHeight;
+    setUserChartHeight((prev) => {
+      let next = prev;
+      if (next == null) {
+        try {
+          const raw = localStorage.getItem(CHART_USER_H_KEY);
+          const n = raw != null ? parseInt(raw, 10) : NaN;
+          if (Number.isFinite(n)) next = n;
+        } catch {
+          /* ignore */
+        }
+      }
+      if (next == null) return null;
+      const clamped = Math.max(minH, Math.min(CHART_H_MAX, next));
+      if (clamped !== next) {
+        try {
+          localStorage.setItem(CHART_USER_H_KEY, String(clamped));
+        } catch {
+          /* ignore */
+        }
+      }
+      return clamped;
+    });
+  }, [mediaChartHeight]);
   const [chartFs, setChartFs] = useState(false);
   const [fsPlotH, setFsPlotH] = useState(0);
 
@@ -1300,7 +1318,7 @@ export default function TickerPage() {
     if (!el) return;
     const apply = () => {
       const h = Math.round(el.clientHeight);
-      setFsPlotH(Math.max(CHART_H_MIN, h));
+      setFsPlotH(Math.max(mediaHRef.current, h));
     };
     const ro = new ResizeObserver(() => apply());
     ro.observe(el);
@@ -1312,13 +1330,14 @@ export default function TickerPage() {
     (e) => {
       if (chartFs) return;
       e.preventDefault();
-      const startH = userChartHeight ?? mediaChartHeight;
+      const minH = mediaHRef.current;
+      const startH = Math.max(minH, userChartHeight ?? minH);
       resizeDragRef.current = { active: true, startY: e.clientY, startH };
       const onMove = (ev) => {
         const drag = resizeDragRef.current;
         if (!drag?.active) return;
         const dy = ev.clientY - drag.startY;
-        const next = Math.round(Math.max(CHART_H_MIN, Math.min(CHART_H_MAX, drag.startH + dy)));
+        const next = Math.round(Math.max(minH, Math.min(CHART_H_MAX, drag.startH + dy)));
         setUserChartHeight(next);
       };
       const onUp = () => {
@@ -1326,13 +1345,13 @@ export default function TickerPage() {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         setUserChartHeight((prev) => {
-          const v = prev == null ? mediaHRef.current : prev;
+          const v = Math.max(minH, prev == null ? minH : prev);
           try {
             localStorage.setItem(CHART_USER_H_KEY, String(v));
           } catch {
             /* ignore */
           }
-          return prev;
+          return Math.max(minH, prev == null ? minH : prev);
         });
       };
       window.addEventListener('pointermove', onMove);
@@ -1711,8 +1730,9 @@ export default function TickerPage() {
     });
   }, [selectedIndexSeries, selectedTickerSeries]);
 
-  const basePixelHeight = userChartHeight ?? mediaChartHeight;
-  const plotHeight = chartFs && fsPlotH >= CHART_H_MIN ? fsPlotH : basePixelHeight;
+  const chartHeightMin = mediaChartHeight;
+  const basePixelHeight = Math.max(chartHeightMin, userChartHeight ?? chartHeightMin);
+  const plotHeight = chartFs && fsPlotH >= chartHeightMin ? fsPlotH : basePixelHeight;
 
   const chartRangeLabel = chartApiRange.start + ' → ' + chartApiRange.end;
   const chartModeHelp = appliedCustomRange
@@ -1966,7 +1986,14 @@ export default function TickerPage() {
             <div
               ref={chartBodyRef}
               className="ticker-chart-body ticker-chart-body--main"
-              style={chartFs ? undefined : { '--ticker-main-plot-h': `${basePixelHeight}px` }}
+              style={
+                chartFs
+                  ? undefined
+                  : {
+                      '--ticker-main-plot-h': `${basePixelHeight}px`,
+                      '--ticker-main-plot-min-h': `${chartHeightMin}px`
+                    }
+              }
             >
               
               <div className="ticker-chart-legend">
@@ -2000,10 +2027,7 @@ export default function TickerPage() {
                   <div
                     className="chart-viz-loading-wrap"
                     style={{
-                      minHeight: Math.max(
-                        CHART_H_MIN,
-                        chartFs && fsPlotH >= CHART_H_MIN ? fsPlotH : basePixelHeight
-                      )
+                      minHeight: chartFs && fsPlotH >= chartHeightMin ? fsPlotH : basePixelHeight
                     }}
                   >
                     <TradingChartLoader label="Loading chart…" sublabel={`${sym} · OHLC & signals`} />
@@ -2023,13 +2047,13 @@ export default function TickerPage() {
                 <div
                   role="separator"
                   aria-orientation="horizontal"
-                  aria-valuemin={CHART_H_MIN}
+                  aria-valuemin={chartHeightMin}
                   aria-valuemax={CHART_H_MAX}
                   aria-valuenow={basePixelHeight}
                   className="ticker-chart-resize"
                   title="Drag to resize chart height. Double-click to reset."
                   onPointerDown={onChartResizePointerDown}
-                  
+                  onDoubleClick={onChartResizeDoubleClick}
                 />
               ) : null}
             </div>

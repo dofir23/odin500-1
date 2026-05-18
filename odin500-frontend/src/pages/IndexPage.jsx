@@ -7,9 +7,13 @@ import { TickerAnnualReturnsFigma } from '../components/TickerAnnualReturnsFigma
 import { TickerMonthlyReturnsChart } from '../components/TickerMonthlyReturnsChart.jsx';
 import { TickerSection16Section17 } from '../components/TickerSection16Section17.jsx';
 import { ThemedDropdown } from '../components/ThemedDropdown.jsx';
-import { ReturnsChartToolbar } from '../components/ReturnsChartToolbar.jsx';
+import { ReturnsChartToolbar, ReturnsChartToolbarIconButton } from '../components/ReturnsChartToolbar.jsx';
+import { ReturnsChartIcoDownload } from '../components/returnsChartToolbarIcons.jsx';
 import { ReturnsChartClickableHeading } from '../components/ReturnsChartClickableTitle.jsx';
 import { buildRelativeStrengthTickerHref } from '../utils/relativeStrengthNavigation.js';
+import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
+import { useIsLoggedIn } from '../hooks/useIsLoggedIn.js';
+import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
 import TradingChartLoader from '../components/TradingChartLoader.jsx';
 import {
   IconChartTypeDropdown,
@@ -34,7 +38,7 @@ const MAX_SIGNAL_RANGE_DAYS = 40000;
 const BENCHMARK = 'SPX';
 
 const CHART_USER_H_KEY = 'odin_index_chart_h';
-const CHART_H_MIN = 200;
+/** Max drag height; min height follows {@link useMediaChartHeight} (layout default per breakpoint). */
 const CHART_H_MAX = 1400;
 
 const RESIZE_KEY_ANNUAL_FIGMA = 'odin_index_resize_annual_figma';
@@ -137,6 +141,12 @@ function pickNum(row, keys) {
     }
   }
   return null;
+}
+
+function csvEscape(s) {
+  const t = String(s ?? '');
+  if (/[",\n\r]/.test(t)) return `"${t.replace(/"/g, '""')}"`;
+  return t;
 }
 
 function toIso(d) {
@@ -746,16 +756,34 @@ export default function IndexPage() {
   mediaHRef.current = mediaChartHeight;
   const resizeDragRef = useRef(/** @type {{ active: boolean, startY: number, startH: number } | null} */ (null));
 
-  const [userChartHeight, setUserChartHeight] = useState(() => {
-    try {
-      const raw = localStorage.getItem(CHART_USER_H_KEY);
-      const n = raw != null ? parseInt(raw, 10) : NaN;
-      if (Number.isFinite(n) && n >= CHART_H_MIN && n <= CHART_H_MAX) return n;
-    } catch {
-      /* ignore */
-    }
-    return null;
-  });
+  const [userChartHeight, setUserChartHeight] = useState(/** @type {number | null} */ (null));
+
+  /** Never allow plot below layout default (prevents gap above content below chart when shrinking). */
+  useEffect(() => {
+    const minH = mediaChartHeight;
+    setUserChartHeight((prev) => {
+      let next = prev;
+      if (next == null) {
+        try {
+          const raw = localStorage.getItem(CHART_USER_H_KEY);
+          const n = raw != null ? parseInt(raw, 10) : NaN;
+          if (Number.isFinite(n)) next = n;
+        } catch {
+          /* ignore */
+        }
+      }
+      if (next == null) return null;
+      const clamped = Math.max(minH, Math.min(CHART_H_MAX, next));
+      if (clamped !== next) {
+        try {
+          localStorage.setItem(CHART_USER_H_KEY, String(clamped));
+        } catch {
+          /* ignore */
+        }
+      }
+      return clamped;
+    });
+  }, [mediaChartHeight]);
   const [chartFs, setChartFs] = useState(false);
   const [fsPlotH, setFsPlotH] = useState(0);
 
@@ -1310,7 +1338,7 @@ export default function IndexPage() {
     if (!el) return;
     const apply = () => {
       const h = Math.round(el.clientHeight);
-      setFsPlotH(Math.max(CHART_H_MIN, h));
+      setFsPlotH(Math.max(mediaHRef.current, h));
     };
     const ro = new ResizeObserver(() => apply());
     ro.observe(el);
@@ -1322,13 +1350,14 @@ export default function IndexPage() {
     (e) => {
       if (chartFs) return;
       e.preventDefault();
-      const startH = userChartHeight ?? mediaChartHeight;
+      const minH = mediaHRef.current;
+      const startH = Math.max(minH, userChartHeight ?? minH);
       resizeDragRef.current = { active: true, startY: e.clientY, startH };
       const onMove = (ev) => {
         const drag = resizeDragRef.current;
         if (!drag?.active) return;
         const dy = ev.clientY - drag.startY;
-        const next = Math.round(Math.max(CHART_H_MIN, Math.min(CHART_H_MAX, drag.startH + dy)));
+        const next = Math.round(Math.max(minH, Math.min(CHART_H_MAX, drag.startH + dy)));
         setUserChartHeight(next);
       };
       const onUp = () => {
@@ -1336,13 +1365,13 @@ export default function IndexPage() {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         setUserChartHeight((prev) => {
-          const v = prev == null ? mediaHRef.current : prev;
+          const v = Math.max(minH, prev == null ? minH : prev);
           try {
             localStorage.setItem(CHART_USER_H_KEY, String(v));
           } catch {
             /* ignore */
           }
-          return prev;
+          return Math.max(minH, prev == null ? minH : prev);
         });
       };
       window.addEventListener('pointermove', onMove);
@@ -1361,15 +1390,49 @@ export default function IndexPage() {
     setUserChartHeight(null);
   }, []);
 
-  const buildIndexChartExportFilename = useCallback(() => {
-    const symPart = String(displaySym || 'index')
-      .toUpperCase()
-      .replace(/[^A-Z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
-    const tfPart = String(timeframe || 'range').toLowerCase();
-    const datePart = new Date().toISOString().slice(0, 10);
-    return `${symPart || 'index'}-chart-${tfPart}-${datePart}.png`;
-  }, [displaySym, timeframe]);
+  const buildIndexChartExportFilename = useCallback(
+    () => buildTickerChartExportFilename('main-chart', displaySym),
+    [displaySym]
+  );
+
+  const downloadMainChartCsv = useCallback(() => {
+    if (!sortedChart.length) return;
+    const rangeLabel = appliedCustomRange
+      ? `${appliedCustomRange.start}_${appliedCustomRange.end}`
+      : String(timeframe).toLowerCase();
+    const headers = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'Signal'];
+    const lines = [
+      headers.join(','),
+      ...sortedChart.map((r) => {
+        const open = pickNum(r, ['Open', 'open']);
+        const high = pickNum(r, ['High', 'high']);
+        const low = pickNum(r, ['Low', 'low']);
+        const close = pickNum(r, ['Close', 'close']);
+        const volume = pickNum(r, ['Volume', 'volume', 'VOLUME']);
+        const signal = r.signal != null && r.signal !== '' ? String(r.signal) : '';
+        return [
+          csvEscape(rowDateToTimeKey(r)),
+          csvEscape(open ?? ''),
+          csvEscape(high ?? ''),
+          csvEscape(low ?? ''),
+          csvEscape(close ?? ''),
+          csvEscape(volume ?? ''),
+          csvEscape(signal)
+        ].join(',');
+      })
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${String(displaySym || 'index').toUpperCase()}-ohlc-${rangeLabel}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [sortedChart, displaySym, timeframe, appliedCustomRange]);
+
+  const loggedIn = useIsLoggedIn();
+  const downloadMainChartCsvClick = useGatedCsvDownload(downloadMainChartCsv);
+  const mainChartExportDisabled = metaBusy || !sortedChart.length;
 
   const {
     exportingSnapshot: chartExportingSnapshot,
@@ -1384,7 +1447,7 @@ export default function IndexPage() {
     snapshotRootRef: chartBodyRef,
     plotHostRef: chartPlotHostRef,
     buildFilename: buildIndexChartExportFilename,
-    disabled: metaBusy || !sortedChart.length,
+    disabled: mainChartExportDisabled,
     onclone: applyTickerChartSnapshotCloneFixes
   });
 
@@ -1640,8 +1703,9 @@ export default function IndexPage() {
     });
   }, [dynamicSym, dynamicSpy, symMtd, spyMtd, symQtd, spyQtd]);
 
-  const basePixelHeight = userChartHeight ?? mediaChartHeight;
-  const plotHeight = chartFs && fsPlotH >= CHART_H_MIN ? fsPlotH : basePixelHeight;
+  const chartHeightMin = mediaChartHeight;
+  const basePixelHeight = Math.max(chartHeightMin, userChartHeight ?? chartHeightMin);
+  const plotHeight = chartFs && fsPlotH >= chartHeightMin ? fsPlotH : basePixelHeight;
 
   const chartRangeLabel = chartApiRange.start + ' → ' + chartApiRange.end;
   const chartModeHelp = appliedCustomRange
@@ -1755,8 +1819,41 @@ export default function IndexPage() {
         <div className="ticker-page__main">
           <section className="ticker-card ticker-card--main-chart" aria-labelledby="index-snapshot-chart-title">
             <div className="ticker-card__head">
-              <div className="ticker-card__title-with-tip">
-              <ChartTypeToolbarDropdown chartType={mainChartType} onChartTypeChange={setMainChartType} />
+              <div className="ticker-page__search-row">
+                <ChartTypeToolbarDropdown chartType={mainChartType} onChartTypeChange={setMainChartType} />
+                {metaBusy ? <span className="ticker-page__loading-pill">Loading chart…</span> : null}
+                <div className="ticker-page__search-row-actions">
+                  <ReturnsChartToolbar
+                    showViewMore={false}
+                    showTableToggle={false}
+                    showDownload={false}
+                    extraActions={
+                      <>
+                        <ReturnsChartToolbarIconButton
+                          label={loggedIn ? 'Download CSV' : 'Sign in to download CSV'}
+                          onClick={downloadMainChartCsvClick}
+                          disabled={mainChartExportDisabled}
+                        >
+                          <ReturnsChartIcoDownload />
+                        </ReturnsChartToolbarIconButton>
+                        <ReturnsChartToolbarIconButton
+                          label={chartExportingSnapshot ? 'Exporting chart' : 'Export chart snapshot'}
+                          onClick={openChartExportModal}
+                          disabled={mainChartExportDisabled || chartExportingSnapshot}
+                        >
+                          <Upload size={14} strokeWidth={2} aria-hidden />
+                        </ReturnsChartToolbarIconButton>
+                        <ReturnsChartToolbarIconButton
+                          label={chartFs ? 'Exit fullscreen' : 'Fullscreen'}
+                          onClick={() => toggleChartFullscreen()}
+                          active={chartFs}
+                        >
+                          <ChartFullscreenToggleIcon isFullscreen={chartFs} />
+                        </ReturnsChartToolbarIconButton>
+                      </>
+                    }
+                  />
+                </div>
               </div>
               <div className="ticker-tf-with-tip">
                 <div className="ticker-tf-row">
@@ -1851,7 +1948,14 @@ export default function IndexPage() {
             <div
               ref={chartBodyRef}
               className="ticker-chart-body ticker-chart-body--main"
-              style={chartFs ? undefined : { '--ticker-main-plot-h': `${basePixelHeight}px` }}
+              style={
+                chartFs
+                  ? undefined
+                  : {
+                      '--ticker-main-plot-h': `${basePixelHeight}px`,
+                      '--ticker-main-plot-min-h': `${chartHeightMin}px`
+                    }
+              }
             >
               <div className="ticker-chart-legend">
                 <div className="new-one">
@@ -1886,10 +1990,7 @@ export default function IndexPage() {
                   <div
                     className="chart-viz-loading-wrap"
                     style={{
-                      minHeight: Math.max(
-                        CHART_H_MIN,
-                        chartFs && fsPlotH >= CHART_H_MIN ? fsPlotH : basePixelHeight
-                      )
+                      minHeight: chartFs && fsPlotH >= chartHeightMin ? fsPlotH : basePixelHeight
                     }}
                   >
                     <TradingChartLoader
@@ -1908,37 +2009,15 @@ export default function IndexPage() {
                   <div className="ticker-sparkline ticker-sparkline--empty">No rows in this range.</div>
                 )}
               </div>
-              <div className="ticker-chart-footer-icons">
-                <button
-                  type="button"
-                  className="ticker-chart-footer-icons__btn"
-                  onClick={openChartExportModal}
-                  disabled={metaBusy || !sortedChart.length || chartExportingSnapshot}
-                  aria-label={chartExportingSnapshot ? 'Exporting chart' : 'Export chart snapshot'}
-                  title={chartExportingSnapshot ? 'Exporting…' : 'Export chart'}
-                >
-                  <Upload size={16} strokeWidth={2} aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="ticker-chart-footer-icons__btn"
-                  onClick={() => toggleChartFullscreen()}
-                  aria-pressed={chartFs}
-                  aria-label={chartFs ? 'Exit chart fullscreen' : 'Enter chart fullscreen'}
-                  title={chartFs ? 'Exit fullscreen' : 'Fullscreen'}
-                >
-                  <ChartFullscreenToggleIcon isFullscreen={chartFs} />
-                </button>
-              </div>
               {!chartFs ? (
                 <div
                   role="separator"
                   aria-orientation="horizontal"
-                  aria-valuemin={CHART_H_MIN}
+                  aria-valuemin={chartHeightMin}
                   aria-valuemax={CHART_H_MAX}
                   aria-valuenow={basePixelHeight}
                   className="ticker-chart-resize"
-                title="Drag to resize chart heightDouble-click to reset."
+                  title="Drag to resize chart height. Double-click to reset."
                   onPointerDown={onChartResizePointerDown}
                   onDoubleClick={onChartResizeDoubleClick}
                 />

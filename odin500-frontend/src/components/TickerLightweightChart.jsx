@@ -109,6 +109,14 @@ function formatPrice(n) {
   return x.toFixed(digits);
 }
 
+/** Clamp chart canvas to plot host so mobile padding/inset does not overflow the viewport. */
+function measureChartWidth(el) {
+  if (!el) return 0;
+  const plotHost = el.closest('.ticker-chart-plot-host');
+  const cap = plotHost?.clientWidth ?? el.clientWidth;
+  return Math.max(0, Math.floor(Math.min(el.clientWidth, cap)));
+}
+
 /** Rising trend icon (dropdown trigger), stroke uses `currentColor`. */
 export function IconChartTypeDropdown({ className }) {
   return (
@@ -279,7 +287,7 @@ export function TickerLightweightChart({ rows, height = 320, chartType = 'line',
         mouseWheel: true,
         pinch: true
       },
-      width: el.clientWidth
+      width: measureChartWidth(el)
     });
 
     const mainSeries = addMainSeries(chart, chartType, chartTheme);
@@ -341,13 +349,15 @@ export function TickerLightweightChart({ rows, height = 320, chartType = 'line',
 
     const ro = new ResizeObserver(() => {
       if (!containerRef.current || !chartRef.current) return;
-      chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+      chartRef.current.applyOptions({ width: measureChartWidth(containerRef.current) });
     });
     ro.observe(el);
+    const plotHost = el.closest('.ticker-chart-plot-host');
+    if (plotHost) ro.observe(plotHost);
 
     const onWinResize = () => {
       if (!containerRef.current || !chartRef.current) return;
-      chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+      chartRef.current.applyOptions({ width: measureChartWidth(containerRef.current) });
     };
     window.addEventListener('resize', onWinResize);
 
@@ -364,8 +374,9 @@ export function TickerLightweightChart({ rows, height = 320, chartType = 'line',
   /** Height alone must not recreate the chart — otherwise the data effect can miss a run and the series stay empty. */
   useEffect(() => {
     const chart = chartRef.current;
-    if (!chart) return;
-    chart.applyOptions({ height });
+    const el = containerRef.current;
+    if (!chart || !el) return;
+    chart.applyOptions({ height, width: measureChartWidth(el) });
   }, [height]);
 
   useEffect(() => {

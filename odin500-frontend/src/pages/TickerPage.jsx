@@ -1,0 +1,2370 @@
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { DataInfoTip } from '../components/DataInfoTip.jsx';
+import { FigmaPagination } from '../components/FigmaPagination.jsx';
+import { TickerAnnualReturnsFigma } from '../components/TickerAnnualReturnsFigma.jsx';
+import { TickerMonthlyReturnsChart } from '../components/TickerMonthlyReturnsChart.jsx';
+import { TickerSection23Section24 } from '../components/TickerSection23Section24.jsx';
+import { TickerChartResizeScope } from '../components/TickerChartResizeScope.jsx';
+import { useWatchlistDock } from '../context/WatchlistDockContext.jsx';
+import { ReturnsChartFiltersMenu } from '../components/ReturnsChartFiltersMenu.jsx';
+import { ThemedDropdown } from '../components/ThemedDropdown.jsx';
+import TradingChartLoader from '../components/TradingChartLoader.jsx';
+import { TickerSymbolCombobox } from '../components/TickerSymbolCombobox.jsx';
+import {
+  IconChartTypeDropdown,
+  TICKER_CHART_TYPE_OPTIONS,
+  TickerLightweightChart
+} from '../components/TickerLightweightChart.jsx';
+import {fetchJsonCached, getAuthToken, canFetchProtectedApi} from '../store/apiStore.js';
+import { rowDateToTimeKey } from '../utils/chartData.js';
+import { toDateInput } from '../utils/misc.js';
+import { DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
+import { pickRelatedByCategory, RELATED_INDEX_LINKS } from '../utils/relatedTickers.js';
+import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
+import { sectorFieldToEtfSlug } from '../utils/sectorEtfMatch.js';
+import { usePageSeo } from '../seo/usePageSeo.js';
+import { ReturnsChartClickableHeading } from '../components/ReturnsChartClickableTitle.jsx';
+import { buildRelativeStrengthTickerHref } from '../utils/relativeStrengthNavigation.js';
+
+const TIMEFRAMES = ['1D', '5D', '1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y', '20Y'];
+/** Must stay ≤ backend `OHLC_SIGNALS_MAX_RANGE_DAYS` (default 40000). */
+const MAX_SIGNAL_RANGE_DAYS = 40000;
+const BENCHMARK = 'SPY';
+
+/** Persisted main-chart pixel height (drag resize). */
+const CHART_USER_H_KEY = 'odin_ticker_chart_h';
+const CHART_H_MIN = 200;
+const CHART_H_MAX = 1400;
+
+const RESIZE_KEY_ANNUAL_FIGMA = 'odin_ticker_resize_annual_figma';
+const RESIZE_KEY_QUARTERLY_FIGMA = 'odin_ticker_resize_quarterly_figma';
+const RESIZE_KEY_MONTHLY = 'odin_ticker_resize_monthly';
+const RESIZE_KEY_MONTHLY_ADV = 'odin_ticker_resize_monthly_waterfall';
+const RETURNS_DEFAULT_START = '2018-01-01';
+/** Long-window returns for Benchmark vs Ticker section (matches section table range). */
+const TABLE_LONG_START_DATE = '2005-01-01';
+/** Default section benchmark ticker when group is S&P 500 (`TickerSection23Section24` GROUPS[0]). */
+const SECTION_LONG_DEFAULT_BENCHMARK = 'SPX';
+
+const MAX_NEWS_ITEMS = 120;
+const NEWS_PAGE_SIZE = 5;
+const FINNHUB_BASE = 'https://finnhub.io/api/v1/company-news';
+const FINNHUB_TOKEN =
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_FINNHUB_TOKEN) || '';
+const FALLBACK_TICKER_NEWS = [
+  {
+    id: 'ticker-news-fallback-1',
+    title: 'Company-specific headline feed unavailable; showing placeholder item.',
+    source: 'Odin Ticker Desk',
+    time: 'sample',
+    url: ''
+  }
+];
+
+const PERF_COLS = [
+  { label: '1M', period: 'Last Month' },
+  { label: '3M', period: 'Last 3 months' },
+  { label: 'YTD', period: 'Year to Date (YTD)' },
+  { label: '1Y', period: 'Last 1 year' }
+];
+
+/** Maps comparison table row → `dynamicPeriods[].period` name (null = computed from OHLC). */
+const COMPARE_ROWS = [
+  { key: '1D', period: 'Last date' },
+  { key: '5D', period: 'Week' },
+  { key: 'MTD', period: null, mtd: true },
+  { key: '1M', period: 'Last Month' },
+  { key: 'QTD', period: null, qtd: true },
+  { key: '3M', period: 'Last 3 months' },
+  { key: '6M', period: 'Last 6 months' },
+  { key: 'YTD', period: 'Year to Date (YTD)' },
+  { key: '1Y', period: 'Last 1 year' },
+  { key: '3Y', period: 'Last 3 years' },
+  { key: '5Y', period: 'Last 5 years' },
+  { key: '10Y', period: 'Last 10 years' },
+  { key: '20Y', period: 'Last 20 years' }
+];
+
+const RELATIVE_INDEX_OPTIONS = [
+  { key: 'sp500', label: 'S&P 500', apiIndex: 'sp500' },
+  { key: 'dow-jones', label: 'Dow Jones', apiIndex: 'Dow Jones' },
+  { key: 'nasdaq-composite', label: 'Nasdaq Composite', apiIndex: 'nasdaq composite' },
+  { key: 'nasdaq-100', label: 'Nasdaq 100', apiIndex: 'Nasdaq 100' }
+];
+const RELATIVE_INDEX_DROPDOWN_OPTIONS = RELATIVE_INDEX_OPTIONS.map((o) => ({ id: o.key, label: o.label }));
+function yesterdayIsoForLongTable() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return toDateInput(d);
+}
+
+/** Resolve one ticker payload from single or batched `/ticker-returns` response. */
+function pickTickerReturnsFromPayload(payload, ticker) {
+  const u = String(ticker || '').toUpperCase().trim();
+  if (!payload || !u) return null;
+  if (payload.batch === true && payload.byTicker && payload.byTicker[u] != null) {
+    const row = payload.byTicker[u];
+    if (row && row.success === false) return null;
+    return row;
+  }
+  if (!payload.batch && String(payload.ticker || '').toUpperCase() === u) return payload;
+  return null;
+}
+
+/** Merge partial `ticker-*-returns` / `ticker-core-returns` payloads into one `returnsSym`-style object. */
+function mergeTickerReturns(prev, patch) {
+  if (!patch || patch.success === false) return prev;
+  const pPrev = prev?.performance || {};
+  const pNext = patch.performance || {};
+  const pick = (key) => {
+    const nextVal = pNext[key];
+    const prevVal = pPrev[key];
+    if (nextVal === undefined) return prevVal;
+    if (Array.isArray(nextVal) && nextVal.length === 0 && Array.isArray(prevVal) && prevVal.length > 0) return prevVal;
+    return nextVal;
+  };
+  return {
+    ...prev,
+    ...patch,
+    ticker: patch.ticker ?? prev?.ticker,
+    asOfDate: patch.asOfDate ?? prev?.asOfDate,
+    success: true,
+    performance: {
+      dynamicPeriods: pick('dynamicPeriods') ?? [],
+      predefinedPeriods: pick('predefinedPeriods') ?? [],
+      annualReturns: pick('annualReturns') ?? [],
+      quarterlyReturns: pick('quarterlyReturns') ?? [],
+      monthlyReturns: pick('monthlyReturns') ?? [],
+      customRange: pick('customRange') ?? []
+    }
+  };
+}
+
+function pickNum(row, keys) {
+  for (const key of keys) {
+    if (row[key] !== undefined && row[key] !== null && row[key] !== '') {
+      const n = Number(row[key]);
+      if (!Number.isNaN(n)) return n;
+    }
+  }
+  return null;
+}
+
+function toIso(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Cap how far `start` can be before `end` so inclusive calendar-day span ≤ `maxInclusiveDays`
+ * (matches backend ohlc-signals-indicator: floor((end-start)/1d)+1 ≤ max).
+ */
+function clampStartToMaxDays(start, end, maxInclusiveDays) {
+  const maxDiffMs = (maxInclusiveDays - 1) * 86400000;
+  const diff = end.getTime() - start.getTime();
+  if (diff <= maxDiffMs) return start;
+  return new Date(end.getTime() - maxDiffMs);
+}
+
+/**
+ * First calendar date in a backward walk from `endIso` until `sessionCount` Mon–Fri
+ * sessions have been included (the end date counts if it is a weekday).
+ */
+function startDateForLastTradingSessions(endIso, sessionCount) {
+  const end = new Date(String(endIso).slice(0, 10) + 'T12:00:00');
+  if (Number.isNaN(end.getTime()) || sessionCount < 1) return String(endIso).slice(0, 10);
+  let d = new Date(end);
+  let counted = 0;
+  for (;;) {
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) counted += 1;
+    if (counted >= sessionCount) break;
+    d.setDate(d.getDate() - 1);
+  }
+  return toIso(d);
+}
+
+/**
+ * @param {string} tf
+ * @param {string} endIso as-of / chart end (YYYY-MM-DD)
+ * @param {{ min: string, max: string } | null} [bounds] first/last OHLC dates from `/api/market/ohlc-ticker-bounds` (for ALL)
+ */
+function rangeForTimeframe(tf, endIso, bounds = null) {
+  const end = new Date(String(endIso).slice(0, 10) + 'T12:00:00');
+  if (Number.isNaN(end.getTime())) {
+    const t = new Date();
+    return { start: toIso(new Date(t.getTime() - 370 * 86400000)), end: toIso(t) };
+  }
+  const endStr = String(endIso).slice(0, 10);
+  if (tf === '1D') {
+    const startStr = startDateForLastTradingSessions(endStr, 3);
+    const startD = new Date(startStr + 'T12:00:00');
+    const capped = clampStartToMaxDays(startD, end, MAX_SIGNAL_RANGE_DAYS);
+    return { start: toIso(capped), end: endStr };
+  }
+  if (tf === '5D') {
+    const startStr = startDateForLastTradingSessions(endStr, 5);
+    const startD = new Date(startStr + 'T12:00:00');
+    const capped = clampStartToMaxDays(startD, end, MAX_SIGNAL_RANGE_DAYS);
+    return { start: toIso(capped), end: endStr };
+  }
+  const start = new Date(end);
+  switch (tf) {
+    case 'MTD':
+      start.setTime(new Date(end.getFullYear(), end.getMonth(), 1).getTime());
+      break;
+    case '1M':
+      start.setDate(end.getDate() - 35);
+      break;
+    case 'QTD':
+      start.setTime(new Date(end.getFullYear(), Math.floor(end.getMonth() / 3) * 3, 1).getTime());
+      break;
+    case '3M':
+      start.setDate(end.getDate() - 95);
+      break;
+    case '6M':
+      start.setDate(end.getDate() - 185);
+      break;
+    case 'YTD':
+      start.setTime(new Date(end.getFullYear(), 0, 1).getTime());
+      break;
+    case '1Y':
+      start.setDate(end.getDate() - 370);
+      break;
+    case '3Y':
+      start.setDate(end.getDate() - 1100);
+      break;
+    case '5Y':
+      start.setDate(end.getDate() - 1825);
+      break;
+    case '10Y': {
+      const t = new Date(end);
+      t.setFullYear(t.getFullYear() - 10);
+      start.setTime(t.getTime());
+      break;
+    }
+    case '20Y': {
+      const t = new Date(end);
+      t.setFullYear(t.getFullYear() - 20);
+      start.setTime(t.getTime());
+      break;
+    }
+    case 'ALL':
+      if (bounds?.min) {
+        const minD = new Date(String(bounds.min).slice(0, 10) + 'T12:00:00');
+        if (!Number.isNaN(minD.getTime())) {
+          start.setTime(minD.getTime() > end.getTime() ? end.getTime() : minD.getTime());
+        } else {
+          start.setDate(end.getDate() - (MAX_SIGNAL_RANGE_DAYS - 1));
+        }
+      } else {
+        start.setDate(end.getDate() - (MAX_SIGNAL_RANGE_DAYS - 1));
+      }
+      break;
+    default:
+      start.setDate(end.getDate() - 370);
+  }
+  const capped = clampStartToMaxDays(start, end, MAX_SIGNAL_RANGE_DAYS);
+  return { start: toIso(capped), end: endStr };
+}
+
+/** User custom chart range: validate, order, cap span, cap end to dataset as-of. */
+function normalizeCustomChartRange(startStr, endStr, asOfIso) {
+  const ns = String(startStr || '').trim();
+  const ne = String(endStr || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ns) || !/^\d{4}-\d{2}-\d{2}$/.test(ne)) return null;
+  let sd = new Date(ns + 'T12:00:00');
+  let ed = new Date(ne + 'T12:00:00');
+  if (Number.isNaN(sd.getTime()) || Number.isNaN(ed.getTime())) return null;
+  if (sd > ed) {
+    const t = sd;
+    sd = ed;
+    ed = t;
+  }
+  const cap = new Date(String(asOfIso || '').slice(0, 10) + 'T12:00:00');
+  if (!Number.isNaN(cap.getTime()) && ed > cap) ed = cap;
+  if (sd > ed) sd = new Date(ed);
+  const capped = clampStartToMaxDays(sd, ed, MAX_SIGNAL_RANGE_DAYS);
+  return { start: toIso(capped), end: toIso(ed) };
+}
+
+function sortRowsAsc(rows) {
+  return [...(rows || [])].sort((a, b) => {
+    const ta = rowDateToTimeKey(a);
+    const tb = rowDateToTimeKey(b);
+    return ta < tb ? -1 : ta > tb ? 1 : 0;
+  });
+}
+
+function signalBucket(sig) {
+  const s = String(sig || 'N')
+    .trim()
+    .toUpperCase();
+  if (!s || s === 'N' || s === 'NULL') return 'N';
+  if (/^L1/.test(s)) return 'L1';
+  if (/^L2/.test(s)) return 'L2';
+  if (s.startsWith('L')) return 'L3';
+  if (/^S1/.test(s)) return 'S1';
+  if (/^S2/.test(s)) return 'S2';
+  if (s.startsWith('S')) return 'S3';
+  return 'N';
+}
+
+function formatPct(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '—';
+  const v = Number(n);
+  const s = (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  return s;
+}
+
+function formatPx(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '—';
+  return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatVolLong(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '—';
+  const v = Number(n);
+  if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
+  if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+  return String(Math.round(v));
+}
+
+function toIsoDate(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function recentRange(days) {
+  const end = new Date();
+  const start = new Date(end);
+  start.setDate(end.getDate() - days);
+  return { from: toIsoDate(start), to: toIsoDate(end) };
+}
+
+function fmtNewsTime(unixSec) {
+  const ts = Number(unixSec);
+  if (!Number.isFinite(ts)) return '';
+  const d = new Date(ts * 1000);
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function mapTickerNewsRow(row, symbol) {
+  if (!row || typeof row !== 'object') return null;
+  const title = String(row.headline || '').trim();
+  const id = row.id != null ? `${symbol}-${row.id}` : `${symbol}-${row.url || title}`;
+  if (!title || !id) return null;
+  return {
+    id,
+    title,
+    source: String(row.source || 'Finnhub').trim() || 'Finnhub',
+    time: fmtNewsTime(row.datetime) || '',
+    url: String(row.url || '').trim()
+  };
+}
+
+async function fetchTickerNews(symbol, days = 10) {
+  if (!FINNHUB_TOKEN) return [];
+  const sym = String(symbol || '').trim().toUpperCase();
+  if (!sym) return [];
+  const { from, to } = recentRange(days);
+  const qs = new URLSearchParams({ symbol: sym, from, to, token: FINNHUB_TOKEN });
+  const res = await fetch(`${FINNHUB_BASE}?${qs.toString()}`);
+  if (!res.ok) throw new Error(`News request failed (${res.status})`);
+  const payload = await res.json();
+  const list = Array.isArray(payload) ? payload : [];
+  return list.map((r) => mapTickerNewsRow(r, sym)).filter(Boolean).slice(0, MAX_NEWS_ITEMS);
+}
+
+function annualizedVol(closes) {
+  if (!closes || closes.length < 5) return null;
+  const lr = [];
+  for (let i = 1; i < closes.length; i++) {
+    const a = closes[i - 1];
+    const b = closes[i];
+    if (a > 0 && b > 0) lr.push(Math.log(b / a));
+  }
+  if (lr.length < 2) return null;
+  const mean = lr.reduce((s, x) => s + x, 0) / lr.length;
+  const varSample = lr.reduce((s, x) => s + (x - mean) ** 2, 0) / (lr.length - 1);
+  const daily = Math.sqrt(varSample);
+  return Math.round(daily * Math.sqrt(252) * 100 * 10) / 10;
+}
+
+function pickDynamic(dynamicPeriods, periodName) {
+  if (!periodName || !Array.isArray(dynamicPeriods)) return null;
+  const row = dynamicPeriods.find((r) => r.period === periodName);
+  return row && row.totalReturn != null ? Number(row.totalReturn) : null;
+}
+
+function periodReturnFromRows(sortedAsc, startFilter) {
+  if (!sortedAsc.length) return null;
+  const last = sortedAsc[sortedAsc.length - 1];
+  const lastClose = pickNum(last, ['Close', 'close']);
+  const first = sortedAsc.find(startFilter);
+  if (!first) return null;
+  const firstClose = pickNum(first, ['Close', 'close']);
+  if (firstClose == null || lastClose == null || firstClose === 0) return null;
+  return ((lastClose - firstClose) / firstClose) * 100;
+}
+
+function mtdFromRows(sortedAsc) {
+  if (!sortedAsc.length) return null;
+  const last = sortedAsc[sortedAsc.length - 1];
+  const lastIso = rowDateToTimeKey(last);
+  if (!lastIso) return null;
+  const lastD = new Date(lastIso + 'T12:00:00');
+  return periodReturnFromRows(sortedAsc, (r) => {
+    const iso = rowDateToTimeKey(r);
+    if (!iso) return false;
+    const d = new Date(iso + 'T12:00:00');
+    return d.getFullYear() === lastD.getFullYear() && d.getMonth() === lastD.getMonth();
+  });
+}
+
+function qtdFromRows(sortedAsc) {
+  if (!sortedAsc.length) return null;
+  const last = sortedAsc[sortedAsc.length - 1];
+  const lastIso = rowDateToTimeKey(last);
+  if (!lastIso) return null;
+  const lastD = new Date(lastIso + 'T12:00:00');
+  const q = Math.floor(lastD.getMonth() / 3);
+  const qStart = new Date(lastD.getFullYear(), q * 3, 1);
+  return periodReturnFromRows(sortedAsc, (r) => {
+    const iso = rowDateToTimeKey(r);
+    if (!iso) return false;
+    const d = new Date(iso + 'T12:00:00');
+    return d >= qStart;
+  });
+}
+
+function ohlcRowsFromPayload(payload) {
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+  return [];
+}
+
+function IconFlagUs({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 21 14" aria-hidden width="21" height="14">
+      <rect width="21" height="14" fill="#b22234" rx="1" />
+      <path fill="#fff" d="M0 2h21v2H0V2zm0 4h21v2H0V6zm0 4h21v2H0v-2z" />
+      <rect x="0" y="0" width="9" height="8" fill="#3c3b6e" />
+      {[0, 1, 2].map((row) =>
+        [0, 1, 2, 3, 4].map((col) => (
+          <circle key={`${row}-${col}`} cx={1 + col * 1.6} cy={1 + row * 1.6} r="0.45" fill="#fff" />
+        ))
+      )}
+    </svg>
+  );
+}
+
+function IconBell({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2z" />
+      <path d="M6 8a6 6 0 1 1 12 0c0 7 3 5 3 9H3c0-4 3-2 3-9" />
+    </svg>
+  );
+}
+
+function IconPlus({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function IconPencil({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
+  );
+}
+
+/** Document / notes (Figma “My Notes”). */
+function IconDocument({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" strokeLinejoin="round" />
+      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconChevronRight({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChartTypeToolbarDropdown({ chartType, onChartTypeChange }) {
+  return (
+    <ThemedDropdown
+      value={chartType}
+      options={TICKER_CHART_TYPE_OPTIONS}
+      onChange={onChartTypeChange}
+      title="Chart type"
+      ariaLabelPrefix="Chart type"
+      labelFallback="Line"
+      icon={<IconChartTypeDropdown className="app-dropdown__chart-type-icon" />}
+    />
+  );
+}
+
+// function ChartToolbarIcons() {
+//   const c = 'ticker-chart-toolbar__ico';
+//   return (
+//     <div className="ticker-chart-toolbar__icons" aria-hidden>
+//       <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+//         <path d="M3 21l6-6 4 4 8-8M21 7V3h-4" />
+//       </svg>
+//       <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+//         <path d="M4 20L20 4M4 4v4m0-4h4M20 20v-4m0 4h-4" />
+//       </svg>
+//       <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+//         <rect x="4" y="4" width="16" height="16" rx="1" />
+//         <path d="M4 12h16M12 4v16" />
+//       </svg>
+//       <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+//         <path d="M4 18h16M4 12h10M4 6h14" />
+//       </svg>
+//       <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+//         <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" />
+//       </svg>
+//     </div>
+//   );
+// }
+
+function pctClass(n) {
+  if (n == null || !Number.isFinite(n)) return '';
+  if (n > 0) return 'ticker-num--up';
+  if (n < 0) return 'ticker-num--down';
+  return '';
+}
+
+/** Main chart pixel height by viewport (Lightweight Charts is not fluid vertically). */
+function useMediaChartHeight() {
+  const [height, setHeight] = useState(320);
+  useEffect(() => {
+    const update = () => {
+      const w = window.innerWidth;
+      if (w < 480) setHeight(220);
+      else if (w < 768) setHeight(260);
+      else if (w < 1024) setHeight(290);
+      else setHeight(320);
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+  return height;
+}
+
+export default function TickerPage() {
+  const location = useLocation();
+  const { symbol: symbolParam } = useParams();
+  const navigate = useNavigate();
+  const watchlistDock = useWatchlistDock();
+  const [activeSymbol, setActiveSymbol] = useState(() => sanitizeTickerPageInput(symbolParam) || 'AAPL');
+  const sym = activeSymbol;
+  const canonicalSym = String(sym || 'AAPL').toLowerCase();
+
+  const onAddTickerToWatchlist = useCallback(() => {
+    const ticker = String(sym || '').toUpperCase().trim();
+    watchlistDock.open();
+    try {
+      if (ticker) sessionStorage.setItem('watchlist_add_symbol', ticker);
+    } catch {
+      /* ignore */
+    }
+    window.dispatchEvent(new CustomEvent('watchlist:add-ticker', { detail: { symbol: ticker } }));
+  }, [watchlistDock, sym]);
+
+  useEffect(() => {
+    const next = sanitizeTickerPageInput(symbolParam) || 'AAPL';
+    setActiveSymbol((prev) => (prev === next ? prev : next));
+  }, [symbolParam]);
+
+  usePageSeo({
+    title: `${String(sym).toUpperCase()} Odin500 Signal, Returns & Market Statistics`,
+    description: `Live Odin500 signal, returns, OHLC market data, and strategy comparison for ${String(sym).toUpperCase()}.`,
+    canonicalPath: `/ticker/${canonicalSym}`,
+    noindex: Boolean(location.search),
+    breadcrumbItems: [
+      { name: 'Market', path: '/market' },
+      { name: 'Ticker', path: `/ticker/${encodeURIComponent(DEFAULT_TICKER_ROUTE_SYMBOL)}` },
+      { name: String(sym).toUpperCase(), path: `/ticker/${canonicalSym}` }
+    ]
+  });
+
+  const [authVersion, setAuthVersion] = useState(0);
+  const [timeframe, setTimeframe] = useState('1Y');
+  const [chartLoading, setChartLoading] = useState(false);
+  const [metaBusy, setMetaBusy] = useState(true);
+  const [error, setError] = useState('');
+  const [asOfDate, setAsOfDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [symbolRefreshToken, setSymbolRefreshToken] = useState(0);
+  const [tickerReturnsDebug, setTickerReturnsDebug] = useState(null);
+  const [apiTimings, setApiTimings] = useState({
+    chartMs: null,
+    coreMs: null,
+    metaMs: null,
+    ohlcHits: 0,
+    ohlcMisses: 0
+  });
+
+  const [ohlcRows, setOhlcRows] = useState([]);
+  const [returnsSym, setReturnsSym] = useState(null);
+  const [returnsSpy, setReturnsSpy] = useState(null);
+  const [detailRows, setDetailRows] = useState([]);
+  const [statsRows, setStatsRows] = useState([]);
+  const [statsRowsSpy, setStatsRowsSpy] = useState([]);
+  const [relativeIndexKey, setRelativeIndexKey] = useState('sp500');
+  const [relativeTickerSymbol, setRelativeTickerSymbol] = useState(sym);
+  const [relativeIndexSeriesByKey, setRelativeIndexSeriesByKey] = useState({});
+  const [relativeTickerSeriesBySymbol, setRelativeTickerSeriesBySymbol] = useState({});
+  const [relativeCompareBusy, setRelativeCompareBusy] = useState(false);
+  /** Benchmark symbol for long-range table section; synced from `TickerSection23Section24` group. */
+  const [benchForLongTable, setBenchForLongTable] = useState(SECTION_LONG_DEFAULT_BENCHMARK);
+  const [longRangeTickerReturns, setLongRangeTickerReturns] = useState(null);
+  const [longRangeBenchReturns, setLongRangeBenchReturns] = useState(null);
+  const [longRangeBusy, setLongRangeBusy] = useState(false);
+  const [tailRows, setTailRows] = useState([]);
+  const [newsPage, setNewsPage] = useState(1);
+  const [chartHoverOhlc, setChartHoverOhlc] = useState(null);
+  const [tickerNewsBusy, setTickerNewsBusy] = useState(false);
+  const [tickerNewsError, setTickerNewsError] = useState('');
+  const [tickerNewsItems, setTickerNewsItems] = useState([]);
+  const liveNews = useMemo(
+    () => (tickerNewsItems.length ? tickerNewsItems.slice(0, MAX_NEWS_ITEMS) : FALLBACK_TICKER_NEWS),
+    [tickerNewsItems]
+  );
+  const [appliedCustomRange, setAppliedCustomRange] = useState(null);
+  const [draftChartStart, setDraftChartStart] = useState('');
+  const [draftChartEnd, setDraftChartEnd] = useState('');
+  const [isCustomRangePopupOpen, setIsCustomRangePopupOpen] = useState(false);
+  const [mainChartType, setMainChartType] = useState('area');
+  const [ohlcTickerBounds, setOhlcTickerBounds] = useState(/** @type {{ min: string, max: string } | null} */ (null));
+
+  const chartBodyRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const chartPlotHostRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const ohlcWindowCacheRef = useRef(new Map());
+  const mediaChartHeight = useMediaChartHeight();
+  const mediaHRef = useRef(mediaChartHeight);
+  mediaHRef.current = mediaChartHeight;
+  const resizeDragRef = useRef(/** @type {{ active: boolean, startY: number, startH: number } | null} */ (null));
+
+  const [userChartHeight, setUserChartHeight] = useState(() => {
+    try {
+      const raw = localStorage.getItem(CHART_USER_H_KEY);
+      const n = raw != null ? parseInt(raw, 10) : NaN;
+      if (Number.isFinite(n) && n >= CHART_H_MIN && n <= CHART_H_MAX) return n;
+    } catch {
+      /* ignore */
+    }
+    return null;
+  });
+  const [chartFs, setChartFs] = useState(false);
+  const [fsPlotH, setFsPlotH] = useState(0);
+
+  const chartApiRange = useMemo(() => {
+    if (appliedCustomRange?.start && appliedCustomRange?.end) {
+      const n = normalizeCustomChartRange(appliedCustomRange.start, appliedCustomRange.end, asOfDate);
+      return n || rangeForTimeframe(timeframe, asOfDate, ohlcTickerBounds);
+    }
+    return rangeForTimeframe(timeframe, asOfDate, ohlcTickerBounds);
+  }, [appliedCustomRange, timeframe, asOfDate, ohlcTickerBounds]);
+
+  useEffect(() => {
+    if (appliedCustomRange) return;
+    const r = rangeForTimeframe(timeframe, asOfDate, ohlcTickerBounds);
+    setDraftChartStart(r.start);
+    setDraftChartEnd(r.end);
+  }, [timeframe, asOfDate, appliedCustomRange, ohlcTickerBounds]);
+
+  useEffect(() => {
+    const onAuth = () => setAuthVersion((v) => v + 1);
+    window.addEventListener('odin-auth-updated', onAuth);
+    return () => window.removeEventListener('odin-auth-updated', onAuth);
+  }, []);
+
+  const onSymbolChange = useCallback(
+    (next) => {
+      const s = sanitizeTickerPageInput(next);
+      setSymbolRefreshToken((v) => v + 1);
+      setActiveSymbol(s || 'AAPL');
+      if (!s) {
+        navigate(`/ticker/${encodeURIComponent(DEFAULT_TICKER_ROUTE_SYMBOL)}`);
+        return;
+      }
+      if (s === sym) return;
+      navigate('/ticker/' + encodeURIComponent(s));
+    },
+    [navigate, sym]
+  );
+
+  const applyCustomChartRange = useCallback(() => {
+    const n = normalizeCustomChartRange(draftChartStart, draftChartEnd, asOfDate);
+    if (!n) return;
+    setAppliedCustomRange(n);
+    setIsCustomRangePopupOpen(false);
+  }, [draftChartStart, draftChartEnd, asOfDate]);
+
+  const resetCustomChartRange = useCallback(() => {
+    setAppliedCustomRange(null);
+    const r = rangeForTimeframe(timeframe, asOfDate, ohlcTickerBounds);
+    setDraftChartStart(r.start);
+    setDraftChartEnd(r.end);
+    setIsCustomRangePopupOpen(false);
+  }, [timeframe, asOfDate, ohlcTickerBounds]);
+
+  useEffect(() => {
+    if (!isCustomRangePopupOpen) return;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setIsCustomRangePopupOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isCustomRangePopupOpen]);
+
+  const onSectionBenchmarkSymbolChange = useCallback((b) => {
+    setBenchForLongTable(String(b || SECTION_LONG_DEFAULT_BENCHMARK).toUpperCase().trim());
+  }, []);
+
+  const fetchOhlcRowsCached = useCallback(async ({ symbol, startDate, endDate, limit = 400, ttlMs = 10 * 60 * 1000 }) => {
+    const symU = String(symbol || '').toUpperCase().trim();
+    if (!symU) return [];
+    const key = [symU, String(startDate || ''), String(endDate || ''), String(limit)].join('|');
+    if (ohlcWindowCacheRef.current.has(key)) {
+      setApiTimings((prev) => ({ ...prev, ohlcHits: prev.ohlcHits + 1 }));
+      return ohlcWindowCacheRef.current.get(key);
+    }
+    setApiTimings((prev) => ({ ...prev, ohlcMisses: prev.ohlcMisses + 1 }));
+    const pathParts = ['/api/market/ohlc?symbol=' + encodeURIComponent(symU)];
+    if (startDate) pathParts.push('&start_date=' + encodeURIComponent(startDate));
+    if (endDate) pathParts.push('&end_date=' + encodeURIComponent(endDate));
+    if (limit) pathParts.push('&limit=' + encodeURIComponent(String(limit)));
+    const rowsRes = await fetchJsonCached({
+      path: pathParts.join(''),
+      method: 'GET',
+      ttlMs
+    });
+    const rows = sortRowsAsc(ohlcRowsFromPayload(rowsRes.data));
+    ohlcWindowCacheRef.current.set(key, rows);
+    return rows;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!canFetchProtectedApi()) {
+      setError('Sign in to load ticker data.');
+      setMetaBusy(false);
+      setOhlcRows([]);
+      setReturnsSym(null);
+      setReturnsSpy(null);
+      setLongRangeTickerReturns(null);
+      setLongRangeBenchReturns(null);
+      setDetailRows([]);
+      setStatsRows([]);
+      setStatsRowsSpy([]);
+      setTailRows([]);
+      setOhlcTickerBounds(null);
+      setTickerReturnsDebug(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+    ohlcWindowCacheRef.current.clear();
+
+    (async () => {
+      const coreStartedAt = performance.now();
+      setMetaBusy(true);
+      setError('');
+      const returnsDefaultEnd = toDateInput(new Date());
+      const symU = String(sym || '').toUpperCase().trim();
+
+      /** 1Y OHLC stats window seeded from calendar “today” so OHLC requests run in parallel with ticker-returns. */
+      const seedEnd = returnsDefaultEnd;
+      const seedAsOfD = new Date(seedEnd + 'T12:00:00');
+      const seedStart365 = new Date(seedAsOfD);
+      seedStart365.setFullYear(seedStart365.getFullYear() - 1);
+      const seedStartIso = toIso(seedStart365);
+
+      const clearBusyWhenVisible = () => {
+        if (!cancelled) setMetaBusy(false);
+      };
+
+      const tasks = [];
+
+      const defaultRangeBody = {
+        customStartDate: RETURNS_DEFAULT_START,
+        customEndDate: returnsDefaultEnd
+      };
+
+      const patchSymReturns = (data) => {
+        if (cancelled || !data) return;
+        setReturnsSym((prev) => mergeTickerReturns(prev, data));
+        const asOf = data.asOfDate || seedEnd;
+        setAsOfDate(String(asOf).slice(0, 10));
+      };
+      const patchSpyReturns = (data) => {
+        if (cancelled || !data) return;
+        setReturnsSpy((prev) => mergeTickerReturns(prev, data));
+      };
+
+      tasks.push(
+        fetchJsonCached({
+          path: '/api/market/ticker-core-returns',
+          method: 'POST',
+          body: { ticker: symU, ...defaultRangeBody },
+          ttlMs: 5 * 60 * 1000
+        })
+          .then(async (resCore) => {
+            if (cancelled) return;
+            const h = resCore?.headers || null;
+            setTickerReturnsDebug({
+              source: h?.['x-ticker-returns-source'] || (resCore?.fromCache ? 'frontend-cache' : 'unknown'),
+              cacheHit: h?.['x-cache-hit'] || (resCore?.fromCache ? '1' : '0'),
+              computeMs: h?.['x-compute-ms'] || '',
+              cacheKey: h?.['x-cache-key'] || '',
+              mode: 'core-sym',
+              symbol: symU
+            });
+            patchSymReturns(resCore.data);
+
+            const endFromReturns = String(resCore.data?.asOfDate || seedEnd).slice(0, 10);
+            if (endFromReturns !== seedEnd) {
+              const asOfD = new Date(endFromReturns + 'T12:00:00');
+              const start365 = new Date(asOfD);
+              start365.setFullYear(start365.getFullYear() - 1);
+              const startIso = toIso(start365);
+              try {
+                const [symStatsRows, spyStatsRows] = await Promise.all([
+                  fetchOhlcRowsCached({
+                    symbol: symU,
+                    startDate: startIso,
+                    endDate: endFromReturns,
+                    limit: 400
+                  }),
+                  fetchOhlcRowsCached({
+                    symbol: BENCHMARK,
+                    startDate: startIso,
+                    endDate: endFromReturns,
+                    limit: 400
+                  })
+                ]);
+                if (cancelled) return;
+                setStatsRows(symStatsRows);
+                setStatsRowsSpy(spyStatsRows);
+                setTailRows(symStatsRows.slice(-8));
+              } catch {
+                /* keep seeded stats rows */
+              }
+            }
+            clearBusyWhenVisible();
+          })
+          .catch((e) => {
+            if (!cancelled) {
+              setReturnsSym(null);
+              setError((prev) => prev || e?.message || 'Failed to load returns');
+            }
+          })
+      );
+
+      tasks.push(
+        fetchJsonCached({
+          path: '/api/market/ticker-core-returns',
+          method: 'POST',
+          body: { ticker: BENCHMARK, ...defaultRangeBody },
+          ttlMs: 5 * 60 * 1000
+        })
+          .then((res) => {
+            if (cancelled) return;
+            patchSpyReturns(res.data);
+            clearBusyWhenVisible();
+          })
+          .catch(() => {
+            if (!cancelled) setReturnsSpy(null);
+          })
+      );
+
+      tasks.push(
+        fetchJsonCached({
+          path: '/api/market/ticker-annual-returns',
+          method: 'POST',
+          body: { ticker: symU, ...defaultRangeBody },
+          ttlMs: 5 * 60 * 1000
+        })
+          .then((res) => {
+            if (cancelled) return;
+            patchSymReturns(res.data);
+            clearBusyWhenVisible();
+          })
+          .catch(() => {
+            /* non-fatal: core tables still work */
+          })
+      );
+      tasks.push(
+        fetchJsonCached({
+          path: '/api/market/ticker-quarterly-returns',
+          method: 'POST',
+          body: { ticker: symU, ...defaultRangeBody },
+          ttlMs: 5 * 60 * 1000
+        })
+          .then((res) => {
+            if (cancelled) return;
+            patchSymReturns(res.data);
+            clearBusyWhenVisible();
+          })
+          .catch(() => {})
+      );
+      tasks.push(
+        fetchJsonCached({
+          path: '/api/market/ticker-monthly-returns',
+          method: 'POST',
+          body: { ticker: symU, ...defaultRangeBody },
+          ttlMs: 5 * 60 * 1000
+        })
+          .then((res) => {
+            if (cancelled) return;
+            patchSymReturns(res.data);
+            clearBusyWhenVisible();
+          })
+          .catch(() => {})
+      );
+
+      tasks.push(
+        Promise.all([
+          fetchOhlcRowsCached({
+            symbol: symU,
+            startDate: seedStartIso,
+            endDate: seedEnd,
+            limit: 400
+          }),
+          fetchOhlcRowsCached({
+            symbol: BENCHMARK,
+            startDate: seedStartIso,
+            endDate: seedEnd,
+            limit: 400
+          })
+        ])
+          .then(([symStatsRows, spyStatsRows]) => {
+            if (cancelled) return;
+            setStatsRows(symStatsRows);
+            setStatsRowsSpy(spyStatsRows);
+            setTailRows(symStatsRows.slice(-8));
+            clearBusyWhenVisible();
+          })
+          .catch(() => {
+            if (!cancelled) {
+              setStatsRows([]);
+              setStatsRowsSpy([]);
+              setTailRows([]);
+            }
+          })
+      );
+
+      await Promise.allSettled(tasks);
+      if (!cancelled) {
+        setMetaBusy(false);
+        setApiTimings((prev) => ({ ...prev, coreMs: Math.round(performance.now() - coreStartedAt) }));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sym, authVersion, symbolRefreshToken, fetchOhlcRowsCached]);
+
+  /** Lazy metadata load so chart/returns render first. */
+  useEffect(() => {
+    let cancelled = false;
+    if (!canFetchProtectedApi()) {
+      setDetailRows([]);
+      return () => {
+        cancelled = true;
+      };
+    }
+    const t = setTimeout(() => {
+      void (async () => {
+        const metaStartedAt = performance.now();
+        try {
+          const detailsRes = await fetchJsonCached({
+            path: '/api/market/ticker-details',
+            method: 'POST',
+            body: { index: 'sp500', period: 'last-1-year' },
+            ttlMs: 30 * 60 * 1000
+          });
+          if (cancelled) return;
+          const d = detailsRes.data;
+          setDetailRows(Array.isArray(d?.data) ? d.data : []);
+          setApiTimings((prev) => ({ ...prev, metaMs: Math.round(performance.now() - metaStartedAt) }));
+        } catch {
+          if (!cancelled) setDetailRows([]);
+        }
+      })();
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [sym, authVersion, symbolRefreshToken]);
+
+  /** Second (and final) ticker-returns request on load: long table window for page symbol + active section benchmark. */
+  useEffect(() => {
+    let cancelled = false;
+    if (!canFetchProtectedApi()) {
+      setLongRangeTickerReturns(null);
+      setLongRangeBenchReturns(null);
+      setLongRangeBusy(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    const symU = String(sym || '').toUpperCase().trim();
+    const benchU = String(benchForLongTable || '').toUpperCase().trim();
+    if (!symU || !benchU) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    (async () => {
+      setLongRangeBusy(true);
+      try {
+        const longEnd = yesterdayIsoForLongTable();
+        const longBody = {
+          customStartDate: TABLE_LONG_START_DATE,
+          customEndDate: longEnd
+        };
+        const [symRes, benchRes] = await Promise.all([
+          fetchJsonCached({
+            path: '/api/market/ticker-core-returns',
+            method: 'POST',
+            body: { ticker: symU, ...longBody },
+            ttlMs: 5 * 60 * 1000
+          }),
+          fetchJsonCached({
+            path: '/api/market/ticker-core-returns',
+            method: 'POST',
+            body: { ticker: benchU, ...longBody },
+            ttlMs: 5 * 60 * 1000
+          })
+        ]);
+        if (cancelled) return;
+        const h = symRes?.headers || null;
+        setTickerReturnsDebug({
+          source: h?.['x-ticker-returns-source'] || (symRes?.fromCache ? 'frontend-cache' : 'unknown'),
+          cacheHit: h?.['x-cache-hit'] || (symRes?.fromCache ? '1' : '0'),
+          computeMs: h?.['x-compute-ms'] || '',
+          cacheKey: h?.['x-cache-key'] || '',
+          mode: 'long-range-table',
+          symbol: symU
+        });
+        setLongRangeTickerReturns(
+          pickTickerReturnsFromPayload(symRes.data, symU) || (symRes.data?.ticker ? symRes.data : null)
+        );
+        setLongRangeBenchReturns(
+          pickTickerReturnsFromPayload(benchRes.data, benchU) || (benchRes.data?.ticker ? benchRes.data : null)
+        );
+      } catch {
+        if (!cancelled) {
+          setLongRangeTickerReturns(null);
+          setLongRangeBenchReturns(null);
+        }
+      } finally {
+        if (!cancelled) setLongRangeBusy(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sym, benchForLongTable, authVersion, symbolRefreshToken]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!canFetchProtectedApi()) {
+      setOhlcTickerBounds(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+    (async () => {
+      try {
+        const { data } = await fetchJsonCached({
+          path: '/api/market/ohlc-ticker-bounds?symbol=' + encodeURIComponent(sym),
+          method: 'GET',
+          ttlMs: 60 * 60 * 1000
+        });
+        if (cancelled) return;
+        if (data?.success && data.min_date && data.max_date) {
+          setOhlcTickerBounds({ min: String(data.min_date).slice(0, 10), max: String(data.max_date).slice(0, 10) });
+        } else {
+          setOhlcTickerBounds(null);
+        }
+      } catch {
+        if (!cancelled) setOhlcTickerBounds(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sym, authVersion, symbolRefreshToken]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!canFetchProtectedApi()) {
+      setChartLoading(false);
+      setOhlcRows([]);
+      return;
+    }
+
+    (async () => {
+      const chartStartedAt = performance.now();
+      setChartLoading(true);
+      setOhlcRows([]);
+      try {
+        const { start, end } = chartApiRange;
+        const ohlcRes = await fetchJsonCached({
+          path: '/api/market/ohlc-signals-indicator',
+          method: 'POST',
+          body: { ticker: sym, start_date: start, end_date: end },
+          ttlMs: 2 * 60 * 1000
+        });
+        if (cancelled) return;
+        const rows = Array.isArray(ohlcRes.data?.data) ? ohlcRes.data.data : [];
+        setOhlcRows(sortRowsAsc(rows));
+        setApiTimings((prev) => ({ ...prev, chartMs: Math.round(performance.now() - chartStartedAt) }));
+      } catch (e) {
+        if (!cancelled) {
+          setError(e.message || 'Failed to load chart');
+          setOhlcRows([]);
+        }
+      } finally {
+        if (!cancelled) setChartLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sym, timeframe, asOfDate, authVersion, chartApiRange.start, chartApiRange.end, symbolRefreshToken]);
+
+  useEffect(() => {
+    setNewsPage(1);
+  }, [sym]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const symbol = String(sym || '').toUpperCase().trim();
+    (async () => {
+      setTickerNewsBusy(true);
+      setTickerNewsError('');
+      try {
+        const rows = await fetchTickerNews(symbol, 10);
+        if (cancelled) return;
+        setTickerNewsItems(rows.length ? rows : FALLBACK_TICKER_NEWS);
+      } catch (e) {
+        if (!cancelled) {
+          setTickerNewsError(e?.message || 'Failed to load ticker headlines.');
+          setTickerNewsItems(FALLBACK_TICKER_NEWS);
+        }
+      } finally {
+        if (!cancelled) setTickerNewsBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sym]);
+
+  const newsTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(liveNews.length / NEWS_PAGE_SIZE)),
+    [liveNews.length]
+  );
+  const newsPageSafe = Math.min(Math.max(1, newsPage), newsTotalPages);
+  const newsPageItems = useMemo(() => {
+    const start = (newsPageSafe - 1) * NEWS_PAGE_SIZE;
+    return liveNews.slice(start, start + NEWS_PAGE_SIZE);
+  }, [liveNews, newsPageSafe]);
+
+  const myDetail = useMemo(() => {
+    const u = sym.toUpperCase();
+    for (const r of detailRows) {
+      const s = String(r.Symbol || r.symbol || '')
+        .toUpperCase()
+        .trim();
+      if (s === u) return r;
+    }
+    return null;
+  }, [detailRows, sym]);
+
+  const company =
+    String(myDetail?.Security || myDetail?.security || '').trim() || `${sym} — N/A`;
+  const sector = String(myDetail?.Sector || myDetail?.sector || '').trim();
+  const sectorDataSlug = useMemo(() => sectorFieldToEtfSlug(sector), [sector]);
+  const industry = String(myDetail?.Industry || myDetail?.industry || '').trim();
+  const indexLabel = String(myDetail?.Index || myDetail?.index || '').trim() || 'US';
+
+  const competitors = useMemo(
+    () =>
+      pickRelatedByCategory(
+        detailRows,
+        sym,
+        sector,
+        String(
+          myDetail?.SubIndustry ||
+            myDetail?.subIndustry ||
+            myDetail?.subindustry ||
+            myDetail?.Industry ||
+            myDetail?.industry ||
+            ''
+        ).trim(),
+        10
+      ),
+    [detailRows, sym, sector, myDetail]
+  );
+
+  const dynamicSym = returnsSym?.performance?.dynamicPeriods || [];
+  const dynamicSpy = returnsSpy?.performance?.dynamicPeriods || [];
+  const annualReturnsRaw = returnsSym?.performance?.annualReturns;
+  const quarterlyReturnsRaw = returnsSym?.performance?.quarterlyReturns;
+  const monthlyReturnsRaw = returnsSym?.performance?.monthlyReturns;
+  /** Full series for annual chart; in-card start/end year dropdowns filter the visible range. */
+  const annualReturnsForChart = useMemo(
+    () => (Array.isArray(annualReturnsRaw) ? annualReturnsRaw : []),
+    [annualReturnsRaw]
+  );
+  /** Full series for quarterly chart; in-card start/end year dropdowns filter the visible range. */
+  const quarterlyReturnsForChart = useMemo(
+    () => (Array.isArray(quarterlyReturnsRaw) ? quarterlyReturnsRaw : []),
+    [quarterlyReturnsRaw]
+  );
+  const tickerSelectOptions = useMemo(() => {
+    const base = [sym, BENCHMARK, ...(detailRows || []).map((r) => String(r.symbol || '').toUpperCase().trim())];
+    return [...new Set(base.filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }, [sym, detailRows]);
+  const tickerRsDropdownOptions = useMemo(
+    () => tickerSelectOptions.map((t) => ({ id: t, label: t })),
+    [tickerSelectOptions]
+  );
+
+  const sortedChart = useMemo(() => sortRowsAsc(ohlcRows), [ohlcRows]);
+
+  useEffect(() => {
+    const sync = () => {
+      const el = chartBodyRef.current;
+      const d = /** @type {Document & { webkitFullscreenElement?: Element | null }} */ (document);
+      setChartFs(!!el && (document.fullscreenElement === el || d.webkitFullscreenElement === el));
+      notifyChartFullscreenLayout();
+    };
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+    sync();
+    return () => {
+      document.removeEventListener('fullscreenchange', sync);
+      document.removeEventListener('webkitfullscreenchange', sync);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!chartFs) {
+      setFsPlotH(0);
+      return;
+    }
+    const el = chartPlotHostRef.current;
+    if (!el) return;
+    const apply = () => {
+      const h = Math.round(el.clientHeight);
+      setFsPlotH(Math.max(CHART_H_MIN, h));
+    };
+    const ro = new ResizeObserver(() => apply());
+    ro.observe(el);
+    apply();
+    return () => ro.disconnect();
+  }, [chartFs, sortedChart.length, mainChartType, chartLoading]);
+
+  const onChartResizePointerDown = useCallback(
+    (e) => {
+      if (chartFs) return;
+      e.preventDefault();
+      const startH = userChartHeight ?? mediaChartHeight;
+      resizeDragRef.current = { active: true, startY: e.clientY, startH };
+      const onMove = (ev) => {
+        const drag = resizeDragRef.current;
+        if (!drag?.active) return;
+        const dy = ev.clientY - drag.startY;
+        const next = Math.round(Math.max(CHART_H_MIN, Math.min(CHART_H_MAX, drag.startH + dy)));
+        setUserChartHeight(next);
+      };
+      const onUp = () => {
+        if (resizeDragRef.current) resizeDragRef.current.active = false;
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        setUserChartHeight((prev) => {
+          const v = prev == null ? mediaHRef.current : prev;
+          try {
+            localStorage.setItem(CHART_USER_H_KEY, String(v));
+          } catch {
+            /* ignore */
+          }
+          return prev;
+        });
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    },
+    [chartFs, userChartHeight, mediaChartHeight]
+  );
+
+  const onChartResizeDoubleClick = useCallback((e) => {
+    e.preventDefault();
+    try {
+      localStorage.removeItem(CHART_USER_H_KEY);
+    } catch {
+      /* ignore */
+    }
+    setUserChartHeight(null);
+  }, []);
+
+  const toggleChartFullscreen = useCallback(async () => {
+    const el = chartBodyRef.current;
+    if (!el) return;
+    const d = /** @type {Document & { webkitExitFullscreen?: () => Promise<void> | void; webkitFullscreenElement?: Element | null }} */ (
+      document
+    );
+    const fsEl = d.fullscreenElement ?? d.webkitFullscreenElement;
+    try {
+      if (fsEl === el) {
+        if (d.exitFullscreen) await d.exitFullscreen();
+        else d.webkitExitFullscreen?.();
+      } else if (el.requestFullscreen) {
+        await el.requestFullscreen();
+      } else {
+        /** @type {{ webkitRequestFullscreen?: () => void }} */
+        (el).webkitRequestFullscreen?.();
+      }
+    } catch {
+      /* ignore */
+    }
+    notifyChartFullscreenLayout();
+  }, []);
+
+  const lastRow = sortedChart.length ? sortedChart[sortedChart.length - 1] : null;
+  const prevRow = sortedChart.length > 1 ? sortedChart[sortedChart.length - 2] : null;
+  const firstRow = sortedChart.length ? sortedChart[0] : null;
+  const lastClose = lastRow ? pickNum(lastRow, ['Close', 'close']) : null;
+  const prevClose = prevRow ? pickNum(prevRow, ['Close', 'close']) : null;
+  const firstClose = firstRow ? pickNum(firstRow, ['Close', 'close']) : null;
+  const chartRangeChgPct = periodReturnFromRows(sortedChart, () => true);
+  const chartRangeChgAbs = lastClose != null && firstClose != null ? lastClose - firstClose : null;
+  const dayChg =
+    lastClose != null && prevClose != null && prevClose !== 0 ? ((lastClose - prevClose) / prevClose) * 100 : null;
+  const dayAbs = lastClose != null && prevClose != null ? lastClose - prevClose : null;
+  const lastSignal = lastRow && lastRow.signal != null ? String(lastRow.signal) : 'N';
+  const activeBucket = signalBucket(lastSignal);
+
+  const statsSorted = useMemo(() => sortRowsAsc(statsRows), [statsRows]);
+  const statsSpySorted = useMemo(() => sortRowsAsc(statsRowsSpy), [statsRowsSpy]);
+  const highs = statsSorted.map((r) => pickNum(r, ['High', 'high'])).filter((v) => v != null);
+  const lows = statsSorted.map((r) => pickNum(r, ['Low', 'low'])).filter((v) => v != null);
+  const vols = statsSorted.map((r) => pickNum(r, ['Volume', 'volume', 'VOLUME'])).filter((v) => v != null);
+  const statCloses = statsSorted.map((r) => pickNum(r, ['Close', 'close'])).filter((v) => v != null);
+
+  const hi52 = highs.length ? Math.max(...highs) : null;
+  const lo52 = lows.length ? Math.min(...lows) : null;
+  const avgVol = vols.length ? vols.reduce((a, b) => a + b, 0) / vols.length : null;
+  const vola = annualizedVol(statCloses);
+
+  const lastUpdatedIso = lastRow ? rowDateToTimeKey(lastRow) : asOfDate;
+  const lastUpdatedFmt =
+    lastUpdatedIso && !Number.isNaN(Date.parse(lastUpdatedIso))
+      ? new Intl.DateTimeFormat('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+          timeZone: 'America/New_York',
+          timeZoneName: 'short'
+        }).format(new Date(lastUpdatedIso + 'T16:00:00'))
+      : '—';
+
+  useEffect(() => {
+    if (!sym) return;
+    console.log('[TickerPage Odin Signal]', {
+      symbol: sym,
+      lastTradingDay: lastUpdatedIso || null,
+      signal: lastSignal,
+      bucket: activeBucket,
+      chartRange: chartApiRange
+    });
+  }, [sym, lastUpdatedIso, lastSignal, activeBucket, chartApiRange]);
+
+  const tailSorted = useMemo(() => sortRowsAsc(tailRows), [tailRows]);
+  const tLast = tailSorted.length ? tailSorted[tailSorted.length - 1] : null;
+  const tPrev = tailSorted.length > 1 ? tailSorted[tailSorted.length - 2] : null;
+  const tLastClose = tLast ? pickNum(tLast, ['Close', 'close']) : null;
+  const tPrevClose = tPrev ? pickNum(tPrev, ['Close', 'close']) : null;
+  const useTailForHeader = tailSorted.length >= 2 && tLastClose != null && tPrevClose != null;
+  const headerClose = useTailForHeader ? tLastClose : lastClose;
+  const headerPrev = useTailForHeader ? tPrevClose : prevClose;
+  const headerChgPct =
+    headerClose != null && headerPrev != null && headerPrev !== 0
+      ? ((headerClose - headerPrev) / headerPrev) * 100
+      : dayChg;
+  const headerChgAbs =
+    headerClose != null && headerPrev != null ? headerClose - headerPrev : dayAbs;
+
+  const symMtd = mtdFromRows(statsSorted);
+  const spyMtd = mtdFromRows(statsSpySorted);
+  const symQtd = qtdFromRows(statsSorted);
+  const spyQtd = qtdFromRows(statsSpySorted);
+
+  useEffect(() => {
+    setRelativeTickerSymbol(sym);
+  }, [sym]);
+
+  useEffect(() => {
+    const symKey = String(sym || '').toUpperCase().trim();
+    setRelativeTickerSeriesBySymbol((prev) => ({
+      ...prev,
+      [symKey]: { dynamicPeriods: dynamicSym, mtd: symMtd, qtd: symQtd },
+      [BENCHMARK]: { dynamicPeriods: dynamicSpy, mtd: spyMtd, qtd: spyQtd }
+    }));
+  }, [sym, dynamicSym, symMtd, symQtd, dynamicSpy, spyMtd, spyQtd]);
+
+  const loadRelativeTickerSeries = useCallback(
+    async (tickerInput) => {
+      const ticker = String(tickerInput || '').toUpperCase().trim();
+      const symU = String(sym || '').toUpperCase().trim();
+      if (!ticker || !canFetchProtectedApi()) return null;
+      if (ticker === symU && returnsSym?.performance) {
+        return {
+          dynamicPeriods: returnsSym.performance.dynamicPeriods || [],
+          mtd: symMtd,
+          qtd: symQtd
+        };
+      }
+      const returnsDefaultEnd = toDateInput(new Date());
+      const ret = await fetchJsonCached({
+        path: '/api/market/ticker-core-returns',
+        method: 'POST',
+        body: { ticker, customStartDate: RETURNS_DEFAULT_START, customEndDate: returnsDefaultEnd },
+        ttlMs: 15 * 60 * 1000
+      });
+      const asOf = String(ret?.data?.asOfDate || asOfDate || new Date().toISOString().slice(0, 10)).slice(0, 10);
+      const asOfD = new Date(asOf + 'T12:00:00');
+      const start = new Date(asOfD);
+      start.setFullYear(start.getFullYear() - 1);
+      const startIso = toIso(start);
+      const rows = await fetchOhlcRowsCached({
+        symbol: ticker,
+        startDate: startIso,
+        endDate: asOf,
+        limit: 400
+      });
+      return {
+        dynamicPeriods: ret?.data?.performance?.dynamicPeriods || [],
+        mtd: mtdFromRows(rows),
+        qtd: qtdFromRows(rows)
+      };
+    },
+    [asOfDate, sym, returnsSym, symMtd, symQtd, fetchOhlcRowsCached]
+  );
+
+  const loadRelativeIndexSeries = useCallback(
+    async (indexKey) => {
+      if (!canFetchProtectedApi()) return null;
+      const opt = RELATIVE_INDEX_OPTIONS.find((x) => x.key === indexKey) || RELATIVE_INDEX_OPTIONS[0];
+      const idx = await fetchJsonCached({
+        path: '/api/market/index-returns',
+        method: 'POST',
+        body: { index: opt.apiIndex },
+        ttlMs: 10 * 60 * 1000
+      });
+      const d = idx?.data || {};
+      const asOf = String(d?.asOfDate || asOfDate || new Date().toISOString().slice(0, 10)).slice(0, 10);
+      const asOfD = new Date(asOf + 'T12:00:00');
+      const start = new Date(asOfD);
+      start.setFullYear(start.getFullYear() - 1);
+      const startIso = toIso(start);
+      const symForOhlc =
+        (d?.officialIndexTicker && String(d.officialIndexTicker).trim()) ||
+        (d?.ticker && String(d.ticker).trim()) ||
+        '';
+      let rows = [];
+      if (symForOhlc) {
+        rows = await fetchOhlcRowsCached({
+          symbol: symForOhlc,
+          startDate: startIso,
+          endDate: asOf,
+          limit: 400
+        });
+      } else {
+        const syntheticRows = sortRowsAsc(
+          closeSeriesToChartRows(Array.isArray(d?.syntheticCloseSeries) ? d.syntheticCloseSeries : [])
+        );
+        rows = syntheticRows.filter((r) => {
+          const iso = rowDateToTimeKey(r);
+          return iso && iso >= startIso && iso <= asOf;
+        });
+      }
+      return {
+        dynamicPeriods: d?.performance?.dynamicPeriods || [],
+        mtd: mtdFromRows(rows),
+        qtd: qtdFromRows(rows)
+      };
+    },
+    [asOfDate, fetchOhlcRowsCached]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!canFetchProtectedApi()) return () => {};
+    const needsIndex = !relativeIndexSeriesByKey[relativeIndexKey];
+    const tickerKey = String(relativeTickerSymbol || '').toUpperCase().trim();
+    const symKey = String(sym || '').toUpperCase().trim();
+    const needsTicker = !!tickerKey && !relativeTickerSeriesBySymbol[tickerKey];
+    const deferTickerUntilMainReturns = tickerKey !== '' && tickerKey === symKey && !returnsSym;
+    if (!needsIndex && (!needsTicker || deferTickerUntilMainReturns)) return () => {};
+    (async () => {
+      setRelativeCompareBusy(true);
+      try {
+        if (needsIndex) {
+          const idxSeries = await loadRelativeIndexSeries(relativeIndexKey);
+          if (!cancelled && idxSeries) {
+            setRelativeIndexSeriesByKey((prev) => ({ ...prev, [relativeIndexKey]: idxSeries }));
+          }
+        }
+        if (needsTicker && !deferTickerUntilMainReturns) {
+          const tkSeries = await loadRelativeTickerSeries(tickerKey);
+          if (!cancelled && tkSeries) {
+            setRelativeTickerSeriesBySymbol((prev) => ({ ...prev, [tickerKey]: tkSeries }));
+          }
+        }
+      } finally {
+        if (!cancelled) setRelativeCompareBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    relativeIndexKey,
+    relativeTickerSymbol,
+    relativeIndexSeriesByKey,
+    relativeTickerSeriesBySymbol,
+    loadRelativeIndexSeries,
+    loadRelativeTickerSeries,
+    sym,
+    returnsSym
+  ]);
+
+  const selectedIndexSeries = relativeIndexSeriesByKey[relativeIndexKey] || { dynamicPeriods: [], mtd: null, qtd: null };
+  const selectedTickerKey = String(relativeTickerSymbol || '').toUpperCase().trim();
+  const selectedTickerSeries =
+    relativeTickerSeriesBySymbol[selectedTickerKey] || { dynamicPeriods: dynamicSym, mtd: symMtd, qtd: symQtd };
+  const selectedIndexLabel =
+    RELATIVE_INDEX_OPTIONS.find((x) => x.key === relativeIndexKey)?.label || RELATIVE_INDEX_OPTIONS[0].label;
+  const onOpenRelativeStrengthPage = useCallback(() => {
+    navigate(buildRelativeStrengthTickerHref(relativeTickerSymbol || sym));
+  }, [navigate, relativeTickerSymbol, sym]);
+
+  const onOpenNewsPage = useCallback(() => {
+    navigate(`/news?ticker=${encodeURIComponent(sym)}`);
+  }, [navigate, sym]);
+
+  const section16Rows = useMemo(() => {
+    const compact = COMPARE_ROWS.filter((r) => ['1D', '5D', 'MTD', '1M', 'QTD', '3M', '6M', 'YTD'].includes(r.key));
+    return compact.map((row) => {
+      const symPct = row.period
+        ? pickDynamic(selectedIndexSeries.dynamicPeriods, row.period)
+        : row.mtd
+          ? selectedIndexSeries.mtd
+          : row.qtd
+            ? selectedIndexSeries.qtd
+            : null;
+      const tkPct = row.period
+        ? pickDynamic(selectedTickerSeries.dynamicPeriods, row.period)
+        : row.mtd
+          ? selectedTickerSeries.mtd
+          : row.qtd
+            ? selectedTickerSeries.qtd
+            : null;
+      const diff =
+        symPct != null && tkPct != null && Number.isFinite(symPct) && Number.isFinite(tkPct)
+          ? symPct - tkPct
+          : null;
+      return { label: row.key, value: diff, symPct, tkPct, diff };
+    });
+  }, [selectedIndexSeries, selectedTickerSeries]);
+
+  const section17CompareRows = useMemo(() => {
+    const compact = COMPARE_ROWS.filter((r) => ['1D', '5D', 'MTD', '1M', 'QTD', '3M', '6M', 'YTD'].includes(r.key));
+    return compact.map((row) => {
+      const symPct = row.period
+        ? pickDynamic(selectedIndexSeries.dynamicPeriods, row.period)
+        : row.mtd
+          ? selectedIndexSeries.mtd
+          : row.qtd
+            ? selectedIndexSeries.qtd
+            : null;
+      const spyPct = row.period
+        ? pickDynamic(selectedTickerSeries.dynamicPeriods, row.period)
+        : row.mtd
+          ? selectedTickerSeries.mtd
+          : row.qtd
+            ? selectedTickerSeries.qtd
+            : null;
+      const diff =
+        symPct != null && spyPct != null && Number.isFinite(symPct) && Number.isFinite(spyPct)
+          ? spyPct - symPct
+          : null;
+      return { label: row.key, symPct, spyPct, diff };
+    });
+  }, [selectedIndexSeries, selectedTickerSeries]);
+
+  const basePixelHeight = userChartHeight ?? mediaChartHeight;
+  const plotHeight = chartFs && fsPlotH >= CHART_H_MIN ? fsPlotH : basePixelHeight;
+
+  const chartRangeLabel = chartApiRange.start + ' → ' + chartApiRange.end;
+  const chartModeHelp = appliedCustomRange
+    ? 'Using your custom start/end (overrides the pill timeframe until you reset).'
+    : `Using pill timeframe “${timeframe}”, anchored to as-of ${asOfDate}.`;
+
+  return (
+    <div className="ticker-page">
+
+
+      {error ? (
+        <div className="ticker-page__error" role="alert">
+          {error}
+        </div>
+      ) : null}
+      {/* {tickerReturnsDebug ? (
+        <div className="ticker-page__error" role="status" style={{ marginTop: 8, marginBottom: 8 }}>
+          ticker-returns debug: source={tickerReturnsDebug.source || '—'} | cache_hit={tickerReturnsDebug.cacheHit || '—'} | compute_ms=
+          {tickerReturnsDebug.computeMs || '—'} | mode={tickerReturnsDebug.mode || '—'} | symbol={tickerReturnsDebug.symbol || '—'}
+        </div>
+      ) : null} */}
+
+      <header className="ticker-page__header ticker-page__header--figma">
+        <div className="ticker-page__header-top">
+          <div className="ticker-page__header-identity">
+            <h1 className="ticker-page__company ticker-page__company--hero">{company}</h1>
+            <span className="ticker-page__header-identity-meta">
+              <IconFlagUs className="ticker-page__flag" />
+              <span className="ticker-page__exchange">{indexLabel || '—'}</span>
+            </span>
+            <DataInfoTip align="start">
+              <p className="ticker-data-tip__p">
+                <strong>Header price</strong> prefers the last two sessions from{' '}
+                <code className="ticker-data-tip__code">GET /api/market/ohlc?symbol=…&amp;limit=8</code> (daily table:
+                Open, High, Low, <strong>Close</strong>, Volume when present).
+              </p>
+              <p className="ticker-data-tip__p">
+                Day change is the latest <strong>Close</strong> minus the previous session <strong>Close</strong>. If
+                that tail is missing, the last two rows inside the loaded chart range are used instead.
+              </p>
+            </DataInfoTip>
+          </div>
+          <div className="ticker-page__header-actions">
+            <button type="button" className="ticker-outline-btn" onClick={onAddTickerToWatchlist}>
+              <IconPlus className="ticker-outline-btn__ico" /> In My Watchlists
+            </button>
+          </div>
+        </div>
+
+        <div className="ticker-page__header-metrics" role="presentation">
+          <div className="ticker-page__header-metric">
+            <div className="ticker-page__metric-price-line">
+              <span className="ticker-page__sym">{sym}</span>
+              <span className="ticker-page__px ticker-page__px--hero">{formatPx(headerClose)}</span>
+              <span className="ticker-page__ccy">USD</span>
+            </div>
+            <div className="ticker-page__metric-change">
+              {headerChgPct != null && Number.isFinite(headerChgPct) ? (
+                <span className={'ticker-num ' + pctClass(headerChgPct)}>
+                  {headerChgAbs != null && Number.isFinite(headerChgAbs) ? (
+                    <>
+                      {(headerChgAbs >= 0 ? '+' : '') + formatPx(headerChgAbs)}{' '}
+                    </>
+                  ) : null}
+                  ({formatPct(headerChgPct)})
+                </span>
+              ) : (
+                <span className="ticker-page__metric-change--muted">—</span>
+              )}
+            </div>
+            <p className="ticker-page__metric-label">Last Updated • {lastUpdatedFmt}</p>
+          </div>
+
+
+          <div className="ticker-page__header-metric">
+            <div className="ticker-page__metric-value-row">
+              <span className="ticker-page__metric-value">Sector</span>
+            </div>
+            {sectorDataSlug ? (
+              <Link
+                to={`/sector-data/${encodeURIComponent(sectorDataSlug)}`}
+                className="ticker-page__metric-label ticker-page__metric-label--link"
+              >
+                {sector}
+              </Link>
+            ) : (
+              <p className="ticker-page__metric-label">{sector || '—'}</p>
+            )}
+          </div>
+
+          <div className="ticker-page__header-metric">
+            <p className="ticker-page__metric-value ticker-page__metric-value--multiline">Industry</p>
+            <p className="ticker-page__metric-label">{industry || '—'}</p>
+          </div>
+
+      
+        </div>
+      </header>
+
+      <div className="ticker-page__grid">
+        <div className="ticker-page__main">
+          <section className="ticker-card ticker-card--main-chart" aria-labelledby="snapshot-chart-title">
+            {/* <div className="ticker-chart-toolbar">
+              <ChartTypeToolbarDropdown chartType={mainChartType} onChartTypeChange={setMainChartType} /> 
+            </div> */}
+
+            <div className="ticker-card__head">
+              
+              <div className="ticker-page__search-row">
+                <TickerSymbolCombobox symbol={sym} onSymbolChange={onSymbolChange} inputId="ticker-chart-symbol" />
+                <ChartTypeToolbarDropdown chartType={mainChartType} onChartTypeChange={setMainChartType} />
+                
+              
+                {/* <DataInfoTip align="start">
+                  <p className="ticker-data-tip__p">
+                    <strong>Ticker selection</strong> drives every request on this page for one symbol.
+                  </p>
+                  <p className="ticker-data-tip__p">
+                    Search uses <code className="ticker-data-tip__code">GET /api/tickers/search</code> (Supabase{' '}
+                    <code className="ticker-data-tip__code">tickers</code>). Picking a symbol reloads chart, returns, OHLC
+                    tail, and index metadata for that symbol.
+                  </p>
+                </DataInfoTip> */}
+                {chartLoading ? <span className="ticker-page__loading-pill">Loading chart…</span> : null}
+                {metaBusy && !chartLoading ? <span className="ticker-page__loading-pill">Loading data…</span> : null}
+                
+              </div>
+              <div className="ticker-tf-with-tip">
+                <div className="ticker-tf-row">
+                  {TIMEFRAMES.map((tf) => (
+                    <button
+                      key={tf}
+                      type="button"
+                      className={
+                        'ticker-tf' +
+                        (!appliedCustomRange && tf === timeframe ? ' ticker-tf--active' : '')
+                      }
+                      onClick={() => {
+                        setAppliedCustomRange(null);
+                        setIsCustomRangePopupOpen(false);
+                        setTimeframe(tf);
+                      }}
+                    >
+                      {tf}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className={'ticker-tf' + (appliedCustomRange || isCustomRangePopupOpen ? ' ticker-tf--active' : '')}
+                    onClick={() => setIsCustomRangePopupOpen(true)}
+                    aria-label="Open custom date range"
+                    title="Custom date range"
+                  >
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <rect x="3.5" y="5.5" width="17" height="15" rx="2.5" />
+                      <path d="M8 3.5v4M16 3.5v4M3.5 9.5h17" />
+                    </svg>
+                  </button>
+                </div>
+                
+              </div>
+              {isCustomRangePopupOpen ? (
+                <div className="wl-manage-overlay ticker-custom-range-popup__overlay" onClick={() => setIsCustomRangePopupOpen(false)}>
+                  <div
+                    className="wl-manage-modal ticker-custom-range-popup"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="ticker-custom-range-title"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="wl-manage-modal__head">
+                      <h3 id="ticker-custom-range-title" className="wl-manage-modal__title">
+                        Custom range
+                      </h3>
+                      <button
+                        type="button"
+                        className="wl-manage-modal__close"
+                        onClick={() => setIsCustomRangePopupOpen(false)}
+                        aria-label="Close custom range"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="wl-manage-modal__body ticker-custom-range-popup__body">
+                      <div className="ticker-custom-range-popup__field-row">
+                        <span className="ticker-page__label ticker-page__label--inline">Start date</span>
+                        <input
+                          type="date"
+                          className="ticker-page__date-inp ticker-custom-range-popup__date"
+                          value={draftChartStart}
+                          onChange={(e) => setDraftChartStart(e.target.value)}
+                          max={draftChartEnd || asOfDate}
+                        />
+                      </div>
+                      <div className="ticker-custom-range-popup__field-row">
+                        <span className="ticker-page__label ticker-page__label--inline">End date</span>
+                        <input
+                          type="date"
+                          className="ticker-page__date-inp ticker-custom-range-popup__date"
+                          value={draftChartEnd}
+                          onChange={(e) => setDraftChartEnd(e.target.value)}
+                          min={draftChartStart}
+                          max={asOfDate}
+                        />
+                      </div>
+                    </div>
+                    <div className="wl-manage-modal__foot ticker-custom-range-popup__foot">
+                      <button type="button" className="ticker-outline-btn ticker-outline-btn--sm ticker-custom-range-popup__btn" onClick={resetCustomChartRange}>
+                        Use timeframe
+                      </button>
+                      <button type="button" className="ticker-outline-btn ticker-outline-btn--sm ticker-custom-range-popup__btn" onClick={applyCustomChartRange}>
+                        Submit
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div ref={chartBodyRef} className="ticker-chart-body">
+              
+              <div className="ticker-chart-legend">
+              <div className="new-one">
+                <div className="ticker-chart-legend__quote-pills">
+                  <span className="ticker-chart-legend__sym">{sym}</span>
+                  <span className="ticker-chart-legend__name">{company}</span>
+                  <span className="ticker-chart-legend__price">{formatPx(lastClose)} USD</span>
+                  {chartRangeChgAbs != null && Number.isFinite(chartRangeChgAbs) ? (
+                    <span className={'ticker-chart-legend__chg ' + pctClass(chartRangeChgAbs)}>
+                      {(chartRangeChgAbs >= 0 ? '+' : '') + formatPx(chartRangeChgAbs)}
+                    </span>
+                  ) : null}
+                  {chartRangeChgPct != null && Number.isFinite(chartRangeChgPct) ? (
+                    <span className={'ticker-chart-legend__chg ' + pctClass(chartRangeChgPct)}>{formatPct(chartRangeChgPct)}</span>
+                  ) : null}
+                </div>
+                
+              </div>
+              {chartHoverOhlc ? (
+                  <span className="ticker-chart-legend__sigs">
+                    O:{chartHoverOhlc.open != null ? formatPx(chartHoverOhlc.open) : '—'}   H:{chartHoverOhlc.high != null ? formatPx(chartHoverOhlc.high) : '—'}   L:{chartHoverOhlc.low != null ? formatPx(chartHoverOhlc.low) : '—'}   C:{chartHoverOhlc.close != null ? formatPx(chartHoverOhlc.close) : '—'}
+                  </span>
+                ) : null}
+              </div>
+              <div
+                ref={chartPlotHostRef}
+                className={'ticker-chart-plot-host' + (chartFs ? ' ticker-chart-plot-host--fs' : '')}
+                style={chartFs ? undefined : { height: basePixelHeight }}
+              >
+                {chartLoading && sortedChart.length === 0 ? (
+                  <div
+                    className="chart-viz-loading-wrap"
+                    style={{
+                      minHeight: Math.max(
+                        CHART_H_MIN,
+                        chartFs && fsPlotH >= CHART_H_MIN ? fsPlotH : basePixelHeight
+                      )
+                    }}
+                  >
+                    <TradingChartLoader label="Loading chart…" sublabel={`${sym} · OHLC & signals`} />
+                  </div>
+                ) : sortedChart.length ? (
+                  <TickerLightweightChart
+                    rows={sortedChart}
+                    height={plotHeight}
+                    chartType={mainChartType}
+                    onHoverOhlcChange={setChartHoverOhlc}
+                  />
+                ) : (
+                  <div className="ticker-sparkline ticker-sparkline--empty">No OHLC rows in this range.</div>
+                )}
+              </div>
+              <div className="ticker-chart-footer-icons">
+                <button
+                  type="button"
+                  className="ticker-chart-footer-icons__btn"
+                  onClick={() => toggleChartFullscreen()}
+                  aria-pressed={chartFs}
+                  aria-label={chartFs ? 'Exit chart fullscreen' : 'Enter chart fullscreen'}
+                >
+                  {chartFs ? (
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M4 14v6h6M20 14v6h-6M4 10V4h6M20 10V4h-6" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              {!chartFs ? (
+                <div
+                  role="separator"
+                  aria-orientation="horizontal"
+                  aria-valuemin={CHART_H_MIN}
+                  aria-valuemax={CHART_H_MAX}
+                  aria-valuenow={basePixelHeight}
+                  className="ticker-chart-resize"
+                  title="Drag to resize chart height. Double-click to reset."
+                  onPointerDown={onChartResizePointerDown}
+                  onDoubleClick={onChartResizeDoubleClick}
+                />
+              ) : null}
+            </div>
+          </section>
+
+          <aside className="ticker-page__aside ticker-page__aside-stack">
+          <section className="mkt-mini-card ticker-aside-mini" aria-labelledby="odin-signal-h">
+            <header className="mkt-mini-card__head">
+              <h2 className="mkt-mini-card__k uppercase" id="odin-signal-h">
+                Odin Signal
+              </h2>
+              <span className="mkt-mini-card__head-actions">
+                <DataInfoTip align="start">
+                  <p className="ticker-data-tip__p">
+                    <strong>Highlighted ladder step</strong> is derived from the <strong>last row</strong> of the chart
+                    payload (same request as the sparkline).
+                  </p>
+                  <p className="ticker-data-tip__p">
+                    Field: <code className="ticker-data-tip__code">signal</code> on each day, normalized server-side and
+                    grouped visually into L1–L3, S1–S3, or N (e.g. L11 maps into the L1 bucket).
+                  </p>
+                  <p className="ticker-data-tip__p">As-of follows the last chart date shown below the title.</p>
+                </DataInfoTip>
+              </span>
+            </header>
+            <div className="ticker-aside-mini__body">
+              <p className="ticker-signal-asof">As of {lastUpdatedFmt}</p>
+              <div className="ticker-signal-lanes" role="list">
+                {[
+                  { k: 'L1', tone: 'green-dark' },
+                  { k: 'L2', tone: 'green-dark' },
+                  { k: 'L3', tone: 'green-bright' },
+                  { k: 'S1', tone: 'orange' },
+                  { k: 'S2', tone: 'orange-mid' },
+                  { k: 'S3', tone: 'amber' },
+                  { k: 'N', tone: 'gray' }
+                ].map((s) => (
+                  <div
+                    key={s.k}
+                    className={
+                      'ticker-signal-cell ticker-signal-cell--' +
+                      s.tone +
+                      (activeBucket === s.k ? ' ticker-signal-cell--active' : '')
+                    }
+                    role="listitem"
+                  >
+                    {s.k}
+                  </div>
+                ))}
+              </div>
+              <div className="ticker-signal-foot">
+                <Link to="/odin-signals" className="ticker-signal-foot__link">
+                  Learn more about Odin Signals
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <g clip-path="url(#clip0_609_26680)">
+                    <path d="M4.71094 7.18266L11.2734 0.726562" stroke="#CDE4FD" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M11.2734 4.41609V0.726562H7.52344" stroke="#CDE4FD" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M6.05859 3.07031H1.13672C1.02794 3.07031 0.923614 3.11353 0.846694 3.19044C0.769775 3.26736 0.726562 3.37169 0.726562 3.48047V10.8633C0.726563 10.9721 0.769775 11.0764 0.846694 11.1533C0.923614 11.2302 1.02794 11.2734 1.13672 11.2734H8.51953C8.62831 11.2734 8.73264 11.2302 8.80956 11.1533C8.88647 11.0764 8.92969 10.9721 8.92969 10.8633V5.94141" stroke="#CDE4FD" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round"/>
+                    </g>
+                    <defs>
+                    <clipPath id="clip0_609_26680">
+                    <rect width="12" height="12" fill="white"/>
+                    </clipPath>
+                    </defs>
+                  </svg>
+                </Link>
+              </div>
+            </div>
+          </section>
+          
+
+          <section className="mkt-mini-card ticker-aside-mini" aria-labelledby="key-data-h">
+            <header className="mkt-mini-card__head">
+              <h2 className="mkt-mini-card__k uppercase" id="key-data-h">
+                Key data &amp; performance
+              </h2>
+              <span className="mkt-mini-card__head-actions">
+                <DataInfoTip align="start">
+                  <p className="ticker-data-tip__p">
+                    <strong>52-week range</strong> uses <strong>High</strong> / <strong>Low</strong> across ~1 year of
+                    daily rows from <code className="ticker-data-tip__code">GET /api/market/ohlc</code> ending on{' '}
+                    <strong>{asOfDate}</strong>.
+                  </p>
+                  <p className="ticker-data-tip__p">
+                    <strong>Avg volume</strong> averages the <strong>Volume</strong> column over those same rows.{' '}
+                    <strong>Volatility</strong> is an annualized estimate from daily <strong>Close</strong> log-returns in
+                    that window.
+                  </p>
+                  <p className="ticker-data-tip__p">
+                    <strong>Related tickers</strong> are other symbols from the same ticker-details response (same sector
+                    first), not a live correlation API.
+                  </p>
+                </DataInfoTip>
+              </span>
+            </header>
+            <div className="ticker-aside-mini__body">
+              <div className="ticker-kd-grid">
+                <dl className="ticker-kd-dl">
+                  <div className="ticker-kd-row">
+                    <dt>Dividend yield</dt>
+                    <dd>—</dd>
+                  </div>
+                  <div className="ticker-kd-row">
+                    <dt>52-week range</dt>
+                    <dd>
+                      {hi52 != null && lo52 != null ? `${formatPx(lo52)} – ${formatPx(hi52)}` : '—'}
+                    </dd>
+                  </div>
+                  <div className="ticker-kd-row">
+                    <dt>Beta</dt>
+                    <dd>—</dd>
+                  </div>
+                  <div className="ticker-kd-row">
+                    <dt>Volatility (ann.)</dt>
+                    <dd>{vola != null ? `${vola}%` : '—'}</dd>
+                  </div>
+                </dl>
+                <dl className="ticker-kd-dl">
+                  <div className="ticker-kd-row">
+                    <dt>Avg volume (1y)</dt>
+                    <dd>{formatVolLong(avgVol)}</dd>
+                  </div>
+                  <div className="ticker-kd-row">
+                    <dt>Market cap</dt>
+                    <dd>—</dd>
+                  </div>
+                  <div className="ticker-kd-row">
+                    <dt>P/E (TTM)</dt>
+                    <dd>—</dd>
+                  </div>
+                  <div className="ticker-kd-row">
+                    <dt>EPS (TTM)</dt>
+                    <dd>—</dd>
+                  </div>
+                </dl>
+              </div>
+              <p className="ticker-page__label ticker-kd-comp-label">
+                <span>INDICES</span>
+                <span className="ticker-kd-comp-label__links">
+                  {RELATED_INDEX_LINKS.map((idx) => (
+                    <Link key={idx.slug} to={`/indices/${idx.slug}`} className="ticker-kd-comp__a">
+                      {idx.label}
+                    </Link>
+                  ))}
+                </span>
+              </p>
+
+              <p className="ticker-page__label ticker-kd-comp-label">
+                <span>RELATED TICKERS</span>
+                <span className="ticker-kd-comp-label__links">
+                  {competitors.length ? (
+                    competitors.map((t) => (
+                      <Link key={t} to={`/ticker/${encodeURIComponent(t)}`} className="ticker-kd-comp__a">
+                        {t}
+                      </Link>
+                    ))
+                  ) : (
+                    <span className="ticker-page__muted">—</span>
+                  )}
+                </span>
+              </p>
+            </div>
+          </section>
+
+          <section className="mkt-mini-card ticker-aside-mini" aria-labelledby="ticker-rel-perf-h">
+            <header className="mkt-mini-card__head">
+              <span className="mkt-mini-card__k uppercase" id="ticker-rel-perf-h">
+                Relative performance (%)
+              </span>
+              <span className="mkt-mini-card__head-actions">
+                <DataInfoTip align="start">
+                  <p className="ticker-data-tip__p">
+                    For rolling windows (1D, 5D, 1M, …) values come from the same <strong>dynamicPeriods</strong> arrays
+                    as the performance table, keyed by period label (e.g. “Last Month”, “Last 1 year”).
+                  </p>
+                  <p className="ticker-data-tip__p">
+                    <strong>MTD / QTD</strong> rows are computed in the browser from the ~1y daily OHLC samples: first
+                    close on/after month or quarter start vs latest <strong>Close</strong> for {selectedIndexLabel} and for{' '}
+                    {selectedTickerKey || relativeTickerSymbol}{' '}
+                    separately.
+                  </p>
+                  <p className="ticker-data-tip__p">
+                    <strong>Diff</strong> = symbol total return minus benchmark total return for that row.
+                  </p>
+                </DataInfoTip>
+              </span>
+            </header>
+            <div className="ticker-aside-mini__body">
+              <div className="ticker-compare">
+                <div className="ticker-compare__head">
+                  <span />
+                  <span>{selectedTickerKey || relativeTickerSymbol}</span>
+                  <span>{selectedIndexLabel}</span>
+                  <span>Diff</span>
+                </div>
+                {COMPARE_ROWS.map((row) => {
+                  let symPct = row.period
+                    ? pickDynamic(selectedIndexSeries.dynamicPeriods, row.period)
+                    : row.mtd
+                      ? selectedIndexSeries.mtd
+                      : row.qtd
+                        ? selectedIndexSeries.qtd
+                        : null;
+                  let spyPct = row.period
+                    ? pickDynamic(selectedTickerSeries.dynamicPeriods, row.period)
+                    : row.mtd
+                      ? selectedTickerSeries.mtd
+                      : row.qtd
+                        ? selectedTickerSeries.qtd
+                        : null;
+                  const diff =
+                    symPct != null && spyPct != null && Number.isFinite(symPct) && Number.isFinite(spyPct)
+                      ? symPct - spyPct
+                      : null;
+                  return (
+                    <div key={row.key} className="ticker-compare__row">
+                      <span className="ticker-compare__tf">{row.key}</span>
+                      <span className={'ticker-compare__cell ' + pctClass(spyPct)}>{formatPct(spyPct)}</span>
+                      <span className={'ticker-compare__cell ' + pctClass(symPct)}>{formatPct(symPct)}</span>
+                      <span className={'ticker-compare__cell ' + pctClass(diff)}>{formatPct(diff)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+          </aside>
+
+          <section className="ticker-card ticker-card--news" aria-labelledby="ticker-news-h">
+            <div className="ticker-subh-with-tip ticker-subh-with-tip--in-card ticker-rs-selector-head">
+              <div className="ticker-rs-selector-head__left">
+                <div className="flex shrink-0 align-centers">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden className="ticker-news-head__ico">
+                    <path d="M0 0h24v24H0z" fill="none" />
+                    <path
+                      fill="currentColor"
+                      d="M5.616 20q-.691 0-1.153-.462T4 18.384V5.616q0-.691.463-1.153T5.616 4h9.961L20 8.423v9.962q0 .69-.462 1.153T18.384 20zm0-1h12.769q.269 0 .442-.173t.173-.442V9h-4V5H5.616q-.27 0-.443.173T5 5.616v12.769q0 .269.173.442t.443.173M7.5 16h9v-1h-9zm0-7H12V8H7.5zm0 3.5h9v-1h-9zM5 5v4zv14z"
+                    />
+                  </svg>
+                </div>
+                <div className="ticker-subh-left">
+                  <ReturnsChartClickableHeading
+                    id="ticker-news-h"
+                    className="ticker-subh ticker-subh--flex"
+                    onClick={onOpenNewsPage}
+                  >
+                    News
+                  </ReturnsChartClickableHeading>
+                  <DataInfoTip align="start">
+                    <p className="ticker-data-tip__p">
+                      Headlines for <strong>{sym}</strong> from the live feed. Click <strong>News</strong> to open the full
+                      news page with this ticker pre-selected.
+                    </p>
+                  </DataInfoTip>
+                </div>
+              </div>
+            </div>
+            {tickerNewsBusy ? <p className="ticker-page__news-sample-note">Loading ticker news…</p> : null}
+            {!tickerNewsBusy && tickerNewsError ? <p className="ticker-page__news-sample-note">{tickerNewsError}</p> : null}
+            {!tickerNewsBusy && !tickerNewsError && !liveNews.length ? (
+              <p className="ticker-page__news-sample-note">No ticker headlines yet.</p>
+            ) : null}
+            <ul className="ticker-news-list">
+              {newsPageItems.map((n) => (
+                <li key={n.id} className="ticker-news-list__li">
+                  <a
+                    className="ticker-news-list__a"
+                    href={n.url || '#ticker-news-h'}
+                    onClick={(e) => {
+                      if (!n.url) e.preventDefault();
+                    }}
+                    target={n.url ? '_blank' : undefined}
+                    rel={n.url ? 'noopener noreferrer' : undefined}
+                  >
+                    {n.title}
+                  </a>
+                  <span className="ticker-news-list__meta">
+                    {n.source}
+                    <br />
+                    {n.time}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {liveNews.length > NEWS_PAGE_SIZE ? (
+              <FigmaPagination
+                page={newsPageSafe}
+                totalPages={newsTotalPages}
+                onPageChange={setNewsPage}
+                ariaLabel="News pagination"
+              />
+            ) : null}
+          </section>
+
+          <TickerAnnualReturnsFigma
+            symbol={sym}
+            annualReturns={annualReturnsForChart}
+            asOfDate={asOfDate}
+            resizeStorageKey={RESIZE_KEY_ANNUAL_FIGMA}
+            resizeDefaultHeight={260}
+            hideStatsSection
+            enableInlineYearDropdowns
+            defaultStartYear={2017}
+            defaultEndYear={2026}
+            loading={metaBusy}
+          />
+          <TickerAnnualReturnsFigma
+            symbol={sym}
+            annualReturns={quarterlyReturnsForChart}
+            asOfDate={asOfDate}
+            resizeStorageKey={RESIZE_KEY_QUARTERLY_FIGMA}
+            resizeDefaultHeight={260}
+            periodMode="quarterly"
+            hideStatsSection
+            enableInlineYearDropdowns
+            defaultStartYear={2023}
+            defaultEndYear={2026}
+            loading={metaBusy}
+          />
+          <TickerMonthlyReturnsChart
+            symbol={sym}
+            monthlyReturns={monthlyReturnsRaw}
+            asOfDate={asOfDate}
+            resizeStorageKey={RESIZE_KEY_MONTHLY}
+            resizeDefaultHeight={278}
+            suppressChartDateFilter
+            useThemedYearDropdown
+            defaultToLatestYear
+            loading={metaBusy}
+          />
+          {/* <TickerChartResizeScope storageKey={RESIZE_KEY_MONTHLY_ADV} defaultHeight={300}>
+            <TickerMonthlyReturnsWaterfallDonut
+              key={sym}
+              symbol={sym}
+              monthlyReturns={monthlyReturnsRaw}
+              asOfDate={asOfDate}
+            />
+          </TickerChartResizeScope> */}
+          
+          <section className="ticker-card ticker-card--rs-benchmark" aria-labelledby="ticker-rs-selector-h">
+            <div className="ticker-subh-with-tip ticker-subh-with-tip--in-card ticker-rs-selector-head">
+              <div className="ticker-rs-selector-head__left">
+                <div className="flex shrink-0 align-centers">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+                    <g clipPath="url(#clip0_ticker_rs_sel)">
+                      <path
+                        d="M7.82031 1.25781V6.17969H12.7422C12.7422 4.87433 12.2236 3.62243 11.3006 2.6994C10.3776 1.77637 9.12567 1.25781 7.82031 1.25781Z"
+                        stroke="white"
+                        strokeWidth="0.875"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M6.17969 2.89844C5.20623 2.89844 4.25464 3.1871 3.44524 3.72792C2.63584 4.26875 2.005 5.03744 1.63247 5.93679C1.25995 6.83615 1.16248 7.82577 1.35239 8.78052C1.5423 9.73527 2.01106 10.6123 2.6994 11.3006C3.38774 11.9889 4.26473 12.4577 5.21948 12.6476C6.17423 12.8375 7.16386 12.7401 8.06321 12.3675C8.96257 11.995 9.73126 11.3642 10.2721 10.5548C10.8129 9.74536 11.1016 8.79377 11.1016 7.82031H6.17969V2.89844Z"
+                        stroke="white"
+                        strokeWidth="0.875"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </g>
+                    <defs>
+                      <clipPath id="clip0_ticker_rs_sel">
+                        <rect width="14" height="14" fill="white" />
+                      </clipPath>
+                    </defs>
+                  </svg>
+                </div>
+                <div className="ticker-subh-left">
+                  <ReturnsChartClickableHeading
+                    id="ticker-rs-selector-h"
+                    className="ticker-subh ticker-subh--flex"
+                    onClick={onOpenRelativeStrengthPage}
+                  >
+                    Relative Strength selector
+                  </ReturnsChartClickableHeading>
+                  <DataInfoTip align="start">
+                    <p className="ticker-data-tip__p">
+                      Choose one index and one ticker; relative strength is shown as <strong>index return − ticker return</strong>.
+                    </p>
+                  </DataInfoTip>
+                </div>
+              </div>
+              <div className="ticker-rs-selector-head__right">
+                
+                  <div className="ticker-rs-controls ticker-rs-controls--in-filters-panel">
+                    {/* <ThemedDropdown
+                      value={relativeTickerSymbol}
+                      options={tickerRsDropdownOptions}
+                      onChange={setRelativeTickerSymbol}
+                      title="Compare ticker"
+                      ariaLabelPrefix="Ticker"
+                      labelFallback={relativeTickerSymbol}
+                    /> */}
+                    <ThemedDropdown
+                      value={relativeIndexKey}
+                      options={RELATIVE_INDEX_DROPDOWN_OPTIONS}
+                      onChange={setRelativeIndexKey}
+                      title="Benchmark index"
+                      ariaLabelPrefix="Index"
+                      labelFallback={RELATIVE_INDEX_OPTIONS.find((o) => o.key === relativeIndexKey)?.label ?? ''}
+                    />
+                    
+                  </div>
+                
+              </div>
+            </div>
+          {/* <TickerSection16Section17
+            rows={section16Rows}
+            compareRows={section17CompareRows}
+            relativeStrengthTitle={`Relative Strength vs ${selectedTickerKey || relativeTickerSymbol}`}
+            relativeStrengthHeader={`Relative Strength (${selectedIndexLabel} - ${selectedTickerKey || relativeTickerSymbol})`}
+          /> */}
+          <TickerSection23Section24
+            pageSymbol={sym}
+            prefetchedLongTickerReturns={longRangeTickerReturns}
+            prefetchedLongBenchReturns={longRangeBenchReturns}
+            prefetchedLongBenchSymbol={benchForLongTable}
+            prefetchedLongBusy={longRangeBusy}
+            onSectionBenchmarkSymbolChange={onSectionBenchmarkSymbolChange}
+            initialSp500Rows={detailRows}
+          />
+          </section>
+        </div>
+
+        
+      </div>
+    </div>
+  );
+}

@@ -1,5 +1,7 @@
 /** Same host as production API; Vite dev proxy forwards `/api` here when `import.meta.env.DEV`. */
-export const PRODUCTION_API_ORIGIN = 'odin500-1-production.up.railway.app';
+export const PRODUCTION_API_ORIGIN =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_ORIGIN_PROD) ||
+  'https://odin500-1-production.up.railway.app';
 export const LOCAL_DEV_API_ORIGIN = 'http://localhost:5000';
 
 export function normalizeApiOrigin(url) {

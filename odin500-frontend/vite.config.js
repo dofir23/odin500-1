@@ -9,7 +9,7 @@ function stripTrailingSlash(u) {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const prod = stripTrailingSlash(
-    env.VITE_API_ORIGIN_PROD || 'https://trading-backend-production-b1b2.up.railway.app'
+    env.VITE_API_ORIGIN_PROD || 'https://odin500-1-production.up.railway.app'
   );
   const dev = stripTrailingSlash(env.VITE_API_ORIGIN_DEV || 'http://localhost:5000');
   const apiMode = (env.VITE_API_MODE || 'prod').toLowerCase();

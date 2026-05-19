@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChartInfoTip } from './ChartInfoTip.jsx';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
@@ -14,6 +14,9 @@ import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
 import { ReturnsChartClickableTitle } from './ReturnsChartClickableTitle.jsx';
 import { ChartSectionIconActions, useChartFullscreen } from './ChartSectionIconActions.jsx';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
+import { ReturnsChartPieIcon } from './returnsChartToolbarIcons.jsx';
+import { chartAxisLabelColors } from '../utils/chartAxisLabelColors.js';
+import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 
 /** Match `TickerLightweightChart` / dark ticker cards. */
 const COL_BAR = '#2563eb';
@@ -21,8 +24,6 @@ const COL_NEG = '#f59e0b';
 const COL_ORANGE = '#f97316';
 const COL_GRID = 'rgba(148, 163, 184, 0.14)';
 const COL_GRID_ZERO = 'rgba(148, 163, 184, 0.35)';
-const COL_AXIS = '#94a3b8';
-const COL_LABEL = '#e2e8f0';
 const YEAR_PALETTE = ['#38bdf8', '#f97316', '#64748b', '#eab308', '#7dd3fc', '#a78bfa', '#34d399', '#fb7185', '#f472b6', '#22d3ee'];
 
 /** “Nice” tick step for ~`targetCount` intervals across `span`. */
@@ -119,6 +120,13 @@ function parseQuarter(period) {
   return { year, q };
 }
 
+/** Display label for quarterly periods (e.g. `2025-Q2` → `Q2-2025`). */
+function formatQuarterLabel(period) {
+  const q = parseQuarter(period);
+  if (!q) return String(period || '');
+  return `Q${q.q}-${q.year}`;
+}
+
 function parseMonth(period) {
   const m = String(period || '').match(/^(\d{4})-(\d{2})$/);
   if (!m) return null;
@@ -211,6 +219,11 @@ export function TickerAnnualReturnsFigma({
   const chartFsShellRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartCardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const { isFullscreen: chartFs } = useChartFullscreen(chartFsShellRef);
+  const chartTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
+  const { axis: colAxis, label: colLabel } = useMemo(
+    () => chartAxisLabelColors(chartTheme),
+    [chartTheme]
+  );
 
   const [showTable, setShowTable] = useState(false);
 
@@ -234,7 +247,7 @@ export function TickerAnnualReturnsFigma({
             year: q.year,
             quarter: q.q,
             rowKey: period,
-            xLabel: period
+            xLabel: formatQuarterLabel(period)
           };
         }
         if (periodMode === 'monthly') {
@@ -528,29 +541,7 @@ export function TickerAnnualReturnsFigma({
 
   const annualFigTitleBadge = (
     <div className="flex align-centers">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-        <g clipPath="url(#clip0_609_23954)">
-          <path
-            d="M7.82031 1.25781V6.17969H12.7422C12.7422 4.87433 12.2236 3.62243 11.3006 2.6994C10.3776 1.77637 9.12567 1.25781 7.82031 1.25781Z"
-            stroke="white"
-            strokeWidth="0.875"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M6.17969 2.89844C5.20623 2.89844 4.25464 3.1871 3.44524 3.72792C2.63584 4.26875 2.005 5.03744 1.63247 5.93679C1.25995 6.83615 1.16248 7.82577 1.35239 8.78052C1.5423 9.73527 2.01106 10.6123 2.6994 11.3006C3.38774 11.9889 4.26473 12.4577 5.21948 12.6476C6.17423 12.8375 7.16386 12.7401 8.06321 12.3675C8.96257 11.995 9.73126 11.3642 10.2721 10.5548C10.8129 9.74536 11.1016 8.79377 11.1016 7.82031H6.17969V2.89844Z"
-            stroke="white"
-            strokeWidth="0.875"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </g>
-        <defs>
-          <clipPath id="clip0_609_23954">
-            <rect width="14" height="14" fill="white" />
-          </clipPath>
-        </defs>
-      </svg>
+      <ReturnsChartPieIcon />
       <span className="ticker-annual-figma__badge uppercase">
         <ReturnsChartClickableTitle className="ticker-annual-figma__badge uppercase" onClick={onViewMore}>
           {periodMode === 'quarterly'
@@ -625,7 +616,7 @@ export function TickerAnnualReturnsFigma({
             stroke={Math.abs(t) < 1e-6 ? COL_GRID_ZERO : COL_GRID}
             strokeWidth={Math.abs(t) < 1e-6 ? 1.35 : 1}
           />
-          <text x={padL - 8} y={y + 4} textAnchor="end" fill={COL_AXIS} fontSize="11" fontWeight="600">
+          <text x={padL - 8} y={y + 4} textAnchor="end" fill={colAxis} fontSize="11" fontWeight="600">
             {formatTickPct(t)}
           </text>
         </g>
@@ -690,7 +681,7 @@ export function TickerAnnualReturnsFigma({
       const h = Math.abs(y1 - y0);
       const labY = r.totalReturn >= 0 ? top - 6 : top + h + 14;
       return (
-        <text key={`t-${r.rowKey}`} x={x + bw / 2} y={labY} textAnchor="middle" fill={COL_LABEL} fontSize="11" fontWeight="700">
+        <text key={`t-${r.rowKey}`} x={x + bw / 2} y={labY} textAnchor="middle" fill={colLabel} fontSize="11" fontWeight="700">
           {r.totalReturn >= 0 ? '+' : ''}
           {r.totalReturn.toFixed(0)}%
         </text>
@@ -746,7 +737,7 @@ export function TickerAnnualReturnsFigma({
                 : String(r.day)
             : r.xLabel;
       return (
-        <text key={`xl-${r.rowKey}`} x={cx} y={H - 28} textAnchor="middle" fill={COL_AXIS} fontSize="11" fontWeight="600">
+        <text key={`xl-${r.rowKey}`} x={cx} y={H - 28} textAnchor="middle" fill={colAxis} fontSize="11" fontWeight="600">
           {txt}
         </text>
       );
@@ -790,7 +781,7 @@ export function TickerAnnualReturnsFigma({
         {xLabels}
       </svg>
     );
-  }, [chartFs, clipComboId, displayRows, stats, plotPx, periodMode]);
+  }, [chartFs, clipComboId, colAxis, colLabel, displayRows, stats, plotPx, periodMode]);
 
   const monthlyYearLegend = useMemo(() => {
     if (periodMode !== 'monthly' || !displayRows.length) return [];
@@ -835,7 +826,7 @@ export function TickerAnnualReturnsFigma({
             stroke={Math.abs(t) < 1e-6 ? COL_GRID_ZERO : COL_GRID}
             strokeWidth={Math.abs(t) < 1e-6 ? 1.35 : 1}
           />
-          <text x={padL - 8} y={y + 4} textAnchor="end" fill={COL_AXIS} fontSize="11" fontWeight="600">
+          <text x={padL - 8} y={y + 4} textAnchor="end" fill={colAxis} fontSize="11" fontWeight="600">
             {formatTickPct(t)}
           </text>
         </g>
@@ -862,12 +853,12 @@ export function TickerAnnualReturnsFigma({
       const labY = !Number.isFinite(it.v) ? H / 2 : it.v >= 0 ? top - 5 : top + h + 14;
       return (
         <g key={`st-${it.key}`}>
-          <text x={x + bw / 2} y={labY} textAnchor="middle" fill={COL_LABEL} fontSize="11" fontWeight="700">
+          <text x={x + bw / 2} y={labY} textAnchor="middle" fill={colLabel} fontSize="11" fontWeight="700">
             {!Number.isFinite(it.v)
               ? '—'
               : `${it.v >= 0 ? '+' : ''}${Number(it.v).toFixed(0)}%`}
           </text>
-          <text x={x + bw / 2} y={H - 18} textAnchor="middle" fill={COL_AXIS} fontSize="11" fontWeight="700">
+          <text x={x + bw / 2} y={H - 18} textAnchor="middle" fill={colAxis} fontSize="11" fontWeight="700">
             {it.label}
           </text>
         </g>
@@ -891,7 +882,7 @@ export function TickerAnnualReturnsFigma({
         {barTexts}
       </svg>
     );
-  }, [clipSummaryId, stats, plotPx]);
+  }, [clipSummaryId, colAxis, colLabel, stats, plotPx]);
 
   const donut = useMemo(() => {
     if (!stats) return null;
@@ -905,7 +896,7 @@ export function TickerAnnualReturnsFigma({
     if (total === 0) {
       return (
         <svg className="ticker-annual-figma__donut-svg" viewBox="0 0 200 200" style={donutStyle}>
-          <text x="100" y="104" textAnchor="middle" fill="#94a3b8" fontSize="12" fontWeight="600">
+          <text x="100" y="104" textAnchor="middle" fill={colAxis} fontSize="12" fontWeight="600">
             No data
           </text>
         </svg>
@@ -967,7 +958,7 @@ export function TickerAnnualReturnsFigma({
         </g>
       </svg>
     );
-  }, [stats, plotPx]);
+  }, [colAxis, stats, plotPx]);
 
   if (!rows.length) {
     if (loading) {
@@ -1080,7 +1071,7 @@ export function TickerAnnualReturnsFigma({
               <tbody>
                 {[...displayRows].reverse().map((r) => (
                   <tr key={r.rowKey}>
-                    <td>{periodMode === 'annual' ? r.year : r.period}</td>
+                    <td>{periodMode === 'annual' ? r.year : r.xLabel ?? r.period}</td>
                     <td>{r.startDate ?? '—'}</td>
                     <td>{r.endDate ?? '—'}</td>
                     <td>{r.startPrice != null ? Number(r.startPrice).toFixed(2) : '—'}</td>
@@ -1113,17 +1104,7 @@ export function TickerAnnualReturnsFigma({
         <div className="ticker-annual-figma__section">
           <div className="ticker-annual-figma__stats-head">
             <span className="ticker-annual-figma__badge">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <g clipPath="url(#clip0_609_23954)">
-                <path d="M7.82031 1.25781V6.17969H12.7422C12.7422 4.87433 12.2236 3.62243 11.3006 2.6994C10.3776 1.77637 9.12567 1.25781 7.82031 1.25781Z" stroke="white" strokeWidth="0.875" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M6.17969 2.89844C5.20623 2.89844 4.25464 3.1871 3.44524 3.72792C2.63584 4.26875 2.005 5.03744 1.63247 5.93679C1.25995 6.83615 1.16248 7.82577 1.35239 8.78052C1.5423 9.73527 2.01106 10.6123 2.6994 11.3006C3.38774 11.9889 4.26473 12.4577 5.21948 12.6476C6.17423 12.8375 7.16386 12.7401 8.06321 12.3675C8.96257 11.995 9.73126 11.3642 10.2721 10.5548C10.8129 9.74536 11.1016 8.79377 11.1016 7.82031H6.17969V2.89844Z" stroke="white" strokeWidth="0.875" strokeLinecap="round" strokeLinejoin="round"/>
-                </g>
-                <defs>
-                <clipPath id="clip0_609_23954">
-                <rect width="14" height="14" fill="white"/>
-                </clipPath>
-                </defs>
-              </svg>
+              <ReturnsChartPieIcon />
               <span className="ticker-annual-figma__badge-text uppercase">
                 {pn.statsLabel} stats — positive / negative, min max
               </span>

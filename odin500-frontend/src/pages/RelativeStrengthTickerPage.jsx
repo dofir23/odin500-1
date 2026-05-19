@@ -311,6 +311,27 @@ function yearPairToIsoRange(yStartStr, yEndStr, currentYear) {
   return { start: `${y0}-01-01`, end: `${y1}-12-31` };
 }
 
+/** Default year span for annual / excess / periodic stats charts (non-daily, non-weekly). */
+const STATS_CHART_DEFAULT_YEAR_START = '2025';
+const STATS_CHART_DEFAULT_YEAR_END = '2026';
+
+/** Last calendar month through today — stats chart daily range. */
+function defaultStatsChartDailyIsoRange() {
+  const end = new Date();
+  const start = new Date(end);
+  start.setMonth(start.getMonth() - 1);
+  return { start: toIsoDate(start), end: toIsoDate(end) };
+}
+
+/** Default year dropdowns for the three comparison stats charts. */
+function defaultStatsChartYearRange(mode, currentYear) {
+  if (mode === 'weekly') {
+    const y = String(currentYear);
+    return { start: y, end: y };
+  }
+  return { start: STATS_CHART_DEFAULT_YEAR_START, end: STATS_CHART_DEFAULT_YEAR_END };
+}
+
 function fmtPct(v) {
   if (!Number.isFinite(Number(v))) return '—';
   const n = Number(v);
@@ -499,32 +520,22 @@ export default function RelativeStrengthTickerPage() {
   const [endYear, setEndYear] = useState(String(currentYear));
   const [activeChartKeys, setActiveChartKeys] = useState(() => [...RS_CHART_SERIES_KEYS]);
   const [axisBadgeTops, setAxisBadgeTops] = useState({});
-  const defaultStatsYearStart = String(currentYear - 4);
-  const defaultStatsYearEnd = String(currentYear);
-  const [chartAnnualYearStart, setChartAnnualYearStart] = useState(defaultStatsYearStart);
-  const [chartAnnualYearEnd, setChartAnnualYearEnd] = useState(defaultStatsYearEnd);
-  const [chartExcessYearStart, setChartExcessYearStart] = useState(defaultStatsYearStart);
-  const [chartExcessYearEnd, setChartExcessYearEnd] = useState(defaultStatsYearEnd);
-  const [chartPeriodicYearStart, setChartPeriodicYearStart] = useState(defaultStatsYearStart);
-  const [chartPeriodicYearEnd, setChartPeriodicYearEnd] = useState(defaultStatsYearEnd);
-  const [statsDailyAnnualStart, setStatsDailyAnnualStart] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 31);
-    return toIsoDate(d);
-  });
-  const [statsDailyAnnualEnd, setStatsDailyAnnualEnd] = useState(() => toIsoDate(new Date()));
-  const [statsDailyExcessStart, setStatsDailyExcessStart] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 31);
-    return toIsoDate(d);
-  });
-  const [statsDailyExcessEnd, setStatsDailyExcessEnd] = useState(() => toIsoDate(new Date()));
-  const [statsDailyPeriodicStart, setStatsDailyPeriodicStart] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 31);
-    return toIsoDate(d);
-  });
-  const [statsDailyPeriodicEnd, setStatsDailyPeriodicEnd] = useState(() => toIsoDate(new Date()));
+  const [chartAnnualYearStart, setChartAnnualYearStart] = useState(STATS_CHART_DEFAULT_YEAR_START);
+  const [chartAnnualYearEnd, setChartAnnualYearEnd] = useState(STATS_CHART_DEFAULT_YEAR_END);
+  const [chartExcessYearStart, setChartExcessYearStart] = useState(STATS_CHART_DEFAULT_YEAR_START);
+  const [chartExcessYearEnd, setChartExcessYearEnd] = useState(STATS_CHART_DEFAULT_YEAR_END);
+  const [chartPeriodicYearStart, setChartPeriodicYearStart] = useState(STATS_CHART_DEFAULT_YEAR_START);
+  const [chartPeriodicYearEnd, setChartPeriodicYearEnd] = useState(STATS_CHART_DEFAULT_YEAR_END);
+  const [statsDailyAnnualStart, setStatsDailyAnnualStart] = useState(
+    () => defaultStatsChartDailyIsoRange().start
+  );
+  const [statsDailyAnnualEnd, setStatsDailyAnnualEnd] = useState(() => defaultStatsChartDailyIsoRange().end);
+  const [statsDailyExcessStart, setStatsDailyExcessStart] = useState(() => defaultStatsChartDailyIsoRange().start);
+  const [statsDailyExcessEnd, setStatsDailyExcessEnd] = useState(() => defaultStatsChartDailyIsoRange().end);
+  const [statsDailyPeriodicStart, setStatsDailyPeriodicStart] = useState(
+    () => defaultStatsChartDailyIsoRange().start
+  );
+  const [statsDailyPeriodicEnd, setStatsDailyPeriodicEnd] = useState(() => defaultStatsChartDailyIsoRange().end);
   const [showMainRsTable, setShowMainRsTable] = useState(false);
   const [showStatsAnnualTable, setShowStatsAnnualTable] = useState(false);
   const [showStatsExcessTable, setShowStatsExcessTable] = useState(false);
@@ -641,7 +652,7 @@ export default function RelativeStrengthTickerPage() {
     return sliceSeriesByIsoRange(seriesData, chartPeriodicIsoRange.start, chartPeriodicIsoRange.end);
   }, [seriesData, mode, statsDailyPeriodicStart, statsDailyPeriodicEnd, chartPeriodicIsoRange.start, chartPeriodicIsoRange.end]);
 
-  /** Default calendar year span per frequency (non-daily uses start/end year dropdowns). */
+  /** Default calendar year span per frequency (main toolbar; non-daily uses start/end year dropdowns). */
   useEffect(() => {
     if (mode === 'daily') return;
     const end = String(currentYear);
@@ -657,6 +668,27 @@ export default function RelativeStrengthTickerPage() {
     }
     setStartYear(start);
     setEndYear(end);
+  }, [mode, currentYear]);
+
+  /** Annual / excess / periodic stats charts: daily = last month; weekly = current year; else 2025–2026. */
+  useEffect(() => {
+    if (mode === 'daily') {
+      const { start, end } = defaultStatsChartDailyIsoRange();
+      setStatsDailyAnnualStart(start);
+      setStatsDailyAnnualEnd(end);
+      setStatsDailyExcessStart(start);
+      setStatsDailyExcessEnd(end);
+      setStatsDailyPeriodicStart(start);
+      setStatsDailyPeriodicEnd(end);
+      return;
+    }
+    const { start, end } = defaultStatsChartYearRange(mode, currentYear);
+    setChartAnnualYearStart(start);
+    setChartAnnualYearEnd(end);
+    setChartExcessYearStart(start);
+    setChartExcessYearEnd(end);
+    setChartPeriodicYearStart(start);
+    setChartPeriodicYearEnd(end);
   }, [mode, currentYear]);
 
   useEffect(() => {
@@ -1638,12 +1670,13 @@ export default function RelativeStrengthTickerPage() {
           </div>
         </div>
         <section className="ticker-card ticker-card--rs-benchmark flex flex-col gap-2">
-        <TickerSection16Section17
+        {/* <TickerSection16Section17
           rows={section16Rows}
           compareRows={section17CompareRows}
           relativeStrengthTitle={`Relative Strength`}
           relativeStrengthHeader={`Relative Strength (${indexSymbol} - ${tickerSymbol})`}
-        />
+          chartBarsAscending
+        /> */}
           <TickerSection23Section24 pageSymbol={tickerSymbol} />
         </section>
       </div>

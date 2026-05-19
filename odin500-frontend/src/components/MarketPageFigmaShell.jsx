@@ -25,6 +25,9 @@ const LEFT_GROUPS = [
   { id: 'sector', title: 'SP500 Sectors' },
   { id: 'other', title: 'Other Markets (ETFs)' }
 ];
+
+/** Matches left-aside `mkt-mini-card` header title typography. */
+const MKT_ASIDE_TITLE_CLASS = 'uppercase text-[12px] font-medium leading-[1.1]';
 const REFRESH_MAP = { manual: 0, '15s': 15000, '30s': 30000, '60s': 60000 };
 const LS_KEYS = {
   selected: 'market_shell_selected_keys',
@@ -81,7 +84,7 @@ return (
       {LEFT_GROUPS.map((g) => (
         <section key={g.id} className="mkt-mini-card">
           <header className="mkt-mini-card__head">
-            <span className="uppercase text-[12px]" >
+            <span className={MKT_ASIDE_TITLE_CLASS}>
               {g.title}
               <span
                 className={'mkt-mini-card__tf' + (String(timeframe).toUpperCase() === '10Y' ? ' mkt-mini-card__tf--10y' : '')}
@@ -241,7 +244,7 @@ function SummaryReturnsCard({ refreshMs = 0, loadOhlcRows = null }) {
   return (
     <section className="mkt-watch-card mkt-returns-summary">
       <header className="mkt-watch-card__head mkt-returns-summary__head">
-        <span className="mkt-watch-card__title mkt-returns-summary__title-row">
+        <span className={`mkt-returns-summary__title-row ${MKT_ASIDE_TITLE_CLASS}`}>
           Index & sector returns
           <ChartInfoTip tip={CHART_INFO_TIPS.marketIndexReturns} align="start" />
         </span>
@@ -349,15 +352,17 @@ function MarketHeatmapThumbnail({ refreshMs = 0 }) {
 
   return (
     <section className="mkt-heat-thumb-card mkt-heat-thumb-card--figma">
-      <header className="mkt-heat-thumb-card__head mkt-heat-thumb-card__head--figma mkt-heat-thumb-card__head--row">
-      <div className="flex align-center gap-2">
-        <span className="mkt-heat-thumb-card__title align-center">Stock Market Heatmap</span>
-        <ChartInfoTip tip={CHART_INFO_TIPS.marketHeatmapThumb} align="end" />
+      <header className="mkt-heat-thumb-card__head mkt-heat-thumb-card__head--figma">
+        <div className="flex items-center gap-2">
+          <Link
+            to="/heatmap"
+            className={`${MKT_ASIDE_TITLE_CLASS} mkt-heat-thumb-card__title-link`}
+            title="Open full heatmap"
+          >
+            Stock Market Heatmap
+          </Link>
+          <ChartInfoTip tip={CHART_INFO_TIPS.marketHeatmapThumb} align="end" />
         </div>
-        <Link to="/heatmap" className="mkt-heat-thumb-card__link mkt-heat-thumb-card__link--icon" aria-label="Open full heatmap">
-        ↗
-        </Link>
-        
       </header>
       <div className="mkt-treemap-thumb-host mkt-treemap-thumb-host--figma" aria-busy={loading}>
         <Link
@@ -518,7 +523,7 @@ function RightWatchlistCard({ refreshMs = 0 }) {
     <aside className="mkt-right">
       <section className="mkt-watch-card">
         <header className="mkt-watch-card__head">
-          <span className="mkt-watch-card__title">Tickers List</span>
+          <span className={MKT_ASIDE_TITLE_CLASS}>Tickers List</span>
           <div className="mkt-watch-card__controls">
             <ThemedDropdown
               className="mkt-watch-card__dd"

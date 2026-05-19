@@ -5,6 +5,7 @@ import { DataInfoTip } from './DataInfoTip.jsx';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
 import { filterReturnsRows } from '../utils/returnsDateRange.js';
 import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
+import { chartAxisLabelColors } from '../utils/chartAxisLabelColors.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { getReturnsChartViewMoreHref } from '../utils/returnsViewMoreNavigation.js';
 import { ReturnsChartClickableTitle } from './ReturnsChartClickableTitle.jsx';
@@ -186,12 +187,15 @@ export function TickerMonthlyReturnsWaterfallDonut({
     [displayMonthRows, selectedYear]
   );
 
+  const { axis: colAxis, label: colLabel } = useMemo(
+    () => chartAxisLabelColors(chartTheme),
+    [chartTheme]
+  );
+
   const waterfallSvg = useMemo(() => {
     const light = chartTheme === 'light';
     const COL_GRID = light ? 'rgba(15, 23, 42, 0.1)' : 'rgba(148, 163, 184, 0.14)';
     const COL_GRID_ZERO = light ? 'rgba(15, 23, 42, 0.22)' : 'rgba(148, 163, 184, 0.35)';
-    const COL_AXIS = light ? '#334155' : '#94a3b8';
-    const COL_LABEL = light ? '#0f172a' : '#e2e8f0';
     const COL_CONN = light ? 'rgba(15, 23, 42, 0.35)' : 'rgba(148, 163, 184, 0.45)';
     const COL_TOTAL = light ? '#475569' : COL_NEU;
 
@@ -232,7 +236,7 @@ export function TickerMonthlyReturnsWaterfallDonut({
             stroke={t === 0 ? COL_GRID_ZERO : COL_GRID}
             strokeWidth={t === 0 ? 1.35 : 1}
           />
-          <text x={padL - 8} y={y + 4} textAnchor="end" fill={COL_AXIS} fontSize="10" fontWeight="600">
+          <text x={padL - 8} y={y + 4} textAnchor="end" fill={colAxis} fontSize="10" fontWeight="600">
             {t}%
           </text>
         </g>
@@ -257,7 +261,7 @@ export function TickerMonthlyReturnsWaterfallDonut({
       bars.push(
         <g key={m}>
           <rect x={x} y={top} width={bw} height={h} rx={2} fill={fill} />
-          <text x={cx} y={labY} textAnchor="middle" fill={COL_LABEL} fontSize="9.5" fontWeight="700">
+          <text x={cx} y={labY} textAnchor="middle" fill={colLabel} fontSize="9.5" fontWeight="700">
             {d.toFixed(1)}%
           </text>
         </g>
@@ -288,7 +292,7 @@ export function TickerMonthlyReturnsWaterfallDonut({
       if (periodMode === 'weekly' && i % 4 !== 0 && i !== n - 1) return null;
       const cx = padL + (i + 0.5) * step;
       return (
-        <text key={i} x={cx} y={H - 22} textAnchor="middle" fill={COL_AXIS} fontSize="11" fontWeight="600">
+        <text key={i} x={cx} y={H - 22} textAnchor="middle" fill={colAxis} fontSize="11" fontWeight="600">
           {periodMode === 'weekly' ? `W${i + 1}` : i + 1}
         </text>
       );
@@ -316,7 +320,7 @@ export function TickerMonthlyReturnsWaterfallDonut({
         {totalLabel}
       </svg>
     );
-  }, [monthValues, selectedYear, chartTheme, plotHeight, periodMode]);
+  }, [monthValues, selectedYear, colAxis, colLabel, chartTheme, plotHeight, periodMode]);
 
   const donutSvg = useMemo(() => {
     const light = chartTheme === 'light';
@@ -455,7 +459,7 @@ export function TickerMonthlyReturnsWaterfallDonut({
     <div className="ticker-monthly-adv">
       
       <div ref={sectionRef} className="ticker-annual-figma__section">
-        <div className="ticker-annual-figma__toolbar">
+        <div className="ticker-annual-figma__toolbar uppercase">
           <ReturnsChartClickableTitle className="ticker-annual-figma__badge uppercase" onClick={onViewMore}>
             Monthly returns — waterfall &amp; month mix
           </ReturnsChartClickableTitle>

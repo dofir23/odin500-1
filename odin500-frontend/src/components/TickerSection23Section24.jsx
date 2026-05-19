@@ -7,7 +7,8 @@ import { CHART_INFO_TIPS } from './chartInfoTips.js';
 import {fetchJsonCached, getAuthToken, canFetchProtectedApi} from '../store/apiStore.js';
 import { useReturnsChartFiltersMenuMode } from '../context/WatchlistDockContext.jsx';
 import { ReturnsChartFiltersMenu } from './ReturnsChartFiltersMenu.jsx';
-import { ReturnsChartClickableHeading } from './ReturnsChartClickableTitle.jsx';
+import { ReturnsChartClickableTitle } from './ReturnsChartClickableTitle.jsx';
+import { ReturnsChartPieIcon } from './returnsChartToolbarIcons.jsx';
 import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
 import { ChartSectionIconActions } from './ChartSectionIconActions.jsx';
 import { buildRelativeStrengthTickerHref } from '../utils/relativeStrengthNavigation.js';
@@ -492,9 +493,12 @@ export function TickerSection23Section24({
       <div className="ticker-s23s24__card ticker-s23">
         <div className="ticker-s23s24__head-row ticker-s23s24__head-row--title-only">
           <div className="ticker-card__h-with-tip">
-            <ReturnsChartClickableHeading className="ticker-subh ticker-subh--flex uppercase" onClick={onViewMore}>
-              Relative Strength
-            </ReturnsChartClickableHeading>
+            <div className="inline-flex shrink-0 items-center gap-2 uppercase">
+              <ReturnsChartPieIcon />
+              <ReturnsChartClickableTitle className="ticker-annual-figma__badge uppercase" onClick={onViewMore}>
+                Relative Strength
+              </ReturnsChartClickableTitle>
+            </div>
             <ChartInfoTip tip={CHART_INFO_TIPS.tickerCompareBars} align="start" />
           </div>
         </div>
@@ -525,9 +529,12 @@ export function TickerSection23Section24({
       <div ref={s24CardRef} className="ticker-s23s24__card ticker-s24">
         <div className="ticker-s24__title-row">
           <div className="ticker-card__h-with-tip">
-            <ReturnsChartClickableHeading className="ticker-subh ticker-subh--flex" onClick={onViewMore}>
-              Benchmark vs Ticker Bars
-            </ReturnsChartClickableHeading>
+            <div className="inline-flex shrink-0 items-center gap-2 uppercase">
+              <ReturnsChartPieIcon />
+              <ReturnsChartClickableTitle className="ticker-annual-figma__badge uppercase" onClick={onViewMore}>
+                Benchmark vs Ticker Bars
+              </ReturnsChartClickableTitle>
+            </div>
             <ChartInfoTip tip={CHART_INFO_TIPS.tickerCompareBars} align="start" />
           </div>
           <div className="ticker-s24__title-actions">
@@ -633,14 +640,15 @@ export function TickerSection23Section24({
                 </div>
               </div>
               <div className="ticker-s24__legend">
-                <span>
-                  <i className="ticker-s24__dot ticker-s24__dot--bench" />
-                  {activeGroup.benchLabel}
-                </span>
-                <span>
+              <span>
                   <i className="ticker-s24__dot ticker-s24__dot--tick" />
                   {ticker || 'Ticker'}
                 </span>
+                <span>
+                  <i className="ticker-s24__dot ticker-s24__dot--bench" />
+                  {activeGroup.benchmark}
+                </span>
+                
               </div>
             </>
           )}

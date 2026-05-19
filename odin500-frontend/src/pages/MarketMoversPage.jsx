@@ -43,7 +43,7 @@ const MARKET_MOVERS_LOSS_HEX = 'rgb(255, 59, 48)';
 const MARKET_MOVERS_INTERVALS = [
   { id: '1d', apiPeriod: 'last-date', label: '1D', chartHeadline: '1-Day Performance vs Relative Volume', axisReturnTitle: '1 Day Return', tooltipReturnLabel: '1D return' },
   { id: '5d', apiPeriod: 'last-5-days', label: '5D', chartHeadline: '5-Day Performance vs Relative Volume', axisReturnTitle: '5 Day Return', tooltipReturnLabel: '5D return' },
-  { id: 'mtd', apiPeriod: 'mtd', label: 'MTD', chartHeadline: 'Month-to-Date Performance vs Relative Volume', axisReturnTitle: 'MTD Return', tooltipReturnLabel: 'MTD return' },
+  // { id: 'mtd', apiPeriod: 'mtd', label: 'MTD', chartHeadline: 'Month-to-Date Performance vs Relative Volume', axisReturnTitle: 'MTD Return', tooltipReturnLabel: 'MTD return' },
   { id: '1m', apiPeriod: 'last-month', label: '1M', chartHeadline: '1-Month Performance vs Relative Volume', axisReturnTitle: '1 Month Return', tooltipReturnLabel: '1M return' },
   { id: 'qtd', apiPeriod: 'qtd', label: 'QTD', chartHeadline: 'Quarter-to-Date Performance vs Relative Volume', axisReturnTitle: 'QTD Return', tooltipReturnLabel: 'QTD return' },
   { id: '3m', apiPeriod: 'last-3-months', label: '3M', chartHeadline: '3-Month Performance vs Relative Volume', axisReturnTitle: '3 Month Return', tooltipReturnLabel: '3M return' },
@@ -54,7 +54,6 @@ const MARKET_MOVERS_INTERVALS = [
   { id: '5y', apiPeriod: 'last-5-years', label: '5Y', chartHeadline: '5-Year Performance vs Relative Volume', axisReturnTitle: '5 Year Return', tooltipReturnLabel: '5Y return' },
   { id: '10y', apiPeriod: 'last-10-years', label: '10Y', chartHeadline: '10-Year Performance vs Relative Volume', axisReturnTitle: '10 Year Return', tooltipReturnLabel: '10Y return' },
   { id: '20y', apiPeriod: 'last-20-years', label: '20Y', chartHeadline: '20-Year Performance vs Relative Volume', axisReturnTitle: '20 Year Return', tooltipReturnLabel: '20Y return' },
-  { id: 'all', apiPeriod: 'all-available', label: 'ALL', chartHeadline: 'Full History Performance vs Relative Volume', axisReturnTitle: 'Full Period Return', tooltipReturnLabel: 'Period return' }
 ];
 
 /** Wide landscape plot: X = relative volume (horizontal). */

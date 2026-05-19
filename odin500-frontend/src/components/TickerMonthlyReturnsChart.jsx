@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChartDateApplyRow } from './ChartDateApplyRow.jsx';
 import { DataInfoTip } from './DataInfoTip.jsx';
@@ -14,14 +14,15 @@ import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
 import { ReturnsChartClickableTitle } from './ReturnsChartClickableTitle.jsx';
 import { ChartSectionIconActions, useChartFullscreen } from './ChartSectionIconActions.jsx';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
+import { ReturnsChartPieIcon } from './returnsChartToolbarIcons.jsx';
+import { chartAxisLabelColors } from '../utils/chartAxisLabelColors.js';
+import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 
 const COL_BAR = '#2563eb';
 const COL_BAR_NEG = '#f59e0b';
 const COL_AVG = '#f97316';
 const COL_GRID = 'rgba(148, 163, 184, 0.14)';
 const COL_GRID_ZERO = 'rgba(148, 163, 184, 0.35)';
-const COL_AXIS = '#94a3b8';
-const COL_LABEL = '#e2e8f0';
 
 const DEFAULT_YEAR = 2025;
 /** Weekly statistic chart year picker lists every calendar year in this span (descending in UI). */
@@ -113,6 +114,11 @@ export function TickerMonthlyReturnsChart({
   const chartFsShellRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartCardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const { isFullscreen: chartFs } = useChartFullscreen(chartFsShellRef);
+  const chartTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
+  const { axis: colAxis, label: colLabel } = useMemo(
+    () => chartAxisLabelColors(chartTheme),
+    [chartTheme]
+  );
   const resize = useTickerPlotResize(resizeStorageKey ?? null, resizeDefaultHeight);
   const plotPx = resize.plotHeight ?? plotHeight;
 
@@ -157,13 +163,12 @@ export function TickerMonthlyReturnsChart({
 
   useEffect(() => {
     if (!availableYears.length) return;
-    if (availableYears.includes(selectedYear)) return;
-    if (defaultToLatestYear) {
-      setSelectedYear(availableYears[0]);
-      return;
-    }
-    setSelectedYear(availableYears.includes(DEFAULT_YEAR) ? DEFAULT_YEAR : availableYears[0]);
-  }, [availableYears, selectedYear, defaultToLatestYear]);
+    setSelectedYear((prev) => {
+      if (availableYears.includes(prev)) return prev;
+      if (defaultToLatestYear) return availableYears[0];
+      return availableYears.includes(DEFAULT_YEAR) ? DEFAULT_YEAR : availableYears[0];
+    });
+  }, [availableYears, defaultToLatestYear]);
 
   const monthValues = useMemo(() => {
     const size = periodMode === 'weekly' ? 53 : periodMode === 'daily' ? 31 : 12;
@@ -235,7 +240,7 @@ export function TickerMonthlyReturnsChart({
             stroke={t === 0 ? COL_GRID_ZERO : COL_GRID}
             strokeWidth={t === 0 ? 1.35 : 1}
           />
-          <text x={padL - 8} y={y + 4} textAnchor="end" fill={COL_AXIS} fontSize="10" fontWeight="600">
+          <text x={padL - 8} y={y + 4} textAnchor="end" fill={colAxis} fontSize="10" fontWeight="600">
             {Number.isInteger(t) ? `${t}%` : `${t.toFixed(1)}%`}
           </text>
         </g>
@@ -257,7 +262,7 @@ export function TickerMonthlyReturnsChart({
         <g key={m}>
           <rect x={x} y={top} width={bw} height={Math.max(h, 1)} rx={2} fill={v < 0 ? COL_BAR_NEG : COL_BAR} />
           {chartFs || (periodMode !== 'weekly' && periodMode !== 'daily') ? (
-            <text x={x + bw / 2} y={labY} textAnchor="middle" fill={COL_LABEL} fontSize="10" fontWeight="700">
+            <text x={x + bw / 2} y={labY} textAnchor="middle" fill={colLabel} fontSize="10" fontWeight="700">
               {v.toFixed(1)}%
             </text>
           ) : null}
@@ -273,13 +278,13 @@ export function TickerMonthlyReturnsChart({
         const lbl = weekAxisLabels.get(i + 1);
         if (!lbl) return null;
         return (
-          <text key={i} x={cx} y={H - 22} textAnchor="middle" fill={COL_AXIS} fontSize="11" fontWeight="600">
+          <text key={i} x={cx} y={H - 22} textAnchor="middle" fill={colAxis} fontSize="11" fontWeight="600">
             {lbl}
           </text>
         );
       }
       return (
-        <text key={i} x={cx} y={H - 22} textAnchor="middle" fill={COL_AXIS} fontSize="11" fontWeight="600">
+        <text key={i} x={cx} y={H - 22} textAnchor="middle" fill={colAxis} fontSize="11" fontWeight="600">
           {periodMode === 'daily' ? i + 1 : i + 1}
         </text>
       );
@@ -322,11 +327,12 @@ export function TickerMonthlyReturnsChart({
         {xLabels}
       </svg>
     );
-  }, [avgReturn, chartFs, monthValues, yMin, yMax, plotPx, periodMode, weekAxisLabels]);
+  }, [avgReturn, chartFs, colAxis, colLabel, monthValues, yMin, yMax, plotPx, periodMode, weekAxisLabels]);
 
   const symU = String(symbol || 'ticker').toUpperCase();
   const yearOptions = useMemo(() => {
     if (hideChartDateApplyRow && periodMode === 'weekly') {
+      if (availableYears.length) return availableYears;
       const hi = Math.max(2026, new Date().getFullYear());
       const arr = [];
       for (let y = hi; y >= WEEKLY_YEAR_SELECT_MIN; y -= 1) arr.push(y);
@@ -396,29 +402,35 @@ export function TickerMonthlyReturnsChart({
     navigate(base + suffix);
   }, [navigate, periodMode, symbol]);
 
+  const showYearInToolbar = isMonthlyMode || hideChartDateApplyRow;
+
+  const yearDropdownMenuMaxHeight =
+    hideChartDateApplyRow && periodMode === 'weekly' ? 'min(260px, 45vh)' : undefined;
+
+  const renderYearDropdown = (buttonId) => (
+    <ThemedDropdown
+      buttonId={buttonId}
+      className="ticker-monthly__select-dd"
+      size="sm"
+      value={String(selectedYear)}
+      options={yearDropdownOptions}
+      onChange={(v) => setSelectedYear(Number(v))}
+      title="Year"
+      ariaLabelPrefix="Year"
+      labelFallback={String(selectedYear)}
+      menuMaxHeight={yearDropdownMenuMaxHeight}
+    />
+  );
+
   const yearToolbarDropdown =
     !suppressChartDateFilter || useThemedYearDropdown ? (
       <div className="ticker-monthly__select-wrap ticker-monthly__select-wrap--toolbar">
         <label className="ticker-monthly__select-label" htmlFor="ticker-monthly-year-toolbar">
           Year
         </label>
-        <ThemedDropdown
-          buttonId="ticker-monthly-year-toolbar"
-          className="ticker-monthly__select-dd"
-          size="sm"
-          value={String(selectedYear)}
-          options={yearDropdownOptions}
-          onChange={(v) => setSelectedYear(Number(v))}
-          title="Year"
-          ariaLabelPrefix="Year"
-          labelFallback={String(selectedYear)}
-          menuMaxHeight={
-            hideChartDateApplyRow && periodMode === 'weekly' ? 'min(260px, 45vh)' : undefined
-          }
-        />
+        {renderYearDropdown('ticker-monthly-year-toolbar')}
       </div>
     ) : null;
-  const showYearInToolbar = isMonthlyMode || hideChartDateApplyRow;
 
   const yearTrailingSelect =
     !isMonthlyMode && !suppressChartDateFilter && !hideChartDateApplyRow ? (
@@ -426,17 +438,7 @@ export function TickerMonthlyReturnsChart({
         <label className="ticker-monthly__select-label" htmlFor="ticker-monthly-year-trailing">
           Year
         </label>
-        <ThemedDropdown
-          buttonId="ticker-monthly-year-trailing"
-          className="ticker-monthly__select-dd"
-          size="sm"
-          value={String(selectedYear)}
-          options={yearDropdownOptions}
-          onChange={(v) => setSelectedYear(Number(v))}
-          title="Year"
-          ariaLabelPrefix="Year"
-          labelFallback={String(selectedYear)}
-        />
+        {renderYearDropdown('ticker-monthly-year-trailing')}
       </div>
     ) : null;
 
@@ -474,17 +476,8 @@ export function TickerMonthlyReturnsChart({
         >
           <div className="ticker-monthly__head">
             <div className="ticker-monthly__title-block">
-              <div className="flex align-centers"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <g clip-path="url(#clip0_609_23954)">
-                  <path d="M7.82031 1.25781V6.17969H12.7422C12.7422 4.87433 12.2236 3.62243 11.3006 2.6994C10.3776 1.77637 9.12567 1.25781 7.82031 1.25781Z" stroke="white" stroke-width="0.875" stroke-linecap="round" stroke-linejoin="round" />
-                  <path d="M6.17969 2.89844C5.20623 2.89844 4.25464 3.1871 3.44524 3.72792C2.63584 4.26875 2.005 5.03744 1.63247 5.93679C1.25995 6.83615 1.16248 7.82577 1.35239 8.78052C1.5423 9.73527 2.01106 10.6123 2.6994 11.3006C3.38774 11.9889 4.26473 12.4577 5.21948 12.6476C6.17423 12.8375 7.16386 12.7401 8.06321 12.3675C8.96257 11.995 9.73126 11.3642 10.2721 10.5548C10.8129 9.74536 11.1016 8.79377 11.1016 7.82031H6.17969V2.89844Z" stroke="white" stroke-width="0.875" stroke-linecap="round" stroke-linejoin="round" />
-                </g>
-                <defs>
-                  <clipPath id="clip0_609_23954">
-                    <rect width="14" height="14" fill="white" />
-                  </clipPath>
-                </defs>
-              </svg>
+              <div className="flex align-centers">
+                <ReturnsChartPieIcon />
               </div>
               <ReturnsChartClickableTitle className="ticker-monthly__title uppercase" onClick={onViewMore}>
                 {periodMode === 'weekly' ? 'WEEKLY STATISTICS' : periodMode === 'daily' ? 'DAILY STATISTICS' : 'MONTHLY STATISTICS'}
@@ -503,19 +496,7 @@ export function TickerMonthlyReturnsChart({
                 <p className="ticker-data-tip__p">No monthly rows for {symU} yet.</p>
               </DataInfoTip>
             </div>
-            {!suppressChartDateFilter ? (
-              <ThemedDropdown
-                className="ticker-monthly__select-dd"
-                size="sm"
-                value={String(selectedYear)}
-                options={yearDropdownOptions}
-                onChange={() => { }}
-                title="Year"
-                ariaLabelPrefix="Year"
-                labelFallback={String(selectedYear)}
-                disabled
-              />
-            ) : null}
+            {showYearInToolbar ? renderYearDropdown('ticker-monthly-year-head') : null}
             <ChartSectionIconActions
               snapshotRootRef={sectionRef}
               plotHostRef={chartCardRef}
@@ -557,17 +538,8 @@ export function TickerMonthlyReturnsChart({
       >
         <div className="ticker-monthly__head">
           <div className="ticker-monthly__title-block">
-            <div className="flex align-centers"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <g clip-path="url(#clip0_609_23954)">
-                <path d="M7.82031 1.25781V6.17969H12.7422C12.7422 4.87433 12.2236 3.62243 11.3006 2.6994C10.3776 1.77637 9.12567 1.25781 7.82031 1.25781Z" stroke="white" stroke-width="0.875" stroke-linecap="round" stroke-linejoin="round" />
-                <path d="M6.17969 2.89844C5.20623 2.89844 4.25464 3.1871 3.44524 3.72792C2.63584 4.26875 2.005 5.03744 1.63247 5.93679C1.25995 6.83615 1.16248 7.82577 1.35239 8.78052C1.5423 9.73527 2.01106 10.6123 2.6994 11.3006C3.38774 11.9889 4.26473 12.4577 5.21948 12.6476C6.17423 12.8375 7.16386 12.7401 8.06321 12.3675C8.96257 11.995 9.73126 11.3642 10.2721 10.5548C10.8129 9.74536 11.1016 8.79377 11.1016 7.82031H6.17969V2.89844Z" stroke="white" stroke-width="0.875" stroke-linecap="round" stroke-linejoin="round" />
-              </g>
-              <defs>
-                <clipPath id="clip0_609_23954">
-                  <rect width="14" height="14" fill="white" />
-                </clipPath>
-              </defs>
-            </svg>
+            <div className="flex align-centers">
+              <ReturnsChartPieIcon />
             </div>
             <ReturnsChartClickableTitle className="ticker-monthly__title uppercase" onClick={onViewMore}>
               {periodMode === 'weekly' ? 'WEEKLY STATISTICS' : periodMode === 'daily' ? 'DAILY STATISTICS' : 'MONTHLY STATISTICS'}

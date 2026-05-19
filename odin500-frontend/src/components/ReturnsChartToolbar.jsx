@@ -88,7 +88,7 @@ export function ReturnsChartToolbar({
         ) : null}
         {showDownload && typeof onDownload === 'function' ? (
           <ReturnsChartToolbarIconButton
-            label={loggedIn ? 'Download CSV' : 'Sign in to download CSV'}
+            label={loggedIn ? 'Download CSV' : 'Download CSV'}
             onClick={handleDownload}
             disabled={downloadDisabled}
           >

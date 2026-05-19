@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { DataInfoTip } from './DataInfoTip.jsx';
 import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
@@ -8,11 +8,11 @@ import { QuarterlyDualPanelChartSkeleton, QuarterlyReturnsToolbarBadge } from '.
 import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
 import { ChartSectionIconActions, useChartFullscreen } from './ChartSectionIconActions.jsx';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
+import { chartAxisLabelColors } from '../utils/chartAxisLabelColors.js';
+import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 
 const COL_GRID = 'rgba(148, 163, 184, 0.14)';
 const COL_GRID_ZERO = 'rgba(148, 163, 184, 0.35)';
-const COL_AXIS = '#94a3b8';
-const COL_LABEL = '#e2e8f0';
 
 /** Q1–Q4 colors (left chart series). */
 const QUARTER_COLORS = ['#38bdf8', '#f97316', '#64748b', '#eab308'];
@@ -88,6 +88,11 @@ export function TickerQuarterlyReturnsChart({
   const chartFsShellRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartCardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const { isFullscreen: chartFs } = useChartFullscreen(chartFsShellRef);
+  const chartTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
+  const { axis: colAxis, label: colLabel } = useMemo(
+    () => chartAxisLabelColors(chartTheme),
+    [chartTheme]
+  );
   const rowsAll = useMemo(() => buildRows(quarterlyReturnsAll ?? quarterlyReturns), [quarterlyReturnsAll, quarterlyReturns]);
   const rows = useMemo(() => buildRows(quarterlyReturns), [quarterlyReturns]);
   const [showTable, setShowTable] = useState(false);
@@ -153,7 +158,7 @@ export function TickerQuarterlyReturnsChart({
             stroke={t === 0 ? COL_GRID_ZERO : COL_GRID}
             strokeWidth={t === 0 ? 1.35 : 1}
           />
-          <text x={padL - 8} y={y + 4} textAnchor="end" fill={COL_AXIS} fontSize="10" fontWeight="600">
+          <text x={padL - 8} y={y + 4} textAnchor="end" fill={colAxis} fontSize="10" fontWeight="600">
             {Number.isInteger(t) ? `${t}%` : `${t.toFixed(1)}%`}
           </text>
         </g>
@@ -179,7 +184,7 @@ export function TickerQuarterlyReturnsChart({
           <g key={`${yr}-Q${q}`}>
             <rect x={x} y={top} width={barW} height={Math.max(h, 1)} rx={1.5} fill={QUARTER_COLORS[qi]} />
             {showLab ? (
-              <text x={x + barW / 2} y={labY} textAnchor="middle" fill={COL_LABEL} fontSize="8" fontWeight="700">
+              <text x={x + barW / 2} y={labY} textAnchor="middle" fill={colLabel} fontSize="8" fontWeight="700">
                 {v.toFixed(1)}%
               </text>
             ) : null}
@@ -191,7 +196,7 @@ export function TickerQuarterlyReturnsChart({
     const xLabels = years.map((yr, gi) => {
       const cx = padL + gi * groupW + groupW / 2;
       return (
-        <text key={yr} x={cx} y={H - 20} textAnchor="middle" fill={COL_AXIS} fontSize="11" fontWeight="600">
+        <text key={yr} x={cx} y={H - 20} textAnchor="middle" fill={colAxis} fontSize="11" fontWeight="600">
           {yr}
         </text>
       );
@@ -209,7 +214,7 @@ export function TickerQuarterlyReturnsChart({
         {xLabels}
       </svg>
     );
-  }, [chartFs, years, byYear, yMin, yMax, plotHeight]);
+  }, [chartFs, colAxis, colLabel, years, byYear, yMin, yMax, plotHeight]);
 
   const rightSvg = useMemo(() => {
     if (!years.length) return null;
@@ -241,7 +246,7 @@ export function TickerQuarterlyReturnsChart({
           stroke={t === 0 ? COL_GRID_ZERO : COL_GRID}
           strokeWidth={t === 0 ? 1.35 : 1}
         />
-        <text x={padL - 8} y={yForValue(t, padT, ih, yMin, yMax) + 4} textAnchor="end" fill={COL_AXIS} fontSize="10" fontWeight="600">
+        <text x={padL - 8} y={yForValue(t, padT, ih, yMin, yMax) + 4} textAnchor="end" fill={colAxis} fontSize="10" fontWeight="600">
           {Number.isInteger(t) ? `${t}%` : `${t.toFixed(1)}%`}
         </text>
       </g>
@@ -266,7 +271,7 @@ export function TickerQuarterlyReturnsChart({
           <g key={`Q${q}-${yr}`}>
             <rect x={x} y={top} width={barW} height={Math.max(h, 1)} rx={1.5} fill={yearColors.get(yr)} />
             {showLab ? (
-              <text x={x + barW / 2} y={labY} textAnchor="middle" fill={COL_LABEL} fontSize="7.5" fontWeight="700">
+              <text x={x + barW / 2} y={labY} textAnchor="middle" fill={colLabel} fontSize="7.5" fontWeight="700">
                 {v.toFixed(0)}%
               </text>
             ) : null}
@@ -278,7 +283,7 @@ export function TickerQuarterlyReturnsChart({
     const xLabels = [1, 2, 3, 4].map((q, qi) => {
       const cx = padL + qi * groupW + groupW / 2;
       return (
-        <text key={q} x={cx} y={H - 20} textAnchor="middle" fill={COL_AXIS} fontSize="11" fontWeight="600">
+        <text key={q} x={cx} y={H - 20} textAnchor="middle" fill={colAxis} fontSize="11" fontWeight="600">
           Q{q}
         </text>
       );
@@ -296,7 +301,7 @@ export function TickerQuarterlyReturnsChart({
         {xLabels}
       </svg>
     );
-  }, [chartFs, years, byQuarter, yearColors, yMin, yMax, plotHeight]);
+  }, [chartFs, colAxis, colLabel, years, byQuarter, yearColors, yMin, yMax, plotHeight]);
 
   const symU = String(symbol || 'ticker').toUpperCase();
 

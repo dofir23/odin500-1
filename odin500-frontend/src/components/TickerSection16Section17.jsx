@@ -2,11 +2,12 @@ import { useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChartInfoTip } from './ChartInfoTip.jsx';
 import { CHART_INFO_TIPS } from './chartInfoTips.js';
-import { ReturnsChartClickableHeading } from './ReturnsChartClickableTitle.jsx';
+import { ReturnsChartClickableTitle } from './ReturnsChartClickableTitle.jsx';
 import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
 import { ChartSectionIconActions } from './ChartSectionIconActions.jsx';
 import { buildRelativeStrengthTickerHref } from '../utils/relativeStrengthNavigation.js';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
+import { ReturnsChartPieIcon } from './returnsChartToolbarIcons.jsx';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 
 /** Green / red text for diff column (reuses ticker theme tokens). */
@@ -40,6 +41,9 @@ function formatBarValuePct(v) {
   const n = Number(v);
   return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
 }
+
+/** Swatch colors for the two RS comparison tickers (left / right dropdown). */
+const S17_COMPARISON_LEGEND_COLORS = ['#2563eb', '#64748b'];
 
 /** Linear map: axisMax → 0%, axisMin → 100%. */
 function yPct(axisMax, axisMin, value) {
@@ -165,7 +169,11 @@ export function TickerSection16Section17({
   chartHeaderExtra = null,
   /** Ticker passed to Relative Strength “view more” when `onViewMore` is omitted. */
   viewMoreTicker = '',
-  onViewMore: onViewMoreProp
+  onViewMore: onViewMoreProp,
+  /** When true, bar chart x-axis runs oldest→newest (table row order unchanged). */
+  chartBarsAscending = false,
+  /** Selected comparison tickers for the chart legend (e.g. `['XLK', 'SPX']`). */
+  comparisonLegendLabels = null
 }) {
   const navigate = useNavigate();
   const onViewMore = useCallback(() => {
@@ -180,16 +188,36 @@ export function TickerSection16Section17({
   }, [navigate, onViewMoreProp, viewMoreTicker]);
   const displayRows = useMemo(() => (Array.isArray(rows) ? rows.filter((r) => r && r.label) : []), [rows]);
   const chartRows = useMemo(() => {
-    if (displayRows.length) return displayRows;
-    // Backward-compat fallback if only compare rows are passed.
-    return Array.isArray(compareRows)
-      ? compareRows
-          .filter((r) => r && r.label)
-          .map((r) => ({ label: r.label, value: Number.isFinite(r.value) ? Number(r.value) : Number(r.diff) }))
-      : [];
-  }, [displayRows, compareRows]);
+    let rowsForChart;
+    if (displayRows.length) {
+      rowsForChart = displayRows;
+    } else if (Array.isArray(compareRows)) {
+      // Backward-compat fallback if only compare rows are passed.
+      rowsForChart = compareRows
+        .filter((r) => r && r.label)
+        .map((r) => ({ label: r.label, value: Number.isFinite(r.value) ? Number(r.value) : Number(r.diff) }));
+    } else {
+      rowsForChart = [];
+    }
+    if (chartBarsAscending && rowsForChart.length > 1) {
+      return [...rowsForChart].reverse();
+    }
+    return rowsForChart;
+  }, [displayRows, compareRows, chartBarsAscending]);
 
   const chart = useMemo(() => buildRelativeStrengthChart(chartRows), [chartRows]);
+
+  const legendLabels = useMemo(() => {
+    if (Array.isArray(comparisonLegendLabels) && comparisonLegendLabels.length) {
+      return comparisonLegendLabels.map((l) => String(l || '').trim()).filter(Boolean);
+    }
+    const m = String(relativeStrengthHeader || '').match(/\(([^)]+)\)/);
+    if (!m) return [];
+    return m[1]
+      .split(/\s*-\s*/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }, [comparisonLegendLabels, relativeStrengthHeader]);
 
   const s17CardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const s17ChartFsRef = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -235,34 +263,12 @@ export function TickerSection16Section17({
       <div className="ticker-s16s17__card ticker-s16">
         <div className="ticker-s16s17__head-row">
           <div className="ticker-card__h-with-tip">
-            <div className="flex align-centers">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                <g clipPath="url(#clip0_609_23954)">
-                  <path
-                    d="M7.82031 1.25781V6.17969H12.7422C12.7422 4.87433 12.2236 3.62243 11.3006 2.6994C10.3776 1.77637 9.12567 1.25781 7.82031 1.25781Z"
-                    stroke="white"
-                    strokeWidth="0.875"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M6.17969 2.89844C5.20623 2.89844 4.25464 3.1871 3.44524 3.72792C2.63584 4.26875 2.005 5.03744 1.63247 5.93679C1.25995 6.83615 1.16248 7.82577 1.35239 8.78052C1.5423 9.73527 2.01106 10.6123 2.6994 11.3006C3.38774 11.9889 4.26473 12.4577 5.21948 12.6476C6.17423 12.8375 7.16386 12.7401 8.06321 12.3675C8.96257 11.995 9.73126 11.3642 10.2721 10.5548C10.8129 9.74536 11.1016 8.79377 11.1016 7.82031H6.17969V2.89844Z"
-                    stroke="white"
-                    strokeWidth="0.875"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </g>
-                <defs>
-                  <clipPath id="clip0_609_23954">
-                    <rect width="14" height="14" fill="white" />
-                  </clipPath>
-                </defs>
-              </svg>
+            <div className="inline-flex shrink-0 items-center gap-2 uppercase">
+              <ReturnsChartPieIcon />
+              <ReturnsChartClickableTitle className="ticker-annual-figma__badge uppercase" onClick={onViewMore}>
+                {relativeStrengthTitle}
+              </ReturnsChartClickableTitle>
             </div>
-            <ReturnsChartClickableHeading className="ticker-subh ticker-subh--flex" onClick={onViewMore}>
-              {relativeStrengthTitle}
-            </ReturnsChartClickableHeading>
             <ChartInfoTip tip={CHART_INFO_TIPS.tickerRelativeStrength} align="start" />
           </div>
         </div>
@@ -294,9 +300,12 @@ export function TickerSection16Section17({
       <div ref={s17CardRef} className="ticker-s16s17__card ticker-s17">
         <div className="ticker-s16s17__head-row">
           <div className="ticker-card__h-with-tip">
-            <ReturnsChartClickableHeading className="ticker-subh ticker-subh--flex" onClick={onViewMore}>
-              Relative Strength Bars
-            </ReturnsChartClickableHeading>
+            <div className="inline-flex shrink-0 items-center gap-2 uppercase">
+              <ReturnsChartPieIcon />
+              <ReturnsChartClickableTitle className="ticker-annual-figma__badge uppercase" onClick={onViewMore}>
+                Relative Strength Bars
+              </ReturnsChartClickableTitle>
+            </div>
             <ChartInfoTip tip={CHART_INFO_TIPS.tickerRelativeStrength} align="start" />
           </div>
           <div className="ticker-s16s17__chart-head-tools">
@@ -389,6 +398,25 @@ export function TickerSection16Section17({
           </div>
         </div>
         </div>
+        {legendLabels.length ? (
+          <div className="ticker-annual-figma__legend ticker-s17__legend" aria-label="Comparison tickers">
+            <div className="ticker-annual-figma__legend-row">
+              {legendLabels.map((label, i) => (
+                <span key={`${label}-${i}`} className="ticker-annual-figma__legend-item">
+                  <span
+                    className="ticker-annual-figma__swatch"
+                    aria-hidden
+                    style={{
+                      background:
+                        S17_COMPARISON_LEGEND_COLORS[i % S17_COMPARISON_LEGEND_COLORS.length]
+                    }}
+                  />
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );

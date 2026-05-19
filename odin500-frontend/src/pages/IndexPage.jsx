@@ -10,6 +10,7 @@ import { ThemedDropdown } from '../components/ThemedDropdown.jsx';
 import { ReturnsChartToolbar, ReturnsChartToolbarIconButton } from '../components/ReturnsChartToolbar.jsx';
 import { ReturnsChartIcoDownload } from '../components/returnsChartToolbarIcons.jsx';
 import { ReturnsChartClickableHeading } from '../components/ReturnsChartClickableTitle.jsx';
+import { ReturnsChartPieIcon } from '../components/returnsChartToolbarIcons.jsx';
 import { buildRelativeStrengthTickerHref } from '../utils/relativeStrengthNavigation.js';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { useIsLoggedIn } from '../hooks/useIsLoggedIn.js';
@@ -735,6 +736,9 @@ export default function IndexPage() {
   const [indexTickersRows, setIndexTickersRows] = useState([]);
   const [indexTickersBusy, setIndexTickersBusy] = useState(false);
   const [indexTickersPage, setIndexTickersPage] = useState(1);
+  const [indexConstituentsSort, setIndexConstituentsSort] = useState(
+    /** @type {{ key: 'name' | 'close' | 'pct', dir: 'asc' | 'desc' }} */ ({ key: 'name', dir: 'asc' })
+  );
   const [tailRows, setTailRows] = useState([]);
   const [ohlcTickerBounds, setOhlcTickerBounds] = useState(/** @type {{ min: string, max: string } | null} */ (null));
 
@@ -1630,28 +1634,85 @@ export default function IndexPage() {
   const onOpenNewsPage = useCallback(() => {
     navigate(`/news?ticker=${encodeURIComponent(displaySym)}`);
   }, [navigate, displaySym]);
-  const indexTickersTotalPages = Math.max(1, Math.ceil(indexTickersRows.length / INDEX_TICKERS_PAGE_SIZE));
-  const indexTickersPageSafe = Math.min(Math.max(1, indexTickersPage), indexTickersTotalPages);
-  const indexTickersPageRows = useMemo(() => {
-    const start = (indexTickersPageSafe - 1) * INDEX_TICKERS_PAGE_SIZE;
-    return indexTickersRows.slice(start, start + INDEX_TICKERS_PAGE_SIZE);
-  }, [indexTickersRows, indexTickersPageSafe]);
+  const sortedIndexTickersRows = useMemo(() => {
+    const list = [...indexTickersRows];
+    const dirMul = indexConstituentsSort.dir === 'asc' ? 1 : -1;
+    const tieByName = (a, b) =>
+      String(a.symbol || '').localeCompare(String(b.symbol || ''), undefined, { sensitivity: 'base' });
+    list.sort((a, b) => {
+      if (indexConstituentsSort.key === 'name') {
+        return dirMul * tieByName(a, b);
+      }
+      if (indexConstituentsSort.key === 'close') {
+        const na = Number(a.close);
+        const nb = Number(b.close);
+        const aNa = !Number.isFinite(na);
+        const bNa = !Number.isFinite(nb);
+        if (aNa && bNa) return tieByName(a, b);
+        if (aNa) return 1;
+        if (bNa) return -1;
+        const c = dirMul * (na - nb);
+        return c !== 0 ? c : tieByName(a, b);
+      }
+      if (indexConstituentsSort.key === 'pct') {
+        const pa = Number(a.ret1d);
+        const pb = Number(b.ret1d);
+        const aNa = !Number.isFinite(pa);
+        const bNa = !Number.isFinite(pb);
+        if (aNa && bNa) return tieByName(a, b);
+        if (aNa) return 1;
+        if (bNa) return -1;
+        const c = dirMul * (pa - pb);
+        return c !== 0 ? c : tieByName(a, b);
+      }
+      return tieByName(a, b);
+    });
+    return list;
+  }, [indexTickersRows, indexConstituentsSort]);
 
-  /** Sector-data page: show all S&P 500 names in this sector, grouped A–Z by first symbol letter. */
-  const sectorConstituentLetterGroups = useMemo(() => {
-    if (!isSectorDataRoute) return [];
-    const sorted = [...indexTickersRows].sort((a, b) => a.symbol.localeCompare(b.symbol));
-    const byLetter = new Map();
-    for (const row of sorted) {
-      const letter = (row.symbol[0] || '#').toUpperCase();
-      if (!byLetter.has(letter)) byLetter.set(letter, []);
-      byLetter.get(letter).push(row);
-    }
-    return [...byLetter.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [isSectorDataRoute, indexTickersRows]);
+  const indexTickersTotalPages = Math.max(1, Math.ceil(sortedIndexTickersRows.length / INDEX_TICKERS_PAGE_SIZE));
+  const indexTickersPageSafe = Math.min(Math.max(1, indexTickersPage), indexTickersTotalPages);
+  const indexTickersDisplayRows = useMemo(() => {
+    if (isSectorDataRoute) return sortedIndexTickersRows;
+    const start = (indexTickersPageSafe - 1) * INDEX_TICKERS_PAGE_SIZE;
+    return sortedIndexTickersRows.slice(start, start + INDEX_TICKERS_PAGE_SIZE);
+  }, [isSectorDataRoute, sortedIndexTickersRows, indexTickersPageSafe]);
+
+  const onIndexConstituentsSort = useCallback((key) => {
+    setIndexConstituentsSort((prev) => {
+      if (prev.key === key) {
+        return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, dir: 'asc' };
+    });
+    setIndexTickersPage(1);
+  }, []);
+
+  const indexConstituentsSortGlyph = useCallback(
+    (key) =>
+      indexConstituentsSort.key === key ? (indexConstituentsSort.dir === 'asc' ? '▲' : '▼') : '↕',
+    [indexConstituentsSort]
+  );
+
+  const indexConstituentsSortIcoClass = useCallback(
+    (key) =>
+      'mkt-watch-card__sort-ico' +
+      (indexConstituentsSort.key === key
+        ? ' mkt-watch-card__sort-ico--active'
+        : ' mkt-watch-card__sort-ico--idle'),
+    [indexConstituentsSort]
+  );
+
+  const indexConstituentsAriaSort = useCallback(
+    (key) => {
+      if (indexConstituentsSort.key !== key) return 'none';
+      return indexConstituentsSort.dir === 'asc' ? 'ascending' : 'descending';
+    },
+    [indexConstituentsSort]
+  );
   const section16Rows = useMemo(() => {
     const compact = COMPARE_ROWS.filter((r) =>
-      ['1D', '5D', 'MTD', '1M', 'QTD', '3M', '6M', 'YTD', '1Y', '3Y', '5Y', '10Y', '20Y'].includes(r.key)
+      ['1M', '3M', '6M', 'YTD', '1Y', '3Y', '5Y', '10Y', '20Y'].includes(r.key)
     );
     return compact.map((row) => {
       const symPct = row.period
@@ -1744,7 +1805,7 @@ export default function IndexPage() {
       <header className="ticker-page__header ticker-page__header--figma">
         <div className="ticker-page__header-top">
           <div className="ticker-page__header-identity">
-            <h1 className="ticker-page__company ticker-page__company--hero">{activeMeta.label}</h1>
+            <h1 className="ticker-page__company ticker-page__company--hero">SP500 - [{activeMeta.label}]</h1>
             <span className="ticker-page__header-identity-meta">
               <IconFlagUs className="ticker-page__flag" />
               <span className="ticker-page__exchange">{displaySym}</span>
@@ -1830,7 +1891,7 @@ export default function IndexPage() {
                     extraActions={
                       <>
                         <ReturnsChartToolbarIconButton
-                          label={loggedIn ? 'Download CSV' : 'Sign in to download CSV'}
+                          label={loggedIn ? 'Download CSV' : 'Download CSV'}
                           onClick={downloadMainChartCsvClick}
                           disabled={mainChartExportDisabled}
                         >
@@ -1974,7 +2035,7 @@ export default function IndexPage() {
                   </div>
                 </div>
                 
-                <span className="ticker-chart-legend__sigs">Signal: {lastSignal}</span>
+                {/* <span className="ticker-chart-legend__sigs">Signal: {lastSignal}</span> */}
                   {chartHoverOhlc ? (
                     <span className="ticker-chart-legend__sigs ticker-chart-legend__ohlc-hover">
                       O:{chartHoverOhlc.open != null ? formatPx(chartHoverOhlc.open) : '—'} H:{chartHoverOhlc.high != null ? formatPx(chartHoverOhlc.high) : '—'} L:{chartHoverOhlc.low != null ? formatPx(chartHoverOhlc.low) : '—'} C:{chartHoverOhlc.close != null ? formatPx(chartHoverOhlc.close) : '—'}
@@ -2116,57 +2177,70 @@ export default function IndexPage() {
               <div className="index-constituents-table-wrap">
                 <table className="index-constituents-table">
                   <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Close</th>
-                      <th>Return %</th>
+                    <tr className="index-constituents-sort-head">
+                      <th scope="col">
+                        <button
+                          type="button"
+                          className="mkt-watch-card__th"
+                          onClick={() => onIndexConstituentsSort('name')}
+                          aria-sort={indexConstituentsAriaSort('name')}
+                          title="Sort by name"
+                        >
+                          Name
+                          <span className={indexConstituentsSortIcoClass('name')} aria-hidden>
+                            {indexConstituentsSortGlyph('name')}
+                          </span>
+                        </button>
+                      </th>
+                      <th scope="col">
+                        <button
+                          type="button"
+                          className="mkt-watch-card__th mkt-watch-card__th--num"
+                          onClick={() => onIndexConstituentsSort('close')}
+                          aria-sort={indexConstituentsAriaSort('close')}
+                          title="Sort by close price"
+                        >
+                          Close
+                          <span className={indexConstituentsSortIcoClass('close')} aria-hidden>
+                            {indexConstituentsSortGlyph('close')}
+                          </span>
+                        </button>
+                      </th>
+                      <th scope="col">
+                        <button
+                          type="button"
+                          className="mkt-watch-card__th mkt-watch-card__th--num"
+                          onClick={() => onIndexConstituentsSort('pct')}
+                          aria-sort={indexConstituentsAriaSort('pct')}
+                          title="Sort by return percent"
+                        >
+                          Return %
+                          <span className={indexConstituentsSortIcoClass('pct')} aria-hidden>
+                            {indexConstituentsSortGlyph('pct')}
+                          </span>
+                        </button>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {isSectorDataRoute
-                      ? sectorConstituentLetterGroups.flatMap(([letter, rows]) => [
-                          <tr key={`sec-${letter}`} className="index-constituents-section-row">
-                            <td colSpan={3} className="index-constituents-section-cell">
-                              {letter}
-                            </td>
-                          </tr>,
-                          ...rows.map((row) => (
-                            <tr key={row.symbol}>
-                              <td>
-                                <button
-                                  type="button"
-                                  className="index-constituents-link"
-                                  onClick={() =>
-                                    navigate(`/ticker/${encodeURIComponent(row.symbol)}?ticker=${encodeURIComponent(row.symbol)}`)
-                                  }
-                                >
-                                  {row.symbol}
-                                </button>
-                              </td>
-                              <td>{formatPx(row.close)}</td>
-                              <td className={pctClass(row.ret1d)}>{formatPct(row.ret1d)}</td>
-                            </tr>
-                          ))
-                        ])
-                      : indexTickersPageRows.map((row) => (
-                          <tr key={row.symbol}>
-                            <td>
-                              <button
-                                type="button"
-                                className="index-constituents-link"
-                                onClick={() =>
-                                  navigate(`/ticker/${encodeURIComponent(row.symbol)}?ticker=${encodeURIComponent(row.symbol)}`)
-                                }
-                              >
-                                {row.symbol}
-                              </button>
-                            </td>
-                            <td>{formatPx(row.close)}</td>
-                            <td className={pctClass(row.ret1d)}>{formatPct(row.ret1d)}</td>
-                          </tr>
-                        ))}
-                    {!indexTickersBusy &&
-                    (isSectorDataRoute ? !sectorConstituentLetterGroups.length : !indexTickersPageRows.length) ? (
+                    {indexTickersDisplayRows.map((row) => (
+                      <tr key={row.symbol}>
+                        <td>
+                          <button
+                            type="button"
+                            className="index-constituents-link"
+                            onClick={() =>
+                              navigate(`/ticker/${encodeURIComponent(row.symbol)}?ticker=${encodeURIComponent(row.symbol)}`)
+                            }
+                          >
+                            {row.symbol}
+                          </button>
+                        </td>
+                        <td>{formatPx(row.close)}</td>
+                        <td className={pctClass(row.ret1d)}>{formatPct(row.ret1d)}</td>
+                      </tr>
+                    ))}
+                    {!indexTickersBusy && !indexTickersDisplayRows.length ? (
                       <tr>
                         <td colSpan={3} className="index-constituents-empty">
                           No constituents found.
@@ -2366,29 +2440,7 @@ export default function IndexPage() {
             <div className="ticker-subh-with-tip ticker-subh-with-tip--in-card ticker-rs-selector-head">
               <div className="ticker-rs-selector-head__left">
                 <div className="flex shrink-0 align-centers">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                    <g clipPath="url(#clip0_index_rs_icon)">
-                      <path
-                        d="M7.82031 1.25781V6.17969H12.7422C12.7422 4.87433 12.2236 3.62243 11.3006 2.6994C10.3776 1.77637 9.12567 1.25781 7.82031 1.25781Z"
-                        stroke="white"
-                        strokeWidth="0.875"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M6.17969 2.89844C5.20623 2.89844 4.25464 3.1871 3.44524 3.72792C2.63584 4.26875 2.005 5.03744 1.63247 5.93679C1.25995 6.83615 1.16248 7.82577 1.35239 8.78052C1.5423 9.73527 2.01106 10.6123 2.6994 11.3006C3.38774 11.9889 4.26473 12.4577 5.21948 12.6476C6.17423 12.8375 7.16386 12.7401 8.06321 12.3675C8.96257 11.995 9.73126 11.3642 10.2721 10.5548C10.8129 9.74536 11.1016 8.79377 11.1016 7.82031H6.17969V2.89844Z"
-                        stroke="white"
-                        strokeWidth="0.875"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </g>
-                    <defs>
-                      <clipPath id="clip0_index_rs_icon">
-                        <rect width="14" height="14" fill="white" />
-                      </clipPath>
-                    </defs>
-                  </svg>
+                  <ReturnsChartPieIcon />
                 </div>
                 <div className="ticker-subh-left">
                   <ReturnsChartClickableHeading
@@ -2396,7 +2448,7 @@ export default function IndexPage() {
                     className="ticker-subh ticker-subh--flex"
                     onClick={onOpenRelativeStrengthPage}
                   >
-                    Relative Strength selector
+                    Relative Strength
                   </ReturnsChartClickableHeading>
                   <DataInfoTip align="start">
                     <p className="ticker-data-tip__p">
@@ -2449,6 +2501,7 @@ export default function IndexPage() {
               compareRows={section17CompareRows}
               relativeStrengthTitle={`Relative Strength vs ${relativeRightLabel}`}
               relativeStrengthHeader={`Relative Strength (${relativeLeftLabel} - ${relativeRightLabel})`}
+              comparisonLegendLabels={[relativeRightLabel, relativeLeftLabel]}
             />
           </section>
         </div>

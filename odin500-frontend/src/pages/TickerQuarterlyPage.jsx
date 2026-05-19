@@ -50,7 +50,7 @@ const COMPARE_ROWS = [
 const TABLE_PAGE_SIZE = 30;
 const PAGER_SIBLING_COUNT = 1;
 const TABLE_RANGE_YEARS = { '1Y': 1, '3Y': 3, '5Y': 5, '10Y': 10, '15Y': 15, '20Y': 20 };
-const DEFAULT_TABLE_RANGE_PRESET = '20Y';
+const DEFAULT_TABLE_RANGE_PRESET = '5Y';
 const TABLE_RANGE_DROPDOWN_OPTIONS = [
   { id: '1Y', label: '1Y' },
   { id: '3Y', label: '3Y' },

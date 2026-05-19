@@ -19,13 +19,21 @@ function fmtPct(v) {
   return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
 }
 
-function getNpChartBgColor(isLight) {
+/** App shell background (opaque) — lightweight-charts canvas is black if bg is transparent. */
+function getAppShellBgColor(isLight) {
+  return isLight ? '#f1f5f9' : '#0B243F';
+}
+
+function getNpChartBgColor(isLight, isFullscreen = false) {
+  if (isFullscreen) {
+    return isLight ? '#ffffff' : getAppShellBgColor(false);
+  }
   if (isLight) return '#ffffff';
-  if (typeof window === 'undefined') return 'rgba(255, 255, 255, 0.03)';
+  if (typeof window === 'undefined') return '#0B243F';
   const cssVar = getComputedStyle(document.documentElement)
     .getPropertyValue('--colors-opacity-bg-opacity-3')
     .trim();
-  return cssVar || 'rgba(255, 255, 255, 0.03)';
+  return cssVar || '#0B243F';
 }
 
 /** Readable text on solid hex fill (axis badges). */
@@ -381,7 +389,7 @@ export function NormalizedPerformanceCard({
     const el = chartHostRef.current;
     if (!el) return;
     const isLight = chartTheme === 'light';
-    const npChartBg = getNpChartBgColor(isLight);
+    const npChartBg = getNpChartBgColor(isLight, false);
     const chart = createChart(el, {
       width: el.clientWidth,
       height: el.clientHeight || 390,
@@ -445,6 +453,29 @@ export function NormalizedPerformanceCard({
       seriesRefs.current = new Map();
     };
   }, [chartTheme, loading]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    const host = chartHostRef.current;
+    if (!chart || !host || loading) return;
+    const isLight = chartTheme === 'light';
+    chart.applyOptions({
+      layout: { background: { color: getNpChartBgColor(isLight, isFullscreen) } }
+    });
+    const applySize = () => {
+      if (!chartRef.current || !chartHostRef.current) return;
+      const w = chartHostRef.current.clientWidth;
+      const h = chartHostRef.current.clientHeight;
+      if (w > 0 && h > 0) {
+        chartRef.current.applyOptions({ width: w, height: h });
+      }
+    };
+    applySize();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(applySize);
+    });
+    updateAxisBadgePositions();
+  }, [isFullscreen, chartTheme, loading, updateAxisBadgePositions]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -676,10 +707,14 @@ export function NormalizedPerformanceCard({
 
   return (
     <>
-      <section ref={assignCardRefs} className="np-card" aria-label="Normalized performance">
+      <section
+        ref={assignCardRefs}
+        className={'np-card' + (isFullscreen ? ' np-card--fullscreen-active' : '')}
+        aria-label="Normalized performance"
+      >
       <header className="np-card__head">
         <h2 className="np-card__title">
-          Normalized Performance <ChartInfoTip tip={CHART_INFO_TIPS.normalizedPerformance} align="start" />
+          Performance <ChartInfoTip tip={CHART_INFO_TIPS.normalizedPerformance} align="start" />
         </h2>
         <div className="np-card__head-actions">
           <button

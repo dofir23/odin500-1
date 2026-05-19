@@ -28,8 +28,10 @@ const RESIZE_KEY_M_WF = 'odin_ticker_monthly_resize_waterfall';
 const RETURNS_DEFAULT_START = '1980-01-01';
 const DEFAULT_MONTHLY_START_YEAR = 2021;
 const DEFAULT_MONTHLY_END_YEAR = 2026;
-const DEFAULT_WEEKLY_START_YEAR = Math.max(1980, new Date().getFullYear() - 1);
-const DEFAULT_WEEKLY_END_YEAR = Math.max(2026, new Date().getFullYear());
+/** One full calendar year: prior year (e.g. 2025 when the current year is 2026). */
+const DEFAULT_WEEKLY_YEAR = Math.max(1980, new Date().getFullYear() - 1);
+const DEFAULT_WEEKLY_START_YEAR = DEFAULT_WEEKLY_YEAR;
+const DEFAULT_WEEKLY_END_YEAR = DEFAULT_WEEKLY_YEAR;
 const BENCHMARK = 'SPY';
 const BENCHMARK_OPTIONS = ['SPY', 'QQQ', 'DIA'].map((v) => ({ id: v, label: v }));
 const PERF_COLS = [
@@ -689,12 +691,11 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
   }, [isDaily, isWeekly, monthYearOptions]);
   useEffect(() => {
     if (!isWeekly || !weekYearOptions.length) return;
-    const hi = weekYearOptions[weekYearOptions.length - 1];
-    const lo = Math.max(weekYearOptions[0], hi - 1);
-    const nextStart = weekYearOptions.includes(lo) ? lo : weekYearOptions[0];
-    const nextEnd = weekYearOptions.includes(hi) ? hi : weekYearOptions[weekYearOptions.length - 1];
-    setWeeklyStartYear(String(nextStart));
-    setWeeklyEndYear(String(nextEnd));
+    const preferred = weekYearOptions.includes(DEFAULT_WEEKLY_YEAR)
+      ? DEFAULT_WEEKLY_YEAR
+      : weekYearOptions[weekYearOptions.length - 1];
+    setWeeklyStartYear(String(preferred));
+    setWeeklyEndYear(String(preferred));
   }, [isWeekly, sym, weekYearSpanKey]);
 
   const monthlyChartRows = useMemo(() => {
@@ -1107,7 +1108,7 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
           {!isDaily ? (
           <TickerMonthlyReturnsChart
             symbol={symU}
-            monthlyReturns={monthlyChartRows}
+            monthlyReturns={isWeekly ? monthlyReturnsRaw : monthlyChartRows}
             asOfDate={asOfDate}
             resizeStorageKey={RESIZE_KEY_M_MAIN}
             resizeDefaultHeight={288}
@@ -1115,6 +1116,7 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
             suppressChartDateFilter={isDaily}
             hideChartDateApplyRow={isWeekly}
             useThemedYearDropdown={isWeekly}
+            defaultToLatestYear={isWeekly}
             chartToolbarExtras={isDaily ? mkDailyDateToolbar() : null}
             loading={loading}
           />

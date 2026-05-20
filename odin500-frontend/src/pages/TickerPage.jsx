@@ -7,6 +7,7 @@ import { TickerAnnualReturnsFigma } from '../components/TickerAnnualReturnsFigma
 import { TickerMonthlyReturnsChart } from '../components/TickerMonthlyReturnsChart.jsx';
 import { TickerSection23Section24 } from '../components/TickerSection23Section24.jsx';
 import { TickerChartResizeScope } from '../components/TickerChartResizeScope.jsx';
+import { useTickerPlotResize } from '../hooks/useTickerPlotResize.js';
 import { useWatchlistDock } from '../context/WatchlistDockContext.jsx';
 import { ReturnsChartFiltersMenu } from '../components/ReturnsChartFiltersMenu.jsx';
 import { ThemedDropdown } from '../components/ThemedDropdown.jsx';
@@ -42,7 +43,7 @@ const TIMEFRAMES = ['1D', '5D', '1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y', '20Y'
 const MAX_SIGNAL_RANGE_DAYS = 40000;
 const BENCHMARK = 'SPY';
 
-/** Persisted main-chart pixel height (drag resize). */
+/** Main-chart resize scope id (session-only height; not persisted across refresh). */
 const CHART_USER_H_KEY = 'odin_ticker_chart_h';
 /** Max drag height; min height follows {@link useMediaChartHeight} (layout default per breakpoint). */
 const CHART_H_MAX = 800;
@@ -568,13 +569,13 @@ function pctClass(n) {
 
 /** Main chart pixel height by viewport (Lightweight Charts is not fluid vertically). */
 function useMediaChartHeight() {
-  const [height, setHeight] = useState(380);
+  const [height, setHeight] = useState(320);
   useEffect(() => {
     const update = () => {
       const w = window.innerWidth;
-      if (w < 480) setHeight(220);
-      else if (w < 768) setHeight(260);
-      else if (w < 1024) setHeight(290);
+      if (w < 480) setHeight(300);
+      else if (w < 768) setHeight(320);
+      else if (w < 1024) setHeight(300);
       else setHeight(320);
     };
     update();
@@ -608,6 +609,16 @@ export default function TickerPage() {
     const next = sanitizeTickerPageInput(symbolParam) || 'AAPL';
     setActiveSymbol((prev) => (prev === next ? prev : next));
   }, [symbolParam]);
+
+  useEffect(() => {
+    for (const key of [CHART_USER_H_KEY, RESIZE_KEY_ANNUAL_FIGMA, RESIZE_KEY_QUARTERLY_FIGMA, RESIZE_KEY_MONTHLY]) {
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
 
   usePageSeo({
     title: `${String(sym).toUpperCase()} Odin500 Signal, Returns & Market Statistics`,
@@ -676,36 +687,14 @@ export default function TickerPage() {
   const mediaChartHeight = useMediaChartHeight();
   const mediaHRef = useRef(mediaChartHeight);
   mediaHRef.current = mediaChartHeight;
-  const resizeDragRef = useRef(/** @type {{ active: boolean, startY: number, startH: number } | null} */ (null));
 
-  const [userChartHeight, setUserChartHeight] = useState(/** @type {number | null} */ (null));
-
-  /** Never allow plot below layout default (prevents gap above News when shrinking). */
-  useEffect(() => {
-    const minH = mediaChartHeight;
-    setUserChartHeight((prev) => {
-      let next = prev;
-      if (next == null) {
-        try {
-          const raw = localStorage.getItem(CHART_USER_H_KEY);
-          const n = raw != null ? parseInt(raw, 10) : NaN;
-          if (Number.isFinite(n)) next = n;
-        } catch {
-          /* ignore */
-        }
-      }
-      if (next == null) return null;
-      const clamped = Math.max(minH, Math.min(CHART_H_MAX, next));
-      if (clamped !== next) {
-        try {
-          localStorage.setItem(CHART_USER_H_KEY, String(clamped));
-        } catch {
-          /* ignore */
-        }
-      }
-      return clamped;
-    });
-  }, [mediaChartHeight]);
+  const mainChartResize = useTickerPlotResize(
+    CHART_USER_H_KEY,
+    mediaChartHeight,
+    mediaChartHeight,
+    CHART_H_MAX,
+    false
+  );
   const [chartFs, setChartFs] = useState(false);
   const [fsPlotH, setFsPlotH] = useState(0);
 
@@ -745,20 +734,18 @@ export default function TickerPage() {
     [navigate, sym]
   );
 
-  const applyCustomChartRange = useCallback(() => {
-    const n = normalizeCustomChartRange(draftChartStart, draftChartEnd, asOfDate);
-    if (!n) return;
-    setAppliedCustomRange(n);
-    setIsCustomRangePopupOpen(false);
-  }, [draftChartStart, draftChartEnd, asOfDate]);
-
-  const resetCustomChartRange = useCallback(() => {
-    setAppliedCustomRange(null);
-    const r = rangeForTimeframe(timeframe, asOfDate, ohlcTickerBounds);
-    setDraftChartStart(r.start);
-    setDraftChartEnd(r.end);
-    setIsCustomRangePopupOpen(false);
-  }, [timeframe, asOfDate, ohlcTickerBounds]);
+  const onCustomRangeDateChange = useCallback(
+    (nextStart, nextEnd) => {
+      setDraftChartStart(nextStart);
+      setDraftChartEnd(nextEnd);
+      const n = normalizeCustomChartRange(nextStart, nextEnd, asOfDate);
+      if (!n) return;
+      setAppliedCustomRange(n);
+      setDraftChartStart(n.start);
+      setDraftChartEnd(n.end);
+    },
+    [asOfDate]
+  );
 
   useEffect(() => {
     if (!isCustomRangePopupOpen) return;
@@ -1327,50 +1314,6 @@ export default function TickerPage() {
     return () => ro.disconnect();
   }, [chartFs, sortedChart.length, mainChartType, chartLoading]);
 
-  const onChartResizePointerDown = useCallback(
-    (e) => {
-      if (chartFs) return;
-      e.preventDefault();
-      const minH = mediaHRef.current;
-      const startH = Math.max(minH, userChartHeight ?? minH);
-      resizeDragRef.current = { active: true, startY: e.clientY, startH };
-      const onMove = (ev) => {
-        const drag = resizeDragRef.current;
-        if (!drag?.active) return;
-        const dy = ev.clientY - drag.startY;
-        const next = Math.round(Math.max(minH, Math.min(CHART_H_MAX, drag.startH + dy)));
-        setUserChartHeight(next);
-      };
-      const onUp = () => {
-        if (resizeDragRef.current) resizeDragRef.current.active = false;
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
-        setUserChartHeight((prev) => {
-          const v = Math.max(minH, prev == null ? minH : prev);
-          try {
-            localStorage.setItem(CHART_USER_H_KEY, String(v));
-          } catch {
-            /* ignore */
-          }
-          return Math.max(minH, prev == null ? minH : prev);
-        });
-      };
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
-    },
-    [chartFs, userChartHeight, mediaChartHeight]
-  );
-
-  const onChartResizeDoubleClick = useCallback((e) => {
-    e.preventDefault();
-    try {
-      localStorage.removeItem(CHART_USER_H_KEY);
-    } catch {
-      /* ignore */
-    }
-    setUserChartHeight(null);
-  }, []);
-
   const toggleChartFullscreen = useCallback(async () => {
     const el = chartBodyRef.current;
     if (!el) return;
@@ -1732,7 +1675,7 @@ export default function TickerPage() {
   }, [selectedIndexSeries, selectedTickerSeries]);
 
   const chartHeightMin = mediaChartHeight;
-  const basePixelHeight = Math.max(chartHeightMin, userChartHeight ?? chartHeightMin);
+  const basePixelHeight = mainChartResize.plotHeight ?? chartHeightMin;
   const plotHeight = chartFs && fsPlotH >= chartHeightMin ? fsPlotH : basePixelHeight;
 
   const chartRangeLabel = chartApiRange.start + ' → ' + chartApiRange.end;
@@ -1835,6 +1778,7 @@ export default function TickerPage() {
 
       <div className="ticker-page__grid">
         <div className="ticker-page__main">
+          <div className="ticker-page__stack-column">
           <section className="ticker-card ticker-card--main-chart" aria-labelledby="snapshot-chart-title">
             {/* <div className="ticker-chart-toolbar">
               <ChartTypeToolbarDropdown chartType={mainChartType} onChartTypeChange={setMainChartType} /> 
@@ -1914,7 +1858,17 @@ export default function TickerPage() {
                   <button
                     type="button"
                     className={'ticker-tf' + (appliedCustomRange || isCustomRangePopupOpen ? ' ticker-tf--active' : '')}
-                    onClick={() => setIsCustomRangePopupOpen(true)}
+                    onClick={() => {
+                      if (appliedCustomRange) {
+                        setDraftChartStart(appliedCustomRange.start);
+                        setDraftChartEnd(appliedCustomRange.end);
+                      } else {
+                        const r = rangeForTimeframe(timeframe, asOfDate, ohlcTickerBounds);
+                        setDraftChartStart(r.start);
+                        setDraftChartEnd(r.end);
+                      }
+                      setIsCustomRangePopupOpen(true);
+                    }}
                     aria-label="Open custom date range"
                     title="Custom date range"
                   >
@@ -1955,7 +1909,7 @@ export default function TickerPage() {
                           type="date"
                           className="ticker-page__date-inp ticker-custom-range-popup__date"
                           value={draftChartStart}
-                          onChange={(e) => setDraftChartStart(e.target.value)}
+                          onChange={(e) => onCustomRangeDateChange(e.target.value, draftChartEnd)}
                           max={draftChartEnd || asOfDate}
                         />
                       </div>
@@ -1965,19 +1919,11 @@ export default function TickerPage() {
                           type="date"
                           className="ticker-page__date-inp ticker-custom-range-popup__date"
                           value={draftChartEnd}
-                          onChange={(e) => setDraftChartEnd(e.target.value)}
+                          onChange={(e) => onCustomRangeDateChange(draftChartStart, e.target.value)}
                           min={draftChartStart}
                           max={asOfDate}
                         />
                       </div>
-                    </div>
-                    <div className="wl-manage-modal__foot ticker-custom-range-popup__foot">
-                      <button type="button" className="ticker-outline-btn ticker-outline-btn--sm ticker-custom-range-popup__btn" onClick={resetCustomChartRange}>
-                        Use timeframe
-                      </button>
-                      <button type="button" className="ticker-outline-btn ticker-outline-btn--sm ticker-custom-range-popup__btn" onClick={applyCustomChartRange}>
-                        Submit
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -2044,21 +1990,88 @@ export default function TickerPage() {
                   <div className="ticker-sparkline ticker-sparkline--empty">No OHLC rows in this range.</div>
                 )}
               </div>
-              {!chartFs ? (
+              {!chartFs && mainChartResize.enabled ? (
                 <div
                   role="separator"
                   aria-orientation="horizontal"
-                  aria-valuemin={chartHeightMin}
-                  aria-valuemax={CHART_H_MAX}
-                  aria-valuenow={basePixelHeight}
-                  className="ticker-chart-resize"
+                  aria-valuemin={mainChartResize.ariaMin}
+                  aria-valuemax={mainChartResize.ariaMax}
+                  aria-valuenow={mainChartResize.ariaNow}
+                  className="ticker-chart-resize ticker-chart-resize--scope"
                   title="Drag to resize chart height. Double-click to reset."
-                  onPointerDown={onChartResizePointerDown}
-                  onDoubleClick={onChartResizeDoubleClick}
+                  onPointerDown={mainChartResize.onPointerDown}
+                  onDoubleClick={mainChartResize.onDoubleClick}
                 />
               ) : null}
             </div>
           </section>
+
+          <section className="ticker-card ticker-card--news" aria-labelledby="ticker-news-h">
+            <div className="ticker-subh-with-tip ticker-subh-with-tip--in-card ticker-rs-selector-head">
+              <div className="ticker-rs-selector-head__left">
+                <div className="flex shrink-0 align-centers">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden className="ticker-news-head__ico">
+                    <path d="M0 0h24v24H0z" fill="none" />
+                    <path
+                      fill="currentColor"
+                      d="M5.616 20q-.691 0-1.153-.462T4 18.384V5.616q0-.691.463-1.153T5.616 4h9.961L20 8.423v9.962q0 .69-.462 1.153T18.384 20zm0-1h12.769q.269 0 .442-.173t.173-.442V9h-4V5H5.616q-.27 0-.443.173T5 5.616v12.769q0 .269.173.442t.443.173M7.5 16h9v-1h-9zm0-7H12V8H7.5zm0 3.5h9v-1h-9zM5 5v4zv14z"
+                    />
+                  </svg>
+                </div>
+                <div className="ticker-subh-left">
+                  <ReturnsChartClickableHeading
+                    id="ticker-news-h"
+                    className="ticker-subh ticker-subh--flex"
+                    onClick={onOpenNewsPage}
+                  >
+                    News
+                  </ReturnsChartClickableHeading>
+                  <DataInfoTip align="start">
+                    <p className="ticker-data-tip__p">
+                      Headlines for <strong>{sym}</strong> from the live feed. Click <strong>News</strong> to open the full
+                      news page with this ticker pre-selected.
+                    </p>
+                  </DataInfoTip>
+                </div>
+              </div>
+            </div>
+            {tickerNewsBusy ? <p className="ticker-page__news-sample-note">Loading ticker news…</p> : null}
+            {!tickerNewsBusy && tickerNewsError ? <p className="ticker-page__news-sample-note">{tickerNewsError}</p> : null}
+            {!tickerNewsBusy && !tickerNewsError && !liveNews.length ? (
+              <p className="ticker-page__news-sample-note">No ticker headlines yet.</p>
+            ) : null}
+            <ul className="ticker-news-list">
+              {newsPageItems.map((n) => (
+                <li key={n.id} className="ticker-news-list__li">
+                  <a
+                    className="ticker-news-list__a"
+                    href={n.url || '#ticker-news-h'}
+                    onClick={(e) => {
+                      if (!n.url) e.preventDefault();
+                    }}
+                    target={n.url ? '_blank' : undefined}
+                    rel={n.url ? 'noopener noreferrer' : undefined}
+                  >
+                    {n.title}
+                  </a>
+                  <span className="ticker-news-list__meta">
+                    {n.source}
+                    <br />
+                    {n.time}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {liveNews.length > NEWS_PAGE_SIZE ? (
+              <FigmaPagination
+                page={newsPageSafe}
+                totalPages={newsTotalPages}
+                onPageChange={setNewsPage}
+                ariaLabel="News pagination"
+              />
+            ) : null}
+          </section>
+          </div>
 
           <aside className="ticker-page__aside ticker-page__aside-stack">
           <section className="mkt-mini-card ticker-aside-mini" aria-labelledby="odin-signal-h">
@@ -2283,78 +2296,13 @@ export default function TickerPage() {
           </section>
           </aside>
 
-          <section className="ticker-card ticker-card--news" aria-labelledby="ticker-news-h">
-            <div className="ticker-subh-with-tip ticker-subh-with-tip--in-card ticker-rs-selector-head">
-              <div className="ticker-rs-selector-head__left">
-                <div className="flex shrink-0 align-centers">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden className="ticker-news-head__ico">
-                    <path d="M0 0h24v24H0z" fill="none" />
-                    <path
-                      fill="currentColor"
-                      d="M5.616 20q-.691 0-1.153-.462T4 18.384V5.616q0-.691.463-1.153T5.616 4h9.961L20 8.423v9.962q0 .69-.462 1.153T18.384 20zm0-1h12.769q.269 0 .442-.173t.173-.442V9h-4V5H5.616q-.27 0-.443.173T5 5.616v12.769q0 .269.173.442t.443.173M7.5 16h9v-1h-9zm0-7H12V8H7.5zm0 3.5h9v-1h-9zM5 5v4zv14z"
-                    />
-                  </svg>
-                </div>
-                <div className="ticker-subh-left">
-                  <ReturnsChartClickableHeading
-                    id="ticker-news-h"
-                    className="ticker-subh ticker-subh--flex"
-                    onClick={onOpenNewsPage}
-                  >
-                    News
-                  </ReturnsChartClickableHeading>
-                  <DataInfoTip align="start">
-                    <p className="ticker-data-tip__p">
-                      Headlines for <strong>{sym}</strong> from the live feed. Click <strong>News</strong> to open the full
-                      news page with this ticker pre-selected.
-                    </p>
-                  </DataInfoTip>
-                </div>
-              </div>
-            </div>
-            {tickerNewsBusy ? <p className="ticker-page__news-sample-note">Loading ticker news…</p> : null}
-            {!tickerNewsBusy && tickerNewsError ? <p className="ticker-page__news-sample-note">{tickerNewsError}</p> : null}
-            {!tickerNewsBusy && !tickerNewsError && !liveNews.length ? (
-              <p className="ticker-page__news-sample-note">No ticker headlines yet.</p>
-            ) : null}
-            <ul className="ticker-news-list">
-              {newsPageItems.map((n) => (
-                <li key={n.id} className="ticker-news-list__li">
-                  <a
-                    className="ticker-news-list__a"
-                    href={n.url || '#ticker-news-h'}
-                    onClick={(e) => {
-                      if (!n.url) e.preventDefault();
-                    }}
-                    target={n.url ? '_blank' : undefined}
-                    rel={n.url ? 'noopener noreferrer' : undefined}
-                  >
-                    {n.title}
-                  </a>
-                  <span className="ticker-news-list__meta">
-                    {n.source}
-                    <br />
-                    {n.time}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {liveNews.length > NEWS_PAGE_SIZE ? (
-              <FigmaPagination
-                page={newsPageSafe}
-                totalPages={newsTotalPages}
-                onPageChange={setNewsPage}
-                ariaLabel="News pagination"
-              />
-            ) : null}
-          </section>
-
           <TickerAnnualReturnsFigma
             symbol={sym}
             annualReturns={annualReturnsForChart}
             asOfDate={asOfDate}
             resizeStorageKey={RESIZE_KEY_ANNUAL_FIGMA}
             resizeDefaultHeight={260}
+            persistPlotResize={false}
             hideStatsSection
             enableInlineYearDropdowns
             defaultStartYear={2017}
@@ -2367,6 +2315,7 @@ export default function TickerPage() {
             asOfDate={asOfDate}
             resizeStorageKey={RESIZE_KEY_QUARTERLY_FIGMA}
             resizeDefaultHeight={260}
+            persistPlotResize={false}
             periodMode="quarterly"
             hideStatsSection
             enableInlineYearDropdowns
@@ -2380,6 +2329,7 @@ export default function TickerPage() {
             asOfDate={asOfDate}
             resizeStorageKey={RESIZE_KEY_MONTHLY}
             resizeDefaultHeight={278}
+            persistPlotResize={false}
             suppressChartDateFilter
             useThemedYearDropdown
             defaultToLatestYear

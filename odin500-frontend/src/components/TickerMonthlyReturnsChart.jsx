@@ -5,6 +5,7 @@ import { DataInfoTip } from './DataInfoTip.jsx';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
 import { formatWeekAxisDate, isoYearWeekFromIsoDate } from '../utils/isoWeek.js';
 import { filterReturnsRows } from '../utils/returnsDateRange.js';
+import { useChartPlotWidth } from '../hooks/useChartPlotWidth.js';
 import { useTickerPlotResize } from '../hooks/useTickerPlotResize.js';
 import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { getReturnsChartViewMoreHref } from '../utils/returnsViewMoreNavigation.js';
@@ -86,7 +87,7 @@ function yForValue(v, innerTop, innerH, yMin, yMax) {
 
 /**
  * Monthly returns for one calendar year (Figma-style), with year dropdown + info tip.
- * @param {{ symbol: string, monthlyReturns?: unknown[], asOfDate?: string, plotHeight?: number, resizeStorageKey?: string, resizeDefaultHeight?: number, periodMode?: 'monthly' | 'weekly' | 'daily', suppressChartDateFilter?: boolean, showOpenPeriodPageButton?: boolean, useThemedYearDropdown?: boolean, defaultToLatestYear?: boolean, hideChartDateApplyRow?: boolean, chartToolbarExtras?: import('react').ReactNode, loading?: boolean }} props
+ * @param {{ symbol: string, monthlyReturns?: unknown[], asOfDate?: string, plotHeight?: number, resizeStorageKey?: string, resizeDefaultHeight?: number, persistPlotResize?: boolean, periodMode?: 'monthly' | 'weekly' | 'daily', suppressChartDateFilter?: boolean, showOpenPeriodPageButton?: boolean, useThemedYearDropdown?: boolean, defaultToLatestYear?: boolean, hideChartDateApplyRow?: boolean, chartToolbarExtras?: import('react').ReactNode, loading?: boolean }} props
  */
 export function TickerMonthlyReturnsChart({
   symbol,
@@ -95,6 +96,7 @@ export function TickerMonthlyReturnsChart({
   plotHeight,
   resizeStorageKey,
   resizeDefaultHeight = 278,
+  persistPlotResize = true,
   periodMode = 'monthly',
   suppressChartDateFilter = false,
   showOpenPeriodPageButton = false,
@@ -113,13 +115,21 @@ export function TickerMonthlyReturnsChart({
   const sectionRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartFsShellRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartCardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const { plotWidth: chartPlotWidth, setPlotHostRef } = useChartPlotWidth(720);
+  const assignChartCardRef = useCallback(
+    (el) => {
+      chartCardRef.current = el;
+      setPlotHostRef(el);
+    },
+    [setPlotHostRef]
+  );
   const { isFullscreen: chartFs } = useChartFullscreen(chartFsShellRef);
   const chartTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
   const { axis: colAxis, label: colLabel } = useMemo(
     () => chartAxisLabelColors(chartTheme),
     [chartTheme]
   );
-  const resize = useTickerPlotResize(resizeStorageKey ?? null, resizeDefaultHeight);
+  const resize = useTickerPlotResize(resizeStorageKey ?? null, resizeDefaultHeight, undefined, undefined, persistPlotResize);
   const plotPx = resize.plotHeight ?? plotHeight;
 
   const rows = useMemo(() => {
@@ -212,8 +222,9 @@ export function TickerMonthlyReturnsChart({
   }, [monthValues]);
 
   const chart = useMemo(() => {
-    const W = 720;
-    const H = 278;
+    const plotH = Math.max(140, plotPx ?? resizeDefaultHeight);
+    const W = Math.max(280, chartPlotWidth);
+    const H = plotH;
     const padL = 48;
     const padR = 18;
     const padT = 22;
@@ -327,7 +338,20 @@ export function TickerMonthlyReturnsChart({
         {xLabels}
       </svg>
     );
-  }, [avgReturn, chartFs, colAxis, colLabel, monthValues, yMin, yMax, plotPx, periodMode, weekAxisLabels]);
+  }, [
+    avgReturn,
+    chartFs,
+    chartPlotWidth,
+    colAxis,
+    colLabel,
+    monthValues,
+    periodMode,
+    plotPx,
+    resizeDefaultHeight,
+    weekAxisLabels,
+    yMin,
+    yMax
+  ]);
 
   const symU = String(symbol || 'ticker').toUpperCase();
   const yearOptions = useMemo(() => {
@@ -517,7 +541,7 @@ export function TickerMonthlyReturnsChart({
             />
           ) : null}
           <div ref={chartFsShellRef} className="ticker-chart-fs-shell">
-            <div ref={chartCardRef} className="ticker-annual-figma__chart-card ticker-annual-figma__chart-card--empty">
+            <div ref={assignChartCardRef} className="ticker-annual-figma__chart-card ticker-annual-figma__chart-card--empty">
               <p className="ticker-annual-figma__empty">
                 No {periodMode === 'weekly' ? 'weekly' : periodMode === 'daily' ? 'daily' : 'monthly'} return data for <strong>{symU}</strong>.
               </p>
@@ -602,7 +626,7 @@ export function TickerMonthlyReturnsChart({
         ) : null}
 
         <div ref={chartFsShellRef} className="ticker-chart-fs-shell">
-          <div ref={chartCardRef} className="ticker-annual-figma__chart-card">
+          <div ref={assignChartCardRef} className="ticker-annual-figma__chart-card">
             {rows.length > 0 && !filteredRows.length ? (
               <p className="ticker-annual-figma__empty" style={{ padding: '1.25rem' }}>
                 No monthly rows overlap the selected date range.

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
 import { ChartInfoTip } from './ChartInfoTip.jsx';
@@ -38,6 +39,84 @@ const LS_KEYS = {
 
 function groupRows(groupId) {
   return MARKET_SERIES.filter((s) => s.group === groupId);
+}
+
+/** Full label on hover when the name cell is ellipsis-truncated. */
+function MktMiniCardName({ label }) {
+  const ref = useRef(null);
+  const [truncated, setTruncated] = useState(false);
+  const [hover, setHover] = useState(false);
+  const [tipPos, setTipPos] = useState(null);
+
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    setTruncated(el.scrollWidth > el.clientWidth + 1);
+  }, []);
+
+  const placeTip = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const maxW = Math.min(280, window.innerWidth - 16);
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - maxW - 8));
+    setTipPos({ left, top: r.top - 6, maxW });
+  }, []);
+
+  useLayoutEffect(() => {
+    measure();
+  }, [label, measure]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    const wrap = el.parentElement;
+    if (wrap) ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [measure]);
+
+  const showTip = truncated
+    ? () => {
+        setHover(true);
+        placeTip();
+      }
+    : undefined;
+
+  const text = String(label ?? '');
+
+  return (
+    <>
+      <span
+        ref={ref}
+        className="mkt-mini-card__name"
+        onMouseEnter={showTip}
+        onMouseLeave={truncated ? () => setHover(false) : undefined}
+        onFocus={showTip}
+        onBlur={truncated ? () => setHover(false) : undefined}
+        tabIndex={truncated ? 0 : undefined}
+      >
+        {text}
+      </span>
+      {truncated && hover && tipPos
+        ? createPortal(
+            <span
+              className="mkt-mini-card__name-tip"
+              role="tooltip"
+              style={{
+                left: tipPos.left,
+                top: tipPos.top,
+                maxWidth: tipPos.maxW
+              }}
+            >
+              {text}
+            </span>,
+            document.body
+          )
+        : null}
+    </>
+  );
 }
 
 function LeftSnapshotStack({
@@ -134,7 +213,7 @@ return (
                     aria-label={`Show ${r.label} in chart`}
                   />
                 </label>
-                <span className="mkt-mini-card__name">{r.label}</span>
+                <MktMiniCardName label={r.label} />
                 {routeSym ? (
                   <Link
                     className="mkt-mini-card__ticker mkt-mini-card__ticker--link"
@@ -188,7 +267,11 @@ function SummaryReturnsCard({ refreshMs = 0, loadOhlcRows = null }) {
       { key: '1D', days: 3 },
       { key: '1M', days: 31 },
       { key: '6M', days: 184 },
-      { key: '1Y', days: 365 }
+      { key: '1Y', days: 365 },
+      { key: '3Y', days: 1095 },
+      { key: '5Y', days: 1825 },
+      { key: '10Y', days: 3650 },
+      { key: '20Y', days: 7300 },
     ],
     []
   );
@@ -242,17 +325,21 @@ function SummaryReturnsCard({ refreshMs = 0, loadOhlcRows = null }) {
   }, [defs, tfs, refreshMs, loadOhlcRows]);
 
   return (
-    <section className="mkt-watch-card mkt-returns-summary">
+    <section
+      className="mkt-watch-card mkt-returns-summary"
+      style={{ '--mkt-summary-tf-count': tfs.length }}
+    >
       <header className="mkt-watch-card__head mkt-returns-summary__head">
         <span className={`mkt-returns-summary__title-row ${MKT_ASIDE_TITLE_CLASS}`}>
           Index & sector returns
           <ChartInfoTip tip={CHART_INFO_TIPS.marketIndexReturns} align="start" />
         </span>
       </header>
-      <div className="mkt-watch-card__table">
+      <div className="mkt-returns-summary__scroll">
+      <div className="mkt-watch-card__table mkt-returns-summary__table">
         <div className="mkt-watch-card__row mkt-watch-card__row--head mkt-returns-summary__row" role="row">
           <span className="mkt-returns-summary__h" role="columnheader">
-            Index / sector
+            Market
           </span>
           {tfs.map((tf) => (
             <span key={tf.key} className="mkt-returns-summary__h mkt-returns-summary__h--num" role="columnheader">
@@ -275,7 +362,10 @@ function SummaryReturnsCard({ refreshMs = 0, loadOhlcRows = null }) {
             const tone =
               !pending && Number.isFinite(v) ? (v > 0 ? 'app-num--up' : v < 0 ? 'app-num--down' : '') : '';
             return (
-              <span key={tf.key} className={tone ? tone : undefined}>
+              <span
+                key={tf.key}
+                className={'mkt-returns-summary__cell mkt-returns-summary__cell--num' + (tone ? ` ${tone}` : '')}
+              >
                 {text}
               </span>
             );
@@ -283,18 +373,19 @@ function SummaryReturnsCard({ refreshMs = 0, loadOhlcRows = null }) {
           if (tickerTo) {
             return (
               <Link key={d.key} to={tickerTo} className="mkt-watch-card__row mkt-returns-summary__row" title={`Open ${routeSym}`}>
-                <span>{d.label}</span>
+                <span className="mkt-returns-summary__cell mkt-returns-summary__cell--label">{d.label}</span>
                 {cells}
               </Link>
             );
           }
           return (
             <div key={d.key} className="mkt-watch-card__row mkt-returns-summary__row">
-              <span>{d.label}</span>
+              <span className="mkt-returns-summary__cell mkt-returns-summary__cell--label">{d.label}</span>
               {cells}
             </div>
           );
         })}
+      </div>
       </div>
       {loading ? <div className="mkt-panel-status">Refreshing…</div> : null}
       {error ? <div className="mkt-panel-status mkt-panel-status--err">{error}</div> : null}

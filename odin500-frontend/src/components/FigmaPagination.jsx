@@ -1,10 +1,24 @@
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 
 const DEFAULT_SIBLING_COUNT = 1;
+const MOBILE_MAX_WIDTH_MQ = '(max-width: 640px)';
+
+function subscribeMobilePager(cb) {
+  if (typeof window === 'undefined') return () => {};
+  const mq = window.matchMedia(MOBILE_MAX_WIDTH_MQ);
+  const onChange = () => cb();
+  mq.addEventListener('change', onChange);
+  return () => mq.removeEventListener('change', onChange);
+}
+
+function getMobilePagerSnapshot() {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia(MOBILE_MAX_WIDTH_MQ).matches;
+}
 
 function IconChevronLeft({ double = false }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+    <svg className="figma-pagination__icon" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
       {double ? (
         <>
           <path d="M8.8 3.2L5 7l3.8 3.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -19,7 +33,7 @@ function IconChevronLeft({ double = false }) {
 
 function IconChevronRight({ double = false }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+    <svg className="figma-pagination__icon" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
       {double ? (
         <>
           <path d="M5.2 3.2L9 7l-3.8 3.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -67,14 +81,20 @@ export function FigmaPagination({
   ariaLabel = 'Pagination',
   siblingCount = DEFAULT_SIBLING_COUNT
 }) {
+  const isMobile = useSyncExternalStore(subscribeMobilePager, getMobilePagerSnapshot, () => false);
+  const effectiveSiblingCount = isMobile ? 0 : siblingCount;
   const items = useMemo(
-    () => buildPaginationItems(totalPages, page, siblingCount),
-    [totalPages, page, siblingCount]
+    () => buildPaginationItems(totalPages, page, effectiveSiblingCount),
+    [totalPages, page, effectiveSiblingCount]
   );
   const canPrev = page > 1;
   const canNext = page < totalPages;
   return (
-    <div className="statistic-data__pager-figma" role="navigation" aria-label={ariaLabel}>
+    <div
+      className={'figma-pagination statistic-data__pager-figma' + (isMobile ? ' figma-pagination--mobile' : '')}
+      role="navigation"
+      aria-label={ariaLabel}
+    >
       <button
         type="button"
         className="statistic-data__pg-btn statistic-data__pg-btn--icon"

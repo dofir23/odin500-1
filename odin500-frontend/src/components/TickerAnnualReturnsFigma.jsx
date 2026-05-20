@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExtern
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChartInfoTip } from './ChartInfoTip.jsx';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
+import { useChartPlotWidth } from '../hooks/useChartPlotWidth.js';
 import { useTickerPlotResize } from '../hooks/useTickerPlotResize.js';
 import { CHART_INFO_TIPS } from './chartInfoTips.js';
 import { formatWeekAxisDate, isoYearWeekFromIsoDate } from '../utils/isoWeek.js';
@@ -190,7 +191,7 @@ function csvEscape(s) {
 
 /**
  * Figma-style annual returns + stats (uses `performance.annualReturns` from ticker-returns API).
- * @param {{ symbol: string, annualReturns?: unknown[], asOfDate?: string, plotHeight?: number, resizeStorageKey?: string, resizeDefaultHeight?: number, periodMode?: 'annual' | 'quarterly' | 'monthly' | 'weekly' | 'daily', suppressChartDateFilter?: boolean, showOpenPeriodPageButton?: boolean, toolbarControls?: import('react').ReactNode, hideStatsSection?: boolean, enableInlineYearDropdowns?: boolean, defaultStartYear?: number, defaultEndYear?: number, loading?: boolean }} props
+ * @param {{ symbol: string, annualReturns?: unknown[], asOfDate?: string, plotHeight?: number, resizeStorageKey?: string, resizeDefaultHeight?: number, persistPlotResize?: boolean, periodMode?: 'annual' | 'quarterly' | 'monthly' | 'weekly' | 'daily', suppressChartDateFilter?: boolean, showOpenPeriodPageButton?: boolean, toolbarControls?: import('react').ReactNode, hideStatsSection?: boolean, enableInlineYearDropdowns?: boolean, defaultStartYear?: number, defaultEndYear?: number, loading?: boolean }} props
  */
 export function TickerAnnualReturnsFigma({
   symbol,
@@ -199,6 +200,7 @@ export function TickerAnnualReturnsFigma({
   plotHeight,
   resizeStorageKey,
   resizeDefaultHeight = 260,
+  persistPlotResize = true,
   periodMode = 'annual',
   suppressChartDateFilter = false,
   showOpenPeriodPageButton = false,
@@ -211,13 +213,21 @@ export function TickerAnnualReturnsFigma({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const resize = useTickerPlotResize(resizeStorageKey ?? null, resizeDefaultHeight);
+  const resize = useTickerPlotResize(resizeStorageKey ?? null, resizeDefaultHeight, undefined, undefined, persistPlotResize);
   const plotPx = resize.plotHeight ?? plotHeight;
   const clipComboId = useId().replace(/:/g, '');
   const clipSummaryId = useId().replace(/:/g, '');
   const sectionRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartFsShellRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartCardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const { plotWidth: chartPlotWidth, setPlotHostRef } = useChartPlotWidth(880);
+  const assignChartCardRef = useCallback(
+    (el) => {
+      chartCardRef.current = el;
+      setPlotHostRef(el);
+    },
+    [setPlotHostRef]
+  );
   const { isFullscreen: chartFs } = useChartFullscreen(chartFsShellRef);
   const chartTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
   const { axis: colAxis, label: colLabel } = useMemo(
@@ -583,8 +593,9 @@ export function TickerAnnualReturnsFigma({
 
   const comboSvg = useMemo(() => {
     if (!displayRows.length || !stats) return null;
-    const W = 880;
-    const H = 260;
+    const plotH = Math.max(140, plotPx ?? resizeDefaultHeight);
+    const W = Math.max(280, chartPlotWidth);
+    const H = plotH;
     const padL = 52;
     const padR = 20;
     const padT = 16;
@@ -781,7 +792,7 @@ export function TickerAnnualReturnsFigma({
         {xLabels}
       </svg>
     );
-  }, [chartFs, clipComboId, colAxis, colLabel, displayRows, stats, plotPx, periodMode]);
+  }, [chartFs, chartPlotWidth, clipComboId, colAxis, colLabel, displayRows, plotPx, periodMode, resizeDefaultHeight, stats]);
 
   const monthlyYearLegend = useMemo(() => {
     if (periodMode !== 'monthly' || !displayRows.length) return [];
@@ -993,7 +1004,7 @@ export function TickerAnnualReturnsFigma({
             </div>
           </div>
           <div ref={chartFsShellRef} className="ticker-chart-fs-shell">
-            <div ref={chartCardRef} className="ticker-annual-figma__chart-card ticker-annual-figma__chart-card--empty">
+            <div ref={assignChartCardRef} className="ticker-annual-figma__chart-card ticker-annual-figma__chart-card--empty">
               <p className="ticker-annual-figma__empty">No {badgeLabelForPeriodMode(periodMode).replace(' returns', '').toLowerCase()} return data for {String(symbol).toUpperCase()}.</p>
               {asOfDate ? <p className="ticker-annual-figma__empty-sub">As of {asOfDate}.</p> : null}
             </div>
@@ -1021,7 +1032,7 @@ export function TickerAnnualReturnsFigma({
           ) : null}
         </div>
         <div ref={chartFsShellRef} className="ticker-chart-fs-shell">
-          <div ref={chartCardRef} className="ticker-annual-figma__chart-card">
+          <div ref={assignChartCardRef} className="ticker-annual-figma__chart-card">
             {comboSvg ? (
               comboSvg
             ) : (

@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 
 const DEFAULT_MIN = 160;
-const DEFAULT_MAX = 900;
+const DEFAULT_MAX = 700;
 
 function readStoredHeight(storageKey, lo, hi) {
   try {
@@ -15,13 +15,14 @@ function readStoredHeight(storageKey, lo, hi) {
 }
 
 /**
- * Persisted vertical plot size for ticker SVG blocks.
- * @param {string | null | undefined} storageKey — omit or null to disable (no rail, `plotHeight` stays null).
+ * Vertical plot resize for ticker SVG blocks (session-only unless `persistHeight` is true).
+ * @param {string | null | undefined} storageKey — omit or null to disable resize rail entirely.
  * @param {number} defaultHeight
  * @param {number} [min]
  * @param {number} [max]
+ * @param {boolean} [persistHeight] — when true, save height to localStorage (default true for backward compatibility).
  */
-export function useTickerPlotResize(storageKey, defaultHeight, min, max) {
+export function useTickerPlotResize(storageKey, defaultHeight, min, max, persistHeight = true) {
   const enabled = typeof storageKey === 'string' && storageKey.length > 0;
   const minV = min ?? DEFAULT_MIN;
   const maxV = max ?? DEFAULT_MAX;
@@ -30,7 +31,7 @@ export function useTickerPlotResize(storageKey, defaultHeight, min, max) {
   const def = Number.isFinite(defaultHeight) ? Math.min(hi, Math.max(lo, Math.round(defaultHeight))) : 280;
 
   const [userH, setUserH] = useState(() =>
-    enabled && storageKey ? readStoredHeight(storageKey, lo, hi) : null
+    enabled && persistHeight && storageKey ? readStoredHeight(storageKey, lo, hi) : null
   );
   const defRef = useRef(def);
   defRef.current = def;
@@ -55,34 +56,38 @@ export function useTickerPlotResize(storageKey, defaultHeight, min, max) {
         if (resizeDragRef.current) resizeDragRef.current.active = false;
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
-        setUserH((prev) => {
-          const v = prev == null ? defRef.current : prev;
-          try {
-            localStorage.setItem(storageKey, String(v));
-          } catch {
-            /* ignore */
-          }
-          return prev;
-        });
+        if (persistHeight && storageKey) {
+          setUserH((prev) => {
+            const v = prev == null ? defRef.current : prev;
+            try {
+              localStorage.setItem(storageKey, String(v));
+            } catch {
+              /* ignore */
+            }
+            return prev;
+          });
+        }
       };
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
     },
-    [enabled, userH, hi, lo, storageKey]
+    [enabled, persistHeight, userH, hi, lo, storageKey]
   );
 
   const onDoubleClick = useCallback(
     (e) => {
       if (!enabled) return;
       e.preventDefault();
-      try {
-        localStorage.removeItem(storageKey);
-      } catch {
-        /* ignore */
+      if (persistHeight && storageKey) {
+        try {
+          localStorage.removeItem(storageKey);
+        } catch {
+          /* ignore */
+        }
       }
       setUserH(null);
     },
-    [enabled, storageKey]
+    [enabled, persistHeight, storageKey]
   );
 
   return {

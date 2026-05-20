@@ -7,6 +7,8 @@ export function tickerSvgPlotStyle(plotHeight) {
     maxHeight: 'none',
     minHeight: Math.min(100, h),
     width: '100%',
-    display: 'block'
+    maxWidth: '100%',
+    display: 'block',
+    boxSizing: 'border-box'
   };
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { SidebarToggleGlyph } from './SidebarToggleGlyph.jsx';
 import { Odin500BrandLink } from './Odin500BrandLink.jsx';
@@ -225,9 +225,19 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
 
   const closeProfileMenu = () => setProfileOpen(false);
 
+  const closeMobileSidebar = useCallback(() => {
+    if (mobileOpen && typeof onRequestClose === 'function') onRequestClose();
+  }, [mobileOpen, onRequestClose]);
+
+  const handleScrollNavClick = (e) => {
+    if (!mobileOpen) return;
+    const link = e.target.closest('a[href]');
+    if (link && e.currentTarget.contains(link)) closeMobileSidebar();
+  };
+
   const runProfileAction = (action) => {
     closeProfileMenu();
-    if (mobileOpen && typeof onRequestClose === 'function') onRequestClose();
+    closeMobileSidebar();
     action();
   };
 
@@ -367,6 +377,7 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
               theme={theme}
               className="app-sidebar__brand"
               imgClassName="app-sidebar__logo"
+              onClick={closeMobileSidebar}
               onMouseEnter={() => prefetchRouteChunks('/market')}
               onFocus={() => prefetchRouteChunks('/market')}
             />
@@ -384,7 +395,7 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
             </button>
           </div>
 
-          <div className="app-sidebar__scroll">
+          <div className="app-sidebar__scroll" onClick={handleScrollNavClick}>
             <nav className="app-sidebar__nav" aria-label="Markets">
               <NavRow to="/market" icon={IconGlobe} label="Markets" />
               <div
@@ -402,6 +413,7 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
                   onClick={() => {
                     navigate('/indices/dow-jones');
                     setIndicesOpen(true);
+                    closeMobileSidebar();
                   }}
                   onFocus={() => prefetchRouteChunks('/indices/dow-jones')}
                   title="Open Dow Jones index (opens menu)"
@@ -465,7 +477,10 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
                 onClick={() => {
                   setStatsOpen((wasOpen) => {
                     const nextOpen = !wasOpen;
-                    if (nextOpen) navigate(annualTo);
+                    if (nextOpen) {
+                      navigate(annualTo);
+                      closeMobileSidebar();
+                    }
                     return nextOpen;
                   });
                 }}

@@ -76,9 +76,9 @@ const COMPARE_ROWS = [
 
 /** Route slug → backend `index` body + UI label */
 export const INDEX_ROUTE_CHOICES = [
-  { slug: 'sp500', apiIndex: 'sp500', label: 'S&P 500' },
+  { slug: 'sp500', apiIndex: 'sp500', ticker: 'SPY', label: 'S&P 500' },
   { slug: 'dow-jones', apiIndex: 'Dow Jones', label: 'Dow Jones' },
-  { slug: 'nasdaq-100', apiIndex: 'Nasdaq 100', label: 'Nasdaq 100' }
+  { slug: 'nasdaq-100', apiIndex: 'Nasdaq 100', ticker: 'NDX', label: 'Nasdaq 100' }
 ];
 const INDEX_ROUTE_DROPDOWN_OPTIONS = INDEX_ROUTE_CHOICES.map((opt) => ({ id: opt.slug, label: opt.label }));
 
@@ -522,12 +522,16 @@ function buildPaginationItems(totalPages, currentPage, siblingCount = PAGER_SIBL
   return [1, 'dots-left', ...middle, 'dots-right', totalPages];
 }
 
-function FigmaPagination({ page, totalPages, onPageChange }) {
-  const items = useMemo(() => buildPaginationItems(totalPages, page), [totalPages, page]);
+function FigmaPagination({ page, totalPages, onPageChange, siblingCount = PAGER_SIBLING_COUNT, className = '' }) {
+  const items = useMemo(() => buildPaginationItems(totalPages, page, siblingCount), [totalPages, page, siblingCount]);
   const canPrev = page > 1;
   const canNext = page < totalPages;
   return (
-    <div className="statistic-data__pager-figma" role="navigation" aria-label="Table pagination">
+    <div
+      className={'statistic-data__pager-figma' + (className ? ` ${className}` : '')}
+      role="navigation"
+      aria-label="Table pagination"
+    >
       <button
         type="button"
         className="statistic-data__pg-btn statistic-data__pg-btn--icon"
@@ -636,9 +640,9 @@ function useMediaChartHeight() {
   useEffect(() => {
     const update = () => {
       const w = window.innerWidth;
-      if (w < 480) setHeight(220);
-      else if (w < 768) setHeight(260);
-      else if (w < 1024) setHeight(290);
+      if (w < 480) setHeight(300);
+      else if (w < 768) setHeight(320);
+      else if (w < 1024) setHeight(300);
       else setHeight(320);
     };
     update();
@@ -791,14 +795,21 @@ export default function IndexPage() {
   const [chartFs, setChartFs] = useState(false);
   const [fsPlotH, setFsPlotH] = useState(0);
 
+  const routeChartTicker = useMemo(() => {
+    if (isSectorDataRoute) return '';
+    const choice = INDEX_ROUTE_CHOICES.find((x) => x.slug === slug);
+    return choice?.ticker ? String(choice.ticker).trim().toUpperCase() : '';
+  }, [isSectorDataRoute, slug]);
+
   const ohlcSymbol = useMemo(() => {
+    if (routeChartTicker) return routeChartTicker;
     if (!indexPayload) return null;
     const o = indexPayload.officialIndexTicker;
     const t = indexPayload.ticker;
     if (o && String(o).trim()) return String(o).trim().toUpperCase();
     if (t && String(t).trim()) return String(t).trim().toUpperCase();
     return null;
-  }, [indexPayload]);
+  }, [indexPayload, routeChartTicker]);
 
   const chartApiRange = useMemo(() => {
     if (appliedCustomRange?.start && appliedCustomRange?.end) {
@@ -839,20 +850,18 @@ export default function IndexPage() {
     [navigate]
   );
 
-  const applyCustomChartRange = useCallback(() => {
-    const n = normalizeCustomChartRange(draftChartStart, draftChartEnd, asOfDate);
-    if (!n) return;
-    setAppliedCustomRange(n);
-    setIsCustomRangePopupOpen(false);
-  }, [draftChartStart, draftChartEnd, asOfDate]);
-
-  const resetCustomChartRange = useCallback(() => {
-    setAppliedCustomRange(null);
-    const r = rangeForTimeframe(timeframe, asOfDate, ohlcTickerBounds);
-    setDraftChartStart(r.start);
-    setDraftChartEnd(r.end);
-    setIsCustomRangePopupOpen(false);
-  }, [timeframe, asOfDate, ohlcTickerBounds]);
+  const onCustomRangeDateChange = useCallback(
+    (nextStart, nextEnd) => {
+      setDraftChartStart(nextStart);
+      setDraftChartEnd(nextEnd);
+      const n = normalizeCustomChartRange(nextStart, nextEnd, asOfDate);
+      if (!n) return;
+      setAppliedCustomRange(n);
+      setDraftChartStart(n.start);
+      setDraftChartEnd(n.end);
+    },
+    [asOfDate]
+  );
 
   useEffect(() => {
     if (!isCustomRangePopupOpen) return;
@@ -986,11 +995,38 @@ export default function IndexPage() {
             ttlMs: 10 * 60 * 1000
           });
           if (cancelled) return;
-          const d = idxRes.data;
-          setIndexPayload(d && typeof d === 'object' ? d : null);
+          const d = idxRes.data && typeof idxRes.data === 'object' ? idxRes.data : {};
           const asOf = d?.asOfDate || new Date().toISOString().slice(0, 10);
           setAsOfDate(asOf);
-          const series = Array.isArray(d?.syntheticCloseSeries) ? d.syntheticCloseSeries : [];
+
+          let series = Array.isArray(d?.syntheticCloseSeries) ? d.syntheticCloseSeries : [];
+          let payload = d;
+
+          if (routeChartTicker) {
+            const ohlcLongRes = await fetchJsonCached({
+              path: '/api/market/ohlc?symbol=' + encodeURIComponent(routeChartTicker) + '&limit=4000',
+              method: 'GET',
+              ttlMs: 10 * 60 * 1000
+            });
+            if (cancelled) return;
+            const ohlcSorted = sortRowsAsc(ohlcRowsFromPayload(ohlcLongRes.data));
+            series = ohlcSorted
+              .map((r) => {
+                const date = rowDateToTimeKey(r);
+                const close = pickNum(r, ['Close', 'close']);
+                if (!date || close == null || !Number.isFinite(close)) return null;
+                return { date, close };
+              })
+              .filter(Boolean);
+            payload = {
+              ...d,
+              officialIndexTicker: routeChartTicker,
+              ticker: routeChartTicker,
+              seriesMode: d?.seriesMode ? `${d.seriesMode} · ${routeChartTicker}` : routeChartTicker
+            };
+          }
+
+          setIndexPayload(payload);
           setFullCloseSeries(series);
 
           const asOfD = new Date(String(asOf).slice(0, 10) + 'T12:00:00');
@@ -1000,6 +1036,7 @@ export default function IndexPage() {
           const endIso = String(asOf).slice(0, 10);
 
           const symForOhlc =
+            routeChartTicker ||
             (d?.officialIndexTicker && String(d.officialIndexTicker).trim()) ||
             (d?.ticker && String(d.ticker).trim()) ||
             '';
@@ -1093,7 +1130,7 @@ export default function IndexPage() {
     return () => {
       cancelled = true;
     };
-  }, [isSectorDataRoute, sectorTickerForLoad, activeMeta.apiIndex, authVersion]);
+  }, [isSectorDataRoute, sectorTickerForLoad, activeMeta.apiIndex, routeChartTicker, slug, authVersion]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1156,6 +1193,7 @@ export default function IndexPage() {
   const returnsSym = useMemo(() => {
     if (!indexPayload?.performance) return null;
     const tk =
+      routeChartTicker ||
       (indexPayload.officialIndexTicker && String(indexPayload.officialIndexTicker).trim()) ||
       (indexPayload.ticker && String(indexPayload.ticker).trim()) ||
       activeMeta.label;
@@ -1805,7 +1843,10 @@ export default function IndexPage() {
       <header className="ticker-page__header ticker-page__header--figma">
         <div className="ticker-page__header-top">
           <div className="ticker-page__header-identity">
-            <h1 className="ticker-page__company ticker-page__company--hero">SP500 - [{activeMeta.label}]</h1>
+            
+            <h1 className="ticker-page__company ticker-page__company--hero">
+              {isSectorDataRoute ? `SP500 - ${activeMeta.label}` : activeMeta.label}
+            </h1>
             <span className="ticker-page__header-identity-meta">
               <IconFlagUs className="ticker-page__flag" />
               <span className="ticker-page__exchange">{displaySym}</span>
@@ -1878,6 +1919,7 @@ export default function IndexPage() {
 
       <div className="ticker-page__grid">
         <div className="ticker-page__main">
+          <div className="ticker-page__stack-column">
           <section className="ticker-card ticker-card--main-chart" aria-labelledby="index-snapshot-chart-title">
             <div className="ticker-card__head">
               <div className="ticker-page__search-row">
@@ -1937,7 +1979,17 @@ export default function IndexPage() {
                   <button
                     type="button"
                     className={'ticker-tf' + (appliedCustomRange || isCustomRangePopupOpen ? ' ticker-tf--active' : '')}
-                    onClick={() => setIsCustomRangePopupOpen(true)}
+                    onClick={() => {
+                      if (appliedCustomRange) {
+                        setDraftChartStart(appliedCustomRange.start);
+                        setDraftChartEnd(appliedCustomRange.end);
+                      } else {
+                        const r = rangeForTimeframe(timeframe, asOfDate, ohlcTickerBounds);
+                        setDraftChartStart(r.start);
+                        setDraftChartEnd(r.end);
+                      }
+                      setIsCustomRangePopupOpen(true);
+                    }}
                     aria-label="Open custom date range"
                     title="Custom date range"
                   >
@@ -1977,7 +2029,7 @@ export default function IndexPage() {
                           type="date"
                           className="ticker-page__date-inp ticker-custom-range-popup__date"
                           value={draftChartStart}
-                          onChange={(e) => setDraftChartStart(e.target.value)}
+                          onChange={(e) => onCustomRangeDateChange(e.target.value, draftChartEnd)}
                           max={draftChartEnd || asOfDate}
                         />
                       </div>
@@ -1987,19 +2039,11 @@ export default function IndexPage() {
                           type="date"
                           className="ticker-page__date-inp ticker-custom-range-popup__date"
                           value={draftChartEnd}
-                          onChange={(e) => setDraftChartEnd(e.target.value)}
+                          onChange={(e) => onCustomRangeDateChange(draftChartStart, e.target.value)}
                           min={draftChartStart}
                           max={asOfDate}
                         />
                       </div>
-                    </div>
-                    <div className="wl-manage-modal__foot ticker-custom-range-popup__foot">
-                      <button type="button" className="ticker-outline-btn ticker-outline-btn--sm ticker-custom-range-popup__btn" onClick={resetCustomChartRange}>
-                        Use timeframe
-                      </button>
-                      <button type="button" className="ticker-outline-btn ticker-outline-btn--sm ticker-custom-range-popup__btn" onClick={applyCustomChartRange}>
-                        Submit
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -2085,6 +2129,73 @@ export default function IndexPage() {
               ) : null}
             </div>
           </section>
+
+          <section className="ticker-card ticker-card--news" aria-labelledby="index-news-h">
+            <div className="ticker-subh-with-tip ticker-subh-with-tip--in-card ticker-rs-selector-head">
+              <div className="ticker-rs-selector-head__left">
+                <div className="flex shrink-0 align-centers">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden className="ticker-news-head__ico">
+                    <path d="M0 0h24v24H0z" fill="none" />
+                    <path
+                      fill="currentColor"
+                      d="M5.616 20q-.691 0-1.153-.462T4 18.384V5.616q0-.691.463-1.153T5.616 4h9.961L20 8.423v9.962q0 .69-.462 1.153T18.384 20zm0-1h12.769q.269 0 .442-.173t.173-.442V9h-4V5H5.616q-.27 0-.443.173T5 5.616v12.769q0 .269.173.442t.443.173M7.5 16h9v-1h-9zm0-7H12V8H7.5zm0 3.5h9v-1h-9zM5 5v4zv14z"
+                    />
+                  </svg>
+                </div>
+                <div className="ticker-subh-left">
+                  <ReturnsChartClickableHeading
+                    id="index-news-h"
+                    className="ticker-subh ticker-subh--flex"
+                    onClick={onOpenNewsPage}
+                  >
+                    News
+                  </ReturnsChartClickableHeading>
+                  <DataInfoTip align="start">
+                    <p className="ticker-data-tip__p">
+                      Headlines for <strong>{displaySym}</strong> from the live feed. Click <strong>News</strong> to open the full
+                      news page with this ticker pre-selected.
+                    </p>
+                  </DataInfoTip>
+                </div>
+              </div>
+            </div>
+            {newsBusy ? <p className="ticker-page__news-sample-note">Loading ticker news…</p> : null}
+            {!newsBusy && newsError ? <p className="ticker-page__news-sample-note">{newsError}</p> : null}
+            {!newsBusy && !newsError && !liveNews.length ? (
+              <p className="ticker-page__news-sample-note">No ticker headlines yet.</p>
+            ) : null}
+            <ul className="ticker-news-list">
+              {newsPageItems.map((n) => (
+                <li key={n.id} className="ticker-news-list__li">
+                  <a
+                    className="ticker-news-list__a"
+                    href={n.url || '#index-news-h'}
+                    onClick={(e) => {
+                      if (!n.url) e.preventDefault();
+                    }}
+                    target={n.url ? '_blank' : undefined}
+                    rel={n.url ? 'noopener noreferrer' : undefined}
+                  >
+                    {n.title}
+                  </a>
+                  <span className="ticker-news-list__meta">
+                    {n.source}
+                    <br />
+                    {n.time}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {liveNews.length > NEWS_PAGE_SIZE ? (
+              <NewsSectionPagination
+                page={newsPageSafe}
+                totalPages={newsTotalPages}
+                onPageChange={setNewsPage}
+                ariaLabel="News pagination"
+              />
+            ) : null}
+          </section>
+          </div>
 
           <aside className="ticker-page__aside index-page__aside-stack">
           {/* <section className="ticker-card ticker-card--signal" aria-labelledby="index-odin-signal-h">
@@ -2252,7 +2363,15 @@ export default function IndexPage() {
                 {indexTickersBusy ? <p className="ticker-page__news-sample-note">Loading constituents…</p> : null}
               </div>
               {indexTickersTotalPages > 1 && !isSectorDataRoute ? (
-                <FigmaPagination page={indexTickersPageSafe} totalPages={indexTickersTotalPages} onPageChange={setIndexTickersPage} />
+                <div className="index-constituents-pagination">
+                  <FigmaPagination
+                    className="index-constituents-pagination__pager"
+                    page={indexTickersPageSafe}
+                    totalPages={indexTickersTotalPages}
+                    onPageChange={setIndexTickersPage}
+                    siblingCount={0}
+                  />
+                </div>
               ) : null}
             </div>
           </section>
@@ -2333,72 +2452,6 @@ export default function IndexPage() {
             </div>
           </section>
           </aside>
-
-          <section className="ticker-card ticker-card--news" aria-labelledby="index-news-h">
-            <div className="ticker-subh-with-tip ticker-subh-with-tip--in-card ticker-rs-selector-head">
-              <div className="ticker-rs-selector-head__left">
-                <div className="flex shrink-0 align-centers">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden className="ticker-news-head__ico">
-                    <path d="M0 0h24v24H0z" fill="none" />
-                    <path
-                      fill="currentColor"
-                      d="M5.616 20q-.691 0-1.153-.462T4 18.384V5.616q0-.691.463-1.153T5.616 4h9.961L20 8.423v9.962q0 .69-.462 1.153T18.384 20zm0-1h12.769q.269 0 .442-.173t.173-.442V9h-4V5H5.616q-.27 0-.443.173T5 5.616v12.769q0 .269.173.442t.443.173M7.5 16h9v-1h-9zm0-7H12V8H7.5zm0 3.5h9v-1h-9zM5 5v4zv14z"
-                    />
-                  </svg>
-                </div>
-                <div className="ticker-subh-left">
-                  <ReturnsChartClickableHeading
-                    id="index-news-h"
-                    className="ticker-subh ticker-subh--flex"
-                    onClick={onOpenNewsPage}
-                  >
-                    News
-                  </ReturnsChartClickableHeading>
-                  <DataInfoTip align="start">
-                    <p className="ticker-data-tip__p">
-                      Headlines for <strong>{displaySym}</strong> from the live feed. Click <strong>News</strong> to open the full
-                      news page with this ticker pre-selected.
-                    </p>
-                  </DataInfoTip>
-                </div>
-              </div>
-            </div>
-            {newsBusy ? <p className="ticker-page__news-sample-note">Loading ticker news…</p> : null}
-            {!newsBusy && newsError ? <p className="ticker-page__news-sample-note">{newsError}</p> : null}
-            {!newsBusy && !newsError && !liveNews.length ? (
-              <p className="ticker-page__news-sample-note">No ticker headlines yet.</p>
-            ) : null}
-            <ul className="ticker-news-list">
-              {newsPageItems.map((n) => (
-                <li key={n.id} className="ticker-news-list__li">
-                  <a
-                    className="ticker-news-list__a"
-                    href={n.url || '#index-news-h'}
-                    onClick={(e) => {
-                      if (!n.url) e.preventDefault();
-                    }}
-                    target={n.url ? '_blank' : undefined}
-                    rel={n.url ? 'noopener noreferrer' : undefined}
-                  >
-                    {n.title}
-                  </a>
-                  <span className="ticker-news-list__meta">
-                    {n.source}
-                    <br />
-                    {n.time}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {liveNews.length > NEWS_PAGE_SIZE ? (
-              <NewsSectionPagination
-                page={newsPageSafe}
-                totalPages={newsTotalPages}
-                onPageChange={setNewsPage}
-                ariaLabel="News pagination"
-              />
-            ) : null}
-          </section>
 
           <TickerAnnualReturnsFigma
             symbol={displaySym}

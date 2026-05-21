@@ -4,12 +4,14 @@ import { ChartDateApplyRow } from './ChartDateApplyRow.jsx';
 import { DataInfoTip } from './DataInfoTip.jsx';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
 import { filterReturnsRows } from '../utils/returnsDateRange.js';
+import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
 import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { chartAxisLabelColors } from '../utils/chartAxisLabelColors.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { getReturnsChartViewMoreHref } from '../utils/returnsViewMoreNavigation.js';
 import { ReturnsChartClickableTitle } from './ReturnsChartClickableTitle.jsx';
 import { DEFAULT_TICKER_ROUTE_SYMBOL } from '../utils/tickerUrlSync.js';
+import { fmtPct, fmtPctSigned } from '../utils/formatDisplayNumber.js';
 import { WaterfallDonutChartSkeleton } from './ChartSkeletons.jsx';
 import { ChartSectionIconActions } from './ChartSectionIconActions.jsx';
 import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
@@ -119,6 +121,10 @@ export function TickerMonthlyReturnsWaterfallDonut({
   const sectionRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartFsShellRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartCardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const fsPlotSize = useChartFullscreenPlotSize(chartFsShellRef);
+  const plotHeightEffective = fsPlotSize?.height ?? plotHeight;
+  const panelWidthEffective = fsPlotSize ? Math.max(280, Math.floor(fsPlotSize.width / 2) - 28) : 460;
+  const svgFs = Boolean(fsPlotSize);
   const chartTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
   const [showTable, setShowTable] = useState(false);
   const [monthRangeApplied, setMonthRangeApplied] = useState({ start: '', end: '' });
@@ -209,8 +215,8 @@ export function TickerMonthlyReturnsWaterfallDonut({
     let yMax = Math.max(80, Math.ceil(cmax / 10) * 10);
     if (yMax <= yMin) yMax = yMin + 40;
 
-    const W = 460;
-    const H = 300;
+    const W = panelWidthEffective;
+    const H = Math.max(200, plotHeightEffective ?? 300);
     const padL = 50;
     const padR = 14;
     const padT = 20;
@@ -262,7 +268,7 @@ export function TickerMonthlyReturnsWaterfallDonut({
         <g key={m}>
           <rect x={x} y={top} width={bw} height={h} rx={2} fill={fill} />
           <text x={cx} y={labY} textAnchor="middle" fill={colLabel} fontSize="9.5" fontWeight="700">
-            {d.toFixed(1)}%
+            {fmtPct(d, { plainPositive: true })}
           </text>
         </g>
       );
@@ -302,7 +308,7 @@ export function TickerMonthlyReturnsWaterfallDonut({
     const totalLabel = (
       <text x={padL + iw / 2} y={H - 6} textAnchor="middle" fill={COL_TOTAL} fontSize="9" fontWeight="700">
         Year cumulative ({periodMode === 'weekly' ? 'W53' : 'Dec'} end): {endCum >= 0 ? '+' : ''}
-        {endCum.toFixed(1)}%
+        {fmtPct(endCum, { plainPositive: true })}
       </text>
     );
 
@@ -311,7 +317,10 @@ export function TickerMonthlyReturnsWaterfallDonut({
         className="ticker-annual-figma__svg ticker-monthly-adv__svg"
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="xMidYMid meet"
-        style={tickerSvgPlotStyle(plotHeight != null ? Math.min(plotHeight, 420) : null)}
+        style={tickerSvgPlotStyle(
+          plotHeightEffective != null ? Math.min(plotHeightEffective, svgFs ? plotHeightEffective : 420) : null,
+          { fullscreen: svgFs }
+        )}
       >
         {gridLines}
         {connectors}
@@ -320,7 +329,7 @@ export function TickerMonthlyReturnsWaterfallDonut({
         {totalLabel}
       </svg>
     );
-  }, [monthValues, selectedYear, colAxis, colLabel, chartTheme, plotHeight, periodMode]);
+  }, [monthValues, selectedYear, colAxis, colLabel, chartTheme, panelWidthEffective, periodMode, plotHeightEffective, svgFs]);
 
   const donutSvg = useMemo(() => {
     const light = chartTheme === 'light';
@@ -330,8 +339,9 @@ export function TickerMonthlyReturnsWaterfallDonut({
     const total = pos + neg;
     const cx = 100;
     const cy = 100;
-    const donutPx = plotHeight != null ? Math.min(220, plotHeight) : null;
-    const donutStyle = tickerSvgPlotStyle(donutPx);
+    const donutPx =
+      plotHeightEffective != null ? Math.min(plotHeightEffective, svgFs ? plotHeightEffective : 220) : null;
+    const donutStyle = tickerSvgPlotStyle(donutPx, { fullscreen: svgFs });
 
     if (total === 0) {
       return (
@@ -400,7 +410,7 @@ export function TickerMonthlyReturnsWaterfallDonut({
         </g>
       </svg>
     );
-  }, [monthMixStats, chartTheme, plotHeight]);
+  }, [monthMixStats, chartTheme, plotHeightEffective, svgFs]);
 
   const symU = String(symbol || 'ticker').toUpperCase();
   const onDownloadCsv = useCallback(() => {
@@ -610,7 +620,7 @@ export function TickerMonthlyReturnsWaterfallDonut({
                         <td>{r.endDate || '—'}</td>
                         <td className={r.totalReturn >= 0 ? 'ticker-num--up' : 'ticker-num--down'}>
                           {r.totalReturn >= 0 ? '+' : ''}
-                          {r.totalReturn.toFixed(2)}%
+                          {fmtPctSigned(r.totalReturn)}
                         </td>
                       </tr>
                     ))}

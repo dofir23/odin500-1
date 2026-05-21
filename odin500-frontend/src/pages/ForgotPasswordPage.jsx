@@ -113,7 +113,7 @@ function ForgotPasswordFlow() {
           setRecoverySession(true);
           setStep('reset');
           if (session.user?.email) setEmail(session.user.email);
-          stripAuthFromUrl();
+          // stripAuthFromUrl();
         }
 
         const {
@@ -124,7 +124,7 @@ function ForgotPasswordFlow() {
             setRecoverySession(true);
             setStep('reset');
             if (session.user?.email) setEmail(session.user.email);
-            stripAuthFromUrl();
+            // stripAuthFromUrl();
           }
         });
         unsubRef.current = subscription;

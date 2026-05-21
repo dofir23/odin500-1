@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { DataInfoTip } from './DataInfoTip.jsx';
+import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
 import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { getReturnsChartViewMoreHref } from '../utils/returnsViewMoreNavigation.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL } from '../utils/tickerUrlSync.js';
@@ -10,6 +11,7 @@ import { ChartSectionIconActions, useChartFullscreen } from './ChartSectionIconA
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
 import { chartAxisLabelColors } from '../utils/chartAxisLabelColors.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
+import { fmtPct, fmtPctSigned } from '../utils/formatDisplayNumber.js';
 
 const COL_GRID = 'rgba(148, 163, 184, 0.14)';
 const COL_GRID_ZERO = 'rgba(148, 163, 184, 0.35)';
@@ -88,6 +90,10 @@ export function TickerQuarterlyReturnsChart({
   const chartFsShellRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartCardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const { isFullscreen: chartFs } = useChartFullscreen(chartFsShellRef);
+  const fsPlotSize = useChartFullscreenPlotSize(chartFsShellRef);
+  const plotHeightEffective = fsPlotSize?.height ?? plotHeight;
+  const panelWidthEffective = fsPlotSize ? Math.max(280, Math.floor(fsPlotSize.width / 2) - 28) : 460;
+  const svgFs = Boolean(fsPlotSize);
   const chartTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
   const { axis: colAxis, label: colLabel } = useMemo(
     () => chartAxisLabelColors(chartTheme),
@@ -129,8 +135,8 @@ export function TickerQuarterlyReturnsChart({
 
   const leftSvg = useMemo(() => {
     if (!years.length) return null;
-    const W = 460;
-    const H = 288;
+    const W = panelWidthEffective;
+    const H = Math.max(200, plotHeightEffective ?? 288);
     const padL = 50;
     const padR = 14;
     const padT = 18;
@@ -159,7 +165,7 @@ export function TickerQuarterlyReturnsChart({
             strokeWidth={t === 0 ? 1.35 : 1}
           />
           <text x={padL - 8} y={y + 4} textAnchor="end" fill={colAxis} fontSize="10" fontWeight="600">
-            {Number.isInteger(t) ? `${t}%` : `${t.toFixed(1)}%`}
+            {fmtPct(t, { plainPositive: true })}
           </text>
         </g>
       );
@@ -185,7 +191,7 @@ export function TickerQuarterlyReturnsChart({
             <rect x={x} y={top} width={barW} height={Math.max(h, 1)} rx={1.5} fill={QUARTER_COLORS[qi]} />
             {showLab ? (
               <text x={x + barW / 2} y={labY} textAnchor="middle" fill={colLabel} fontSize="8" fontWeight="700">
-                {v.toFixed(1)}%
+                {fmtPct(v, { plainPositive: true })}
               </text>
             ) : null}
           </g>
@@ -207,19 +213,19 @@ export function TickerQuarterlyReturnsChart({
         className="ticker-annual-figma__svg ticker-quarterly__svg"
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="xMidYMid meet"
-        style={tickerSvgPlotStyle(plotHeight)}
+        style={tickerSvgPlotStyle(plotHeightEffective, { fullscreen: svgFs })}
       >
         {gridLines}
         {bars}
         {xLabels}
       </svg>
     );
-  }, [chartFs, colAxis, colLabel, years, byYear, yMin, yMax, plotHeight]);
+  }, [chartFs, colAxis, colLabel, years, byYear, yMin, yMax, panelWidthEffective, plotHeightEffective, svgFs]);
 
   const rightSvg = useMemo(() => {
     if (!years.length) return null;
-    const W = 460;
-    const H = 288;
+    const W = panelWidthEffective;
+    const H = Math.max(200, plotHeightEffective ?? 288);
     const padL = 50;
     const padR = 14;
     const padT = 18;
@@ -247,7 +253,7 @@ export function TickerQuarterlyReturnsChart({
           strokeWidth={t === 0 ? 1.35 : 1}
         />
         <text x={padL - 8} y={yForValue(t, padT, ih, yMin, yMax) + 4} textAnchor="end" fill={colAxis} fontSize="10" fontWeight="600">
-          {Number.isInteger(t) ? `${t}%` : `${t.toFixed(1)}%`}
+          {fmtPct(t, { plainPositive: true })}
         </text>
       </g>
     ));
@@ -272,7 +278,7 @@ export function TickerQuarterlyReturnsChart({
             <rect x={x} y={top} width={barW} height={Math.max(h, 1)} rx={1.5} fill={yearColors.get(yr)} />
             {showLab ? (
               <text x={x + barW / 2} y={labY} textAnchor="middle" fill={colLabel} fontSize="7.5" fontWeight="700">
-                {v.toFixed(0)}%
+                {fmtPct(v, { plainPositive: true })}
               </text>
             ) : null}
           </g>
@@ -294,14 +300,14 @@ export function TickerQuarterlyReturnsChart({
         className="ticker-annual-figma__svg ticker-quarterly__svg"
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="xMidYMid meet"
-        style={tickerSvgPlotStyle(plotHeight)}
+        style={tickerSvgPlotStyle(plotHeightEffective, { fullscreen: svgFs })}
       >
         {gridLines}
         {bars}
         {xLabels}
       </svg>
     );
-  }, [chartFs, colAxis, colLabel, years, byQuarter, yearColors, yMin, yMax, plotHeight]);
+  }, [chartFs, colAxis, colLabel, years, byQuarter, yearColors, yMin, yMax, panelWidthEffective, plotHeightEffective, svgFs]);
 
   const symU = String(symbol || 'ticker').toUpperCase();
 
@@ -529,7 +535,7 @@ export function TickerQuarterlyReturnsChart({
                     <td>{r.endDate || '—'}</td>
                     <td className={r.totalReturn >= 0 ? 'ticker-num--up' : 'ticker-num--down'}>
                       {r.totalReturn >= 0 ? '+' : ''}
-                      {r.totalReturn.toFixed(2)}%
+                      {fmtPctSigned(r.totalReturn)}
                     </td>
                   </tr>
                 ))}

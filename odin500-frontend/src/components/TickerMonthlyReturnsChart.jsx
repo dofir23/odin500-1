@@ -7,9 +7,11 @@ import { formatWeekAxisDate, isoYearWeekFromIsoDate } from '../utils/isoWeek.js'
 import { filterReturnsRows } from '../utils/returnsDateRange.js';
 import { useChartPlotWidth } from '../hooks/useChartPlotWidth.js';
 import { useTickerPlotResize } from '../hooks/useTickerPlotResize.js';
+import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
 import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { getReturnsChartViewMoreHref } from '../utils/returnsViewMoreNavigation.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL } from '../utils/tickerUrlSync.js';
+import { fmtPct, fmtPctSigned } from '../utils/formatDisplayNumber.js';
 import { MonthlyReturnsChartSkeleton } from './ChartSkeletons.jsx';
 import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
 import { ReturnsChartClickableTitle } from './ReturnsChartClickableTitle.jsx';
@@ -131,6 +133,10 @@ export function TickerMonthlyReturnsChart({
   );
   const resize = useTickerPlotResize(resizeStorageKey ?? null, resizeDefaultHeight, undefined, undefined, persistPlotResize);
   const plotPx = resize.plotHeight ?? plotHeight;
+  const fsPlotSize = useChartFullscreenPlotSize(chartFsShellRef);
+  const plotPxEffective = fsPlotSize?.height ?? plotPx;
+  const plotWidthEffective = fsPlotSize?.width ?? chartPlotWidth;
+  const svgFs = Boolean(fsPlotSize);
 
   const rows = useMemo(() => {
     if (!Array.isArray(monthlyReturns)) return [];
@@ -222,8 +228,8 @@ export function TickerMonthlyReturnsChart({
   }, [monthValues]);
 
   const chart = useMemo(() => {
-    const plotH = Math.max(140, plotPx ?? resizeDefaultHeight);
-    const W = Math.max(280, chartPlotWidth);
+    const plotH = Math.max(140, plotPxEffective ?? resizeDefaultHeight);
+    const W = Math.max(280, plotWidthEffective);
     const H = plotH;
     const padL = 48;
     const padR = 18;
@@ -252,7 +258,7 @@ export function TickerMonthlyReturnsChart({
             strokeWidth={t === 0 ? 1.35 : 1}
           />
           <text x={padL - 8} y={y + 4} textAnchor="end" fill={colAxis} fontSize="10" fontWeight="600">
-            {Number.isInteger(t) ? `${t}%` : `${t.toFixed(1)}%`}
+            {fmtPct(t, { plainPositive: true })}
           </text>
         </g>
       );
@@ -274,7 +280,7 @@ export function TickerMonthlyReturnsChart({
           <rect x={x} y={top} width={bw} height={Math.max(h, 1)} rx={2} fill={v < 0 ? COL_BAR_NEG : COL_BAR} />
           {chartFs || (periodMode !== 'weekly' && periodMode !== 'daily') ? (
             <text x={x + bw / 2} y={labY} textAnchor="middle" fill={colLabel} fontSize="10" fontWeight="700">
-              {v.toFixed(1)}%
+              {fmtPct(v, { plainPositive: true })}
             </text>
           ) : null}
         </g>
@@ -320,7 +326,7 @@ export function TickerMonthlyReturnsChart({
             fontSize="10"
             fontWeight="700"
           >
-            Avg {avgReturn.toFixed(1)}%
+            Avg {fmtPct(avgReturn, { plainPositive: true })}
           </text>
         </g>
       ) : null;
@@ -330,7 +336,7 @@ export function TickerMonthlyReturnsChart({
         className="ticker-annual-figma__svg ticker-monthly__svg"
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="xMidYMid meet"
-        style={tickerSvgPlotStyle(plotPx)}
+        style={tickerSvgPlotStyle(plotPxEffective, { fullscreen: svgFs })}
       >
         {gridLines}
         {bars}
@@ -341,13 +347,14 @@ export function TickerMonthlyReturnsChart({
   }, [
     avgReturn,
     chartFs,
-    chartPlotWidth,
+    plotWidthEffective,
     colAxis,
     colLabel,
     monthValues,
     periodMode,
-    plotPx,
+    plotPxEffective,
     resizeDefaultHeight,
+    svgFs,
     weekAxisLabels,
     yMin,
     yMax
@@ -665,8 +672,7 @@ export function TickerMonthlyReturnsChart({
                     <td>{r.startDate || '—'}</td>
                     <td>{r.endDate || '—'}</td>
                     <td className={r.totalReturn >= 0 ? 'ticker-num--up' : 'ticker-num--down'}>
-                      {r.totalReturn >= 0 ? '+' : ''}
-                      {r.totalReturn.toFixed(2)}%
+                      {fmtPctSigned(r.totalReturn)}
                     </td>
                   </tr>
                 ))}

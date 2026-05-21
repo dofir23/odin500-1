@@ -13,11 +13,7 @@ import { ChartFullscreenToggleIcon } from './ChartFullscreenToggleIcon.jsx';
 import { ChartSnapshotExportModal } from './ChartSnapshotExportModal.jsx';
 import { useChartSnapshotExport } from '../hooks/useChartSnapshotExport.js';
 import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
-
-function fmtPct(v) {
-  const n = Number(v || 0);
-  return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
-}
+import { fmtPctSigned } from '../utils/formatDisplayNumber.js';
 
 /** App shell background (opaque) — lightweight-charts canvas is black if bg is transparent. */
 function getAppShellBgColor(isLight) {
@@ -826,7 +822,7 @@ export function NormalizedPerformanceCard({
                       <span className="np-chart-axis-badge__tick" style={{ borderRightColor: bg }} />
                       <div className="np-chart-axis-badge__body">
                         <span className="np-chart-axis-badge__sym">{s.key}</span>
-                        <span className="np-chart-axis-badge__val">{fmtPct(last[s.key])}</span>
+                        <span className="np-chart-axis-badge__val">{fmtPctSigned(last[s.key])}</span>
                       </div>
                     </div>
                   );

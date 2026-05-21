@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { createChart } from 'lightweight-charts';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
+import { fmtChartPrice } from '../utils/formatDisplayNumber.js';
 
 function formatChartTime(t) {
   if (t == null) return '—';
@@ -22,14 +23,6 @@ function formatChartTime(t) {
     return t.year + '-' + m + '-' + d;
   }
   return String(t);
-}
-
-function formatPrice(n) {
-  if (n == null || Number.isNaN(Number(n))) return '—';
-  const x = Number(n);
-  const abs = Math.abs(x);
-  const digits = abs >= 1000 ? 2 : abs >= 1 ? 4 : 6;
-  return x.toFixed(digits);
 }
 
 export const ChartPanel = forwardRef(function ChartPanel(_props, ref) {
@@ -145,13 +138,13 @@ export const ChartPanel = forwardRef(function ChartPanel(_props, ref) {
       const dateStr = formatChartTime(param.time);
       const lines =
         'O ' +
-        formatPrice(bar.open) +
+        fmtChartPrice(bar.open) +
         '\nH ' +
-        formatPrice(bar.high) +
+        fmtChartPrice(bar.high) +
         '\nL ' +
-        formatPrice(bar.low) +
+        fmtChartPrice(bar.low) +
         '\nC ' +
-        formatPrice(bar.close);
+        fmtChartPrice(bar.close);
       setHoverHtml(
         <>
           <div className="ohlc-muted">{dateStr}</div>

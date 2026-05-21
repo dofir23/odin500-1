@@ -9,6 +9,7 @@ import { rowDateToTimeKey } from '../utils/chartData.js';
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 
 const DEFAULT_SYMBOL = 'AAPL';
 const TABLE_RANGE_OPTIONS = [
@@ -47,12 +48,6 @@ function sortRowsAsc(rows) {
     const tb = rowDateToTimeKey(b);
     return ta < tb ? -1 : ta > tb ? 1 : 0;
   });
-}
-
-function fmtPct(v) {
-  if (v == null || !Number.isFinite(Number(v))) return '—';
-  const n = Number(v);
-  return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
 }
 
 function pctTone(v) {
@@ -413,11 +408,11 @@ function ReturnTable({
             return <span className="statistic-data__skel-cell" style={{ maxWidth: '56%', animationDelay: `${i * 0.04 + 0.06}s` }} />;
           }
           if (header.key === 'period') return displayPeriodForRow(row, periodDisplayMode);
-          if (header.key === 'startClose') return Number.isFinite(row.startClose) ? row.startClose.toFixed(2) : '—';
+          if (header.key === 'startClose') return fmtPrice(row.startClose);
           if (header.key === 'endClose') {
-            return Number.isFinite(row.endClose) ? row.endClose.toFixed(2) : row.unavailableReason ? row.unavailableReason : '—';
+            return Number.isFinite(row.endClose) ? fmtPrice(row.endClose) : row.unavailableReason ? row.unavailableReason : '—';
           }
-          return fmtPct(row.returnPct);
+          return fmtPctSigned(row.returnPct);
         }}
         cellClassName={({ header, row }) => (row.__skeleton ? '' : header.key === 'returnPct' ? pctTone(row.returnPct) : '')}
       />

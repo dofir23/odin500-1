@@ -15,6 +15,7 @@ import {
   calcRangeReturnPct,
   calcRangeSnapshot,
   fmtAbsSigned,
+  fmtPct,
   fmtPctSigned,
   fmtPrice,
   tfRange
@@ -229,7 +230,7 @@ return (
                 )}
                 <span>{v ? fmtPrice(v.close) : '—'}</span>
                 <span className={up ? 'is-up' : down ? 'is-down' : ''}>{v ? fmtAbsSigned(v.chg) : '—'}</span>
-                <span className={up ? 'is-up' : down ? 'is-down' : ''}>{v ? fmtPctSigned(v.chgPct, 1) : '—'}</span>
+                <span className={up ? 'is-up' : down ? 'is-down' : ''}>{v ? fmtPctSigned(v.chgPct) : '—'}</span>
               </div>
             );
           })}
@@ -237,12 +238,6 @@ return (
       ))}
     </aside>
   );
-}
-
-/** Figma sample values use plain `1.2%` (no `+` on positives). */
-function fmtSummaryPct(v) {
-  if (!Number.isFinite(Number(v))) return '—';
-  return Number(v).toFixed(1) + '%';
 }
 
 function SummaryReturnsCard({ refreshMs = 0, loadOhlcRows = null }) {
@@ -269,9 +264,9 @@ function SummaryReturnsCard({ refreshMs = 0, loadOhlcRows = null }) {
       { key: '6M', days: 184 },
       { key: '1Y', days: 365 },
       { key: '3Y', days: 1095 },
-      { key: '5Y', days: 1825 },
-      { key: '10Y', days: 3650 },
-      { key: '20Y', days: 7300 },
+      // { key: '5Y', days: 1825 },
+      // { key: '10Y', days: 3650 },
+      // { key: '20Y', days: 7300 },
     ],
     []
   );
@@ -358,7 +353,7 @@ function SummaryReturnsCard({ refreshMs = 0, loadOhlcRows = null }) {
             const raw = vals?.[d.key]?.[tf.key];
             const v = Number(raw);
             const pending = loading && raw === undefined;
-            const text = pending ? '…' : Number.isFinite(v) ? fmtSummaryPct(v) : '—';
+            const text = pending ? '…' : Number.isFinite(v) ? fmtPct(v, { plainPositive: true }) : '—';
             const tone =
               !pending && Number.isFinite(v) ? (v > 0 ? 'app-num--up' : v < 0 ? 'app-num--down' : '') : '';
             return (
@@ -684,9 +679,9 @@ function RightWatchlistCard({ refreshMs = 0 }) {
               return (
                 <Link to={'/ticker/' + encodeURIComponent(symbol)} className="mkt-watch-card__row" key={symbol || `idx-${idx}`}>
                   <span>{symbol || '—'}</span>
-                  <span>{Number.isFinite(last) ? last.toFixed(2) : '—'}</span>
+                  <span>{fmtPrice(last)}</span>
                   <span className={pct > 0 ? 'app-num--up' : pct < 0 ? 'app-num--down' : ''}>
-                    {Number.isFinite(pct) ? pct.toFixed(1) + '%' : '—'}
+                    {fmtPct(pct, { plainPositive: true })}
                   </span>
                 </Link>
               );

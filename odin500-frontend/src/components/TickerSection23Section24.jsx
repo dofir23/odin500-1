@@ -13,7 +13,9 @@ import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
 import { ChartSectionIconActions } from './ChartSectionIconActions.jsx';
 import { buildRelativeStrengthTickerHref } from '../utils/relativeStrengthNavigation.js';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
+import { formatRelativePerfPct } from '../utils/marketCalculations.js';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
+import { fmtPctSigned } from '../utils/formatDisplayNumber.js';
 
 const GROUPS = [
   { id: 'sp500', apiIndex: 'SP500', label: 'S&P 500', benchmark: 'SPX', benchLabel: 'S&P 500' },
@@ -61,12 +63,6 @@ function pickDynamic(dynamicPeriods, periodName) {
   return Number.isFinite(Number(v)) ? Number(v) : null;
 }
 
-function fmtPct(v) {
-  if (v == null || !Number.isFinite(v)) return '—';
-  const n = Number(v);
-  return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
-}
-
 function signedToneClass(v) {
   if (!Number.isFinite(Number(v))) return '';
   return Number(v) > 0 ? 'app-num--up' : Number(v) < 0 ? 'app-num--down' : '';
@@ -109,12 +105,6 @@ function chartYPct(axisMax, axisMin, value) {
   const range = axisMax - axisMin;
   if (!Number.isFinite(range) || range <= 0) return 50;
   return ((axisMax - value) / range) * 100;
-}
-
-function formatS24AxisPct(v) {
-  if (!Number.isFinite(v)) return '—';
-  const n = Number(v);
-  return `${n >= 0 ? '+' : ''}${n.toFixed(Number.isInteger(n) ? 0 : 1)}%`;
 }
 
 /**
@@ -516,9 +506,9 @@ export function TickerSection23Section24({
               {rows.map((r) => (
                 <tr key={r.tf}>
                   <th scope="row">{r.tf}</th>
-                  <td className={signedToneClass(r.tick)}>{fmtPct(r.tick)}</td>
-                  <td className={signedToneClass(r.bench)}>{fmtPct(r.bench)}</td>
-                  <td className={signedToneClass(r.diff)}>{fmtPct(r.diff)}</td>
+                  <td className={signedToneClass(r.tick)}>{fmtPctSigned(r.tick)}</td>
+                  <td className={signedToneClass(r.bench)}>{fmtPctSigned(r.bench)}</td>
+                  <td className={signedToneClass(r.diff)}>{fmtPctSigned(r.diff)}</td>
                 </tr>
               ))}
             </tbody>
@@ -557,7 +547,7 @@ export function TickerSection23Section24({
           </div>
         </div>
         {!filtersMenuMode ? benchmarkControls : null}
-        <div ref={s24FsRef} className="ticker-s24__chart-shell">
+        <div ref={s24FsRef} className="ticker-chart-fs-shell ticker-s24__chart-shell">
           {loadingReturns ? (
             <div className="chart-viz-loading-wrap ticker-s24__viz-loading">
               <TradingChartLoader
@@ -580,7 +570,7 @@ export function TickerSection23Section24({
                   <div className="ticker-s17__yaxis-area">
                     {s24Ticks.map((t) => (
                       <span key={t.key} className="ticker-s17__yval" style={{ top: `${t.topPct}%` }}>
-                        {formatS24AxisPct(t.value)}
+                        {fmtPctSigned(t.value)}
                       </span>
                     ))}
                   </div>
@@ -607,7 +597,7 @@ export function TickerSection23Section24({
                                   title={
                                     c.bench.empty
                                       ? `${activeGroup.benchLabel}: —`
-                                      : `${activeGroup.benchLabel}: ${fmtPct(c.benchV)}`
+                                      : `${activeGroup.benchLabel}: ${formatRelativePerfPct(c.benchV)}`
                                   }
                                 />
                               </div>
@@ -620,7 +610,7 @@ export function TickerSection23Section24({
                                   }
                                   style={{ top: `${c.tick.topPct}%`, height: `${c.tick.heightPct}%` }}
                                   title={
-                                    c.tick.empty ? `${ticker || 'Ticker'}: —` : `${ticker || 'Ticker'}: ${fmtPct(c.tickV)}`
+                                    c.tick.empty ? `${ticker || 'Ticker'}: —` : `${ticker || 'Ticker'}: ${formatRelativePerfPct(c.tickV)}`
                                   }
                                 />
                               </div>

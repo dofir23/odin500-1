@@ -17,6 +17,8 @@ import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { alignComparisonRows, filterRowsByYearRange, normalizePeriodReturnsRows } from '../utils/statisticsComparisonSeries.js';
+import { formatRelativePerfPct } from '../utils/marketCalculations.js';
+import { fmtPctSigned, fmtPrice, fmtVolumeCompact } from '../utils/formatDisplayNumber.js';
 
 const RESIZE_KEY_QTR_FIGMA = 'odin_ticker_quarterly_resize_figma';
 const RESIZE_KEY_QTR_POSNEG = 'odin_ticker_quarterly_resize_posneg';
@@ -61,12 +63,6 @@ const TABLE_RANGE_DROPDOWN_OPTIONS = [
   { id: 'MAX', label: 'MAX' }
 ];
 
-function fmtPct(v) {
-  if (v == null || !Number.isFinite(Number(v))) return '—';
-  const n = Number(v);
-  return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
-}
-
 function pctTone(v) {
   if (v == null || !Number.isFinite(Number(v))) return 'statistic-data__ret statistic-data__ret--flat';
   if (Number(v) > 0) return 'statistic-data__ret statistic-data__ret--up';
@@ -89,10 +85,6 @@ function quarterOrderKey(row) {
   const q = qm ? Number(qm[1]) : 0;
   if (Number.isFinite(y)) return y * 10 + q;
   return 0;
-}
-
-function formatPct(v) {
-  return fmtPct(v);
 }
 
 function pctClass(n) {
@@ -130,20 +122,6 @@ function signalBucket(sig) {
   if (/^S2/.test(s)) return 'S2';
   if (s.startsWith('S')) return 'S3';
   return 'N';
-}
-
-function formatPx(n) {
-  if (n == null || !Number.isFinite(Number(n))) return '—';
-  return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function formatVolLong(n) {
-  if (n == null || !Number.isFinite(Number(n))) return '—';
-  const v = Number(n);
-  if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
-  if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
-  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
-  return String(Math.round(v));
 }
 
 function annualizedVol(closes) {
@@ -843,9 +821,9 @@ export default function TickerQuarterlyPage() {
                         <td>{row.period}</td>
                         {/* <td>{row.startDate || '—'}</td>
                         <td>{row.endDate || '—'}</td> */}
-                        <td>{Number.isFinite(Number(row.startClose)) ? Number(row.startClose).toFixed(2) : '—'}</td>
-                        <td>{Number.isFinite(Number(row.endClose)) ? Number(row.endClose).toFixed(2) : '—'}</td>
-                        <td className={pctTone(row.returnPct)}>{fmtPct(row.returnPct)}</td>
+                        <td>{fmtPrice(row.startClose)}</td>
+                        <td>{Number.isFinite(Number(row.endClose)) ? fmtPrice(row.endClose) : '—'}</td>
+                        <td className={pctTone(row.returnPct)}>{fmtPctSigned(row.returnPct)}</td>
                       </tr>
                     ))
                   ) : (
@@ -905,7 +883,7 @@ export default function TickerQuarterlyPage() {
                   </div>
                   <div className="ticker-kd-row">
                     <dt>52-week range</dt>
-                    <dd>{hi52 != null && lo52 != null ? `${formatPx(lo52)} – ${formatPx(hi52)}` : '—'}</dd>
+                    <dd>{hi52 != null && lo52 != null ? `${fmtPrice(lo52)} – ${fmtPrice(hi52)}` : '—'}</dd>
                   </div>
                   <div className="ticker-kd-row">
                     <dt>Beta</dt>
@@ -919,7 +897,7 @@ export default function TickerQuarterlyPage() {
                 <dl className="ticker-kd-dl">
                   <div className="ticker-kd-row">
                     <dt>Avg volume (1y)</dt>
-                    <dd>{formatVolLong(avgVol)}</dd>
+                    <dd>{fmtVolumeCompact(avgVol)}</dd>
                   </div>
                   <div className="ticker-kd-row">
                     <dt>Market cap</dt>
@@ -999,9 +977,9 @@ export default function TickerQuarterlyPage() {
                   return (
                     <div key={row.key} className="ticker-compare__row">
                       <span className="ticker-compare__tf">{row.key}</span>
-                      <span className={'ticker-compare__cell ' + pctClass(symPct)}>{formatPct(symPct)}</span>
-                      <span className={'ticker-compare__cell ' + pctClass(spyPct)}>{formatPct(spyPct)}</span>
-                      <span className={'ticker-compare__cell ' + pctClass(diff)}>{formatPct(diff)}</span>
+                      <span className={'ticker-compare__cell ' + pctClass(symPct)}>{formatRelativePerfPct(symPct)}</span>
+                      <span className={'ticker-compare__cell ' + pctClass(spyPct)}>{formatRelativePerfPct(spyPct)}</span>
+                      <span className={'ticker-compare__cell ' + pctClass(diff)}>{formatRelativePerfPct(diff)}</span>
                     </div>
                   );
                 })}

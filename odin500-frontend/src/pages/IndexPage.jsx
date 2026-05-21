@@ -27,6 +27,8 @@ import {fetchJsonCached, getAuthToken, canFetchProtectedApi} from '../store/apiS
 import { rowDateToTimeKey } from '../utils/chartData.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
+import { formatRelativePerfPct } from '../utils/marketCalculations.js';
+import { fmtAbsSigned, fmtNumber, fmtPctSigned, fmtPrice, fmtVolumeCompact } from '../utils/formatDisplayNumber.js';
 import { DEFAULT_INDEX_ROUTE_SLUG } from '../utils/tickerUrlSync.js';
 import { MARKET_SERIES } from '../components/marketSeriesRegistry.js';
 import { rowMatchesSectorEtf } from '../utils/sectorEtfMatch.js';
@@ -76,10 +78,17 @@ const COMPARE_ROWS = [
 
 /** Route slug → backend `index` body + UI label */
 export const INDEX_ROUTE_CHOICES = [
-  { slug: 'sp500', apiIndex: 'sp500', ticker: 'SPY', label: 'S&P 500' },
-  { slug: 'dow-jones', apiIndex: 'Dow Jones', label: 'Dow Jones' },
-  { slug: 'nasdaq-100', apiIndex: 'Nasdaq 100', ticker: 'NDX', label: 'Nasdaq 100' }
+  { slug: 'sp500', apiIndex: 'sp500', ticker: 'SPY', returnsTicker: 'SPX', label: 'S&P 500' },
+  { slug: 'dow-jones', apiIndex: 'Dow Jones', returnsTicker: 'DJI', label: 'Dow Jones' },
+  { slug: 'nasdaq-100', apiIndex: 'Nasdaq 100', ticker: 'NDX', returnsTicker: 'NDX', label: 'Nasdaq 100' }
 ];
+
+/** Header “Data mode” link targets for index routes (ticker page symbol). */
+const INDEX_HEADER_TICKER_BY_SLUG = {
+  sp500: 'SPX',
+  'dow-jones': 'DJI',
+  'nasdaq-100': 'QQQ'
+};
 const INDEX_ROUTE_DROPDOWN_OPTIONS = INDEX_ROUTE_CHOICES.map((opt) => ({ id: opt.slug, label: opt.label }));
 
 /** SPDR sector ETFs (same universe as market page / heatmap sectors). */
@@ -95,7 +104,8 @@ const RELATIVE_STRENGTH_OPTIONS = [
     key: `IDX:${opt.slug}`,
     label: opt.label,
     kind: 'index',
-    apiIndex: opt.apiIndex
+    apiIndex: opt.apiIndex,
+    returnsTicker: opt.returnsTicker || opt.ticker || null
   })),
   ...SECTOR_ROUTE_CHOICES.map((s) => ({
     key: `TK:${s.ticker}`,
@@ -295,26 +305,6 @@ function signalBucket(sig) {
   return 'N';
 }
 
-function formatPct(n) {
-  if (n == null || !Number.isFinite(Number(n))) return '—';
-  const v = Number(n);
-  return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
-}
-
-function formatPx(n) {
-  if (n == null || !Number.isFinite(Number(n))) return '—';
-  return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function formatVolLong(n) {
-  if (n == null || !Number.isFinite(Number(n))) return '—';
-  const v = Number(n);
-  if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
-  if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
-  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
-  return String(Math.round(v));
-}
-
 function annualizedVol(closes) {
   if (!closes || closes.length < 5) return null;
   const lr = [];
@@ -334,6 +324,36 @@ function pickDynamic(dynamicPeriods, periodName) {
   if (!periodName || !Array.isArray(dynamicPeriods)) return null;
   const row = dynamicPeriods.find((r) => r.period === periodName);
   return row && row.totalReturn != null ? Number(row.totalReturn) : null;
+}
+
+/** Official index tickers: use ticker-returns for dynamicPeriods (correct "Last date" / 1D). */
+async function fetchDynamicPeriodsForReturnsTicker(ticker) {
+  const u = String(ticker || '').toUpperCase().trim();
+  if (!u || !canFetchProtectedApi()) return null;
+  const retRes = await fetchJsonCached({
+    path: '/api/market/ticker-returns',
+    method: 'POST',
+    body: { ticker: u },
+    ttlMs: 15 * 60 * 1000
+  });
+  const periods = retRes?.data?.performance?.dynamicPeriods;
+  return Array.isArray(periods) && periods.length ? periods : null;
+}
+
+async function enrichIndexPayloadWithTickerReturns(indexData, routeSlug) {
+  if (!indexData?.performance) return indexData;
+  const routeOpt = INDEX_ROUTE_CHOICES.find((x) => x.slug === routeSlug);
+  const returnsTicker =
+    (routeOpt?.returnsTicker && String(routeOpt.returnsTicker).trim()) ||
+    (indexData.officialIndexTicker && String(indexData.officialIndexTicker).trim()) ||
+    '';
+  if (!returnsTicker) return indexData;
+  const dynamicPeriods = await fetchDynamicPeriodsForReturnsTicker(returnsTicker);
+  if (!dynamicPeriods) return indexData;
+  return {
+    ...indexData,
+    performance: { ...indexData.performance, dynamicPeriods }
+  };
 }
 
 function periodReturnFromRows(sortedAsc, startFilter) {
@@ -1026,6 +1046,7 @@ export default function IndexPage() {
             };
           }
 
+          payload = await enrichIndexPayloadWithTickerReturns(payload, slug);
           setIndexPayload(payload);
           setFullCloseSeries(series);
 
@@ -1314,7 +1335,8 @@ export default function IndexPage() {
         body: { index: option.apiIndex },
         ttlMs: 10 * 60 * 1000
       });
-      const d = idx?.data || {};
+      let d = idx?.data || {};
+      d = await enrichIndexPayloadWithTickerReturns(d, option.key.replace(/^IDX:/, ''));
       const asOf = String(d?.asOfDate || asOfDate || new Date().toISOString().slice(0, 10)).slice(0, 10);
       const asOfD = new Date(asOf + 'T12:00:00');
       const start = new Date(asOfD);
@@ -1323,6 +1345,7 @@ export default function IndexPage() {
       const symForOhlc =
         (d?.officialIndexTicker && String(d.officialIndexTicker).trim()) ||
         (d?.ticker && String(d.ticker).trim()) ||
+        (option.returnsTicker && String(option.returnsTicker).trim()) ||
         '';
       let rows = [];
       if (symForOhlc) {
@@ -1775,19 +1798,16 @@ export default function IndexPage() {
     });
   }, [relativeLeftSeries, relativeRightSeries]);
 
-  const section17CompareRows = useMemo(() => {
-    const compact = COMPARE_ROWS.filter((r) =>
-      ['1D', '5D', 'MTD', '1M', 'QTD', '3M', '6M', 'YTD', '1Y', '3Y', '5Y', '10Y', '20Y'].includes(r.key)
-    );
-    return compact.map((row) => {
-      const symPct = row.period
+  const indexPerfCompareRows = useMemo(() => {
+    return COMPARE_ROWS.map((row) => {
+      const leftPct = row.period
         ? pickDynamic(dynamicSym, row.period)
         : row.mtd
           ? symMtd
           : row.qtd
             ? symQtd
             : null;
-      const spyPct = row.period
+      const rightPct = row.period
         ? pickDynamic(dynamicSpy, row.period)
         : row.mtd
           ? spyMtd
@@ -1795,12 +1815,19 @@ export default function IndexPage() {
             ? spyQtd
             : null;
       const diff =
-        symPct != null && spyPct != null && Number.isFinite(symPct) && Number.isFinite(spyPct)
-          ? symPct - spyPct
+        leftPct != null && rightPct != null && Number.isFinite(leftPct) && Number.isFinite(rightPct)
+          ? leftPct - rightPct
           : null;
-      return { label: row.key, symPct, spyPct, diff };
+      return { key: row.key, leftPct, rightPct, diff };
     });
   }, [dynamicSym, dynamicSpy, symMtd, spyMtd, symQtd, spyQtd]);
+
+  const section17CompareRows = useMemo(() => {
+    const compactKeys = ['1D', '5D', 'MTD', '1M', 'QTD', '3M', '6M', 'YTD', '1Y', '3Y', '5Y', '10Y', '20Y'];
+    return indexPerfCompareRows
+      .filter((r) => compactKeys.includes(r.key))
+      .map((r) => ({ label: r.key, symPct: r.leftPct, spyPct: r.rightPct, diff: r.diff }));
+  }, [indexPerfCompareRows]);
 
   const chartHeightMin = mediaChartHeight;
   const basePixelHeight = Math.max(chartHeightMin, userChartHeight ?? chartHeightMin);
@@ -1811,8 +1838,29 @@ export default function IndexPage() {
     ? 'Using your custom start/end (overrides the pill timeframe until you reset).'
     : `Using pill timeframe “${timeframe}”, anchored to as-of ${asOfDate}.`;
 
-  const seriesModeLabel = indexPayload?.seriesMode || '—';
   const apiIndexLabel = activeMeta.apiIndex;
+
+  const indexHeaderTickerMeta = useMemo(() => {
+    if (isSectorDataRoute && activeSector?.ticker) {
+      const sym = String(activeSector.ticker).trim().toUpperCase();
+      if (!sym) return { label: '—', to: null, symbol: null };
+      return {
+        symbol: sym,
+        label: sym,
+        to: `/ticker/${encodeURIComponent(sym)}?ticker=${encodeURIComponent(sym)}`
+      };
+    }
+    const sym = INDEX_HEADER_TICKER_BY_SLUG[slug] || null;
+    if (!sym) {
+      return { label: indexPayload?.seriesMode || '—', to: null, symbol: null };
+    }
+    const u = String(sym).toUpperCase();
+    return {
+      symbol: u,
+      label: u,
+      to: `/ticker/${encodeURIComponent(u)}?ticker=${encodeURIComponent(u)}`
+    };
+  }, [isSectorDataRoute, activeSector?.ticker, slug, indexPayload?.seriesMode]);
 
   return (
     <div className="ticker-page">
@@ -1871,7 +1919,7 @@ export default function IndexPage() {
           <div className="ticker-page__header-metric">
             <div className="ticker-page__metric-price-line">
               <span className="ticker-page__sym">{displaySym}</span>
-              <span className="ticker-page__px ticker-page__px--hero">{formatPx(headerClose)}</span>
+              <span className="ticker-page__px ticker-page__px--hero">{fmtPrice(headerClose)}</span>
               <span className="ticker-page__ccy">USD</span>
             </div>
             <div className="ticker-page__metric-change">
@@ -1879,10 +1927,10 @@ export default function IndexPage() {
                 <span className={'ticker-num ' + pctClass(headerChgPct)}>
                   {headerChgAbs != null && Number.isFinite(headerChgAbs) ? (
                     <>
-                      {(headerChgAbs >= 0 ? '+' : '') + formatPx(headerChgAbs)}{' '}
+                      {fmtAbsSigned(headerChgAbs)}{' '}
                     </>
                   ) : null}
-                  ({formatPct(headerChgPct)})
+                  ({fmtPctSigned(headerChgPct)})
                 </span>
               ) : (
                 <span className="ticker-page__metric-change--muted">—</span>
@@ -1894,17 +1942,27 @@ export default function IndexPage() {
           
           <div className="ticker-page__header-metric">
             <div className="ticker-page__metric-value-row">
-              <span className="ticker-page__metric-value">{seriesModeLabel}</span>
-              <DataInfoTip align="start">
+              <span className="ticker-page__metric-value">Data mode</span>
+              {/* <DataInfoTip align="start">
                 <p className="ticker-data-tip__p">
                   <strong>seriesMode</strong>{' '}
                   {isSectorDataRoute
                     ? 'Sector view uses ticker returns and OHLC for the selected SPDR sector ETF.'
                     : 'from index-returns: official single-ticker path vs synthetic constituents.'}
                 </p>
-              </DataInfoTip>
+              </DataInfoTip> */}
             </div>
-            <p className="ticker-page__metric-label">Data mode</p>
+            {indexHeaderTickerMeta.to ? (
+              <Link
+                to={indexHeaderTickerMeta.to}
+                className="ticker-page__metric-label ticker-page__metric-label--link"
+                title={`Open ${indexHeaderTickerMeta.symbol} on ticker page`}
+              >
+                {indexHeaderTickerMeta.label}
+              </Link>
+            ) : (
+              <p className="ticker-page__metric-label">{indexHeaderTickerMeta.label}</p>
+            )}
           </div>
 
           <div className="ticker-page__header-metric">
@@ -2067,14 +2125,14 @@ export default function IndexPage() {
                   <div className="ticker-chart-legend__quote-pills">
                     <span className="ticker-chart-legend__sym">{displaySym}</span>
                     <span className="ticker-chart-legend__name">{activeMeta.label}</span>
-                    <span className="ticker-chart-legend__price">{formatPx(lastClose)} USD</span>
+                    <span className="ticker-chart-legend__price">{fmtPrice(lastClose)} USD</span>
                     {chartRangeChgAbs != null && Number.isFinite(chartRangeChgAbs) ? (
                       <span className={'ticker-chart-legend__chg ' + pctClass(chartRangeChgAbs)}>
-                        {(chartRangeChgAbs >= 0 ? '+' : '') + formatPx(chartRangeChgAbs)}
+                        {fmtAbsSigned(chartRangeChgAbs)}
                       </span>
                     ) : null}
                     {chartRangeChgPct != null && Number.isFinite(chartRangeChgPct) ? (
-                      <span className={'ticker-chart-legend__chg ' + pctClass(chartRangeChgPct)}>{formatPct(chartRangeChgPct)}</span>
+                      <span className={'ticker-chart-legend__chg ' + pctClass(chartRangeChgPct)}>{fmtPctSigned(chartRangeChgPct)}</span>
                     ) : null}
                   </div>
                 </div>
@@ -2082,8 +2140,8 @@ export default function IndexPage() {
                 {/* <span className="ticker-chart-legend__sigs">Signal: {lastSignal}</span> */}
                   {chartHoverOhlc ? (
                     <span className="ticker-chart-legend__sigs ticker-chart-legend__ohlc-hover">
-                      O:{chartHoverOhlc.open != null ? formatPx(chartHoverOhlc.open) : '—'} H:{chartHoverOhlc.high != null ? formatPx(chartHoverOhlc.high) : '—'} L:{chartHoverOhlc.low != null ? formatPx(chartHoverOhlc.low) : '—'} C:{chartHoverOhlc.close != null ? formatPx(chartHoverOhlc.close) : '—'}
-                      {chartHoverOhlc.volume != null ? ` Vol:${Math.round(chartHoverOhlc.volume).toLocaleString('en-US')}` : ''}
+                      O:{chartHoverOhlc.open != null ? fmtPrice(chartHoverOhlc.open) : '—'} H:{chartHoverOhlc.high != null ? fmtPrice(chartHoverOhlc.high) : '—'} L:{chartHoverOhlc.low != null ? fmtPrice(chartHoverOhlc.low) : '—'} C:{chartHoverOhlc.close != null ? fmtPrice(chartHoverOhlc.close) : '—'}
+                      {chartHoverOhlc.volume != null ? ` Vol:${fmtNumber(Math.round(chartHoverOhlc.volume))}` : ''}
                     </span>
                   ) : null}
               </div>
@@ -2347,8 +2405,8 @@ export default function IndexPage() {
                             {row.symbol}
                           </button>
                         </td>
-                        <td>{formatPx(row.close)}</td>
-                        <td className={pctClass(row.ret1d)}>{formatPct(row.ret1d)}</td>
+                        <td>{fmtPrice(row.close)}</td>
+                        <td className={pctClass(row.ret1d)}>{fmtPctSigned(row.ret1d)}</td>
                       </tr>
                     ))}
                     {!indexTickersBusy && !indexTickersDisplayRows.length ? (
@@ -2420,34 +2478,14 @@ export default function IndexPage() {
                   <span>{BENCHMARK}</span>
                   <span>Diff</span>
                 </div>
-                {COMPARE_ROWS.map((row) => {
-                  const symPct = row.period
-                    ? pickDynamic(dynamicSym, row.period)
-                    : row.mtd
-                      ? symMtd
-                      : row.qtd
-                        ? symQtd
-                        : null;
-                  const spyPct = row.period
-                    ? pickDynamic(dynamicSpy, row.period)
-                    : row.mtd
-                      ? spyMtd
-                      : row.qtd
-                        ? spyQtd
-                        : null;
-                  const diff =
-                    symPct != null && spyPct != null && Number.isFinite(symPct) && Number.isFinite(spyPct)
-                      ? symPct - spyPct
-                      : null;
-                  return (
+                {indexPerfCompareRows.map((row) => (
                     <div key={row.key} className="ticker-compare__row">
                       <span className="ticker-compare__tf">{row.key}</span>
-                      <span className={'ticker-compare__cell ' + pctClass(symPct)}>{formatPct(symPct)}</span>
-                      <span className={'ticker-compare__cell ' + pctClass(spyPct)}>{formatPct(spyPct)}</span>
-                      <span className={'ticker-compare__cell ' + pctClass(diff)}>{formatPct(diff)}</span>
+                      <span className={'ticker-compare__cell ' + pctClass(row.leftPct)}>{formatRelativePerfPct(row.leftPct)}</span>
+                      <span className={'ticker-compare__cell ' + pctClass(row.rightPct)}>{formatRelativePerfPct(row.rightPct)}</span>
+                      <span className={'ticker-compare__cell ' + pctClass(row.diff)}>{formatRelativePerfPct(row.diff)}</span>
                     </div>
-                  );
-                })}
+                  ))}
               </div>
             </div>
           </section>

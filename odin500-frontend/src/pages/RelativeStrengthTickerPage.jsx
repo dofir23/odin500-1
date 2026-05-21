@@ -22,6 +22,7 @@ import { apiUrl } from '../utils/apiOrigin.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { useTickerList } from '../hooks/useTickerList.js';
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
+import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 import { LightweightChartAreaSkeleton } from '../components/ChartSkeletons.jsx';
 import { ReturnsChartToolbar } from '../components/ReturnsChartToolbar.jsx';
 import { ChartSectionIconActions } from '../components/ChartSectionIconActions.jsx';
@@ -332,17 +333,6 @@ function defaultStatsChartYearRange(mode, currentYear) {
   return { start: STATS_CHART_DEFAULT_YEAR_START, end: STATS_CHART_DEFAULT_YEAR_END };
 }
 
-function fmtPct(v) {
-  if (!Number.isFinite(Number(v))) return '—';
-  const n = Number(v);
-  return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
-}
-
-function fmtNum(v) {
-  if (!Number.isFinite(Number(v))) return '—';
-  return Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 function fmtDate(iso) {
   if (!iso) return '—';
   if (/^\d{4}-W\d{2}$/.test(iso) || /^\d{4}-Q[1-4]$/.test(iso) || /^\d{4}-\d{2}$/.test(iso) || /^\d{4}$/.test(iso)) {
@@ -474,7 +464,7 @@ function RsMainLineChartPlot({
                   <span className="np-chart-axis-badge__tick" style={{ borderRightColor: bg }} />
                   <div className="np-chart-axis-badge__body">
                     <span className="np-chart-axis-badge__sym">{s.label}</span>
-                    <span className="np-chart-axis-badge__val">{fmtPct(v)}</span>
+                    <span className="np-chart-axis-badge__val">{fmtPctSigned(v)}</span>
                   </div>
                 </div>
               );
@@ -1513,7 +1503,7 @@ export default function RelativeStrengthTickerPage() {
                     <td>{fmtDate(row.period)}</td>
                     {filteredChartSeries.map((s) => (
                       <td key={s.key} className={pctToneClass(row[s.key])}>
-                        {Number.isFinite(Number(row[s.key])) ? fmtPct(row[s.key]) : '—'}
+                        {Number.isFinite(Number(row[s.key])) ? fmtPctSigned(row[s.key]) : '—'}
                       </td>
                     ))}
                   </tr>
@@ -1563,8 +1553,8 @@ export default function RelativeStrengthTickerPage() {
                     {[...comparisonRowsAnnual].reverse().map((r) => (
                       <tr key={String(r.period)}>
                         <td>{fmtDate(r.period)}</td>
-                        <td className={pctToneClass(r.tickerReturn)}>{fmtPct(r.tickerReturn)}</td>
-                        <td className={pctToneClass(r.benchmarkReturn)}>{fmtPct(r.benchmarkReturn)}</td>
+                        <td className={pctToneClass(r.tickerReturn)}>{fmtPctSigned(r.tickerReturn)}</td>
+                        <td className={pctToneClass(r.benchmarkReturn)}>{fmtPctSigned(r.benchmarkReturn)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1611,7 +1601,7 @@ export default function RelativeStrengthTickerPage() {
                     {[...comparisonRowsExcess].reverse().map((r) => (
                       <tr key={String(r.period)}>
                         <td>{fmtDate(r.period)}</td>
-                        <td className={pctToneClass(r.excessReturn)}>{fmtPct(r.excessReturn)}</td>
+                        <td className={pctToneClass(r.excessReturn)}>{fmtPctSigned(r.excessReturn)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1658,9 +1648,9 @@ export default function RelativeStrengthTickerPage() {
                     {[...comparisonRowsPeriodic].reverse().map((r) => (
                       <tr key={String(r.period)}>
                         <td>{fmtDate(r.period)}</td>
-                        <td className={pctToneClass(r.tickerReturn)}>{fmtPct(r.tickerReturn)}</td>
-                        <td className={pctToneClass(r.benchmarkReturn)}>{fmtPct(r.benchmarkReturn)}</td>
-                        <td className={pctToneClass(r.excessReturn)}>{fmtPct(r.excessReturn)}</td>
+                        <td className={pctToneClass(r.tickerReturn)}>{fmtPctSigned(r.tickerReturn)}</td>
+                        <td className={pctToneClass(r.benchmarkReturn)}>{fmtPctSigned(r.benchmarkReturn)}</td>
+                        <td className={pctToneClass(r.excessReturn)}>{fmtPctSigned(r.excessReturn)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1716,10 +1706,10 @@ export default function RelativeStrengthTickerPage() {
               {tableRows.slice(0, 60).map((row) => (
                 <tr key={row.period}>
                   <td>{fmtDate(row.period)}</td>
-                  {compareSymbols.map((s) => <td key={`r1-${row.period}-${s}`}>{fmtNum(row.bySymbol[s]?.raw)}</td>)}
-                  {compareSymbols.map((s) => <td key={`r2-${row.period}-${s}`}>{fmtPct(row.bySymbol[s]?.dailyRet)}</td>)}
-                  {compareSymbols.map((s) => <td key={`r3-${row.period}-${s}`}>{fmtPct(row.bySymbol[s]?.rebased)}</td>)}
-                  {compareSymbols.map((s) => <td key={`r4-${row.period}-${s}`}>{fmtPct(row.bySymbol[s]?.cumulative)}</td>)}
+                  {compareSymbols.map((s) => <td key={`r1-${row.period}-${s}`}>{fmtPrice(row.bySymbol[s]?.raw)}</td>)}
+                  {compareSymbols.map((s) => <td key={`r2-${row.period}-${s}`}>{fmtPctSigned(row.bySymbol[s]?.dailyRet)}</td>)}
+                  {compareSymbols.map((s) => <td key={`r3-${row.period}-${s}`}>{fmtPctSigned(row.bySymbol[s]?.rebased)}</td>)}
+                  {compareSymbols.map((s) => <td key={`r4-${row.period}-${s}`}>{fmtPctSigned(row.bySymbol[s]?.cumulative)}</td>)}
                 </tr>
               ))}
               {!tableRows.length ? (

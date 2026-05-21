@@ -2,19 +2,7 @@ import { useRef } from 'react';
 import { StatsCmpChartSkeleton } from './ChartSkeletons.jsx';
 import { StatsCmpChartToolbarHead } from './StatsCmpChartToolbarHead.jsx';
 import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
-
-function fmtEx(v) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return '—';
-  const abs = Math.abs(n).toFixed(1);
-  return n < 0 ? `(${abs}%)` : `${abs}%`;
-}
-
-function fmtAxisPct(v) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return '—';
-  return `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
-}
+import { fmtPct, fmtPctSigned } from '../utils/formatDisplayNumber.js';
 
 export function ExcessReturnLineChart({
   mode,
@@ -113,7 +101,7 @@ export function ExcessReturnLineChart({
                 <g key={`yg-${k}`}>
                   <line x1={padL} y1={yy} x2={W - padR} y2={yy} className="stats-cmp-chart__grid" />
                   <text x={padL - 8} y={yy} textAnchor="end" dominantBaseline="middle" className="stats-cmp-chart__y-axis">
-                    {fmtAxisPct(t)}
+                    {fmtPctSigned(t)}
                   </text>
                 </g>
               );
@@ -125,7 +113,7 @@ export function ExcessReturnLineChart({
               <g key={r.period}>
                 <circle cx={x(i)} cy={y(r.excessReturn)} r="3" className="stats-cmp-chart__dot" />
                 <text x={x(i)} y={y(r.excessReturn) - 8} textAnchor="middle" className="stats-cmp-chart__line-label">
-                  {fmtEx(r.excessReturn)}
+                  {fmtPctSigned(r.excessReturn)}
                 </text>
                 {i % Math.max(1, Math.ceil(rows.length / 12)) === 0 || i === rows.length - 1 ? (
                   <text x={x(i)} y={H - 14} textAnchor="middle" className="stats-cmp-chart__x">

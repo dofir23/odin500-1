@@ -24,6 +24,8 @@ import { toDateInput } from '../utils/misc.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { pickRelatedByCategory, RELATED_INDEX_LINKS } from '../utils/relatedTickers.js';
 import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
+import { formatRelativePerfPct } from '../utils/marketCalculations.js';
+import { fmtAbsSigned, fmtPctSigned, fmtPrice, fmtVolumeCompact } from '../utils/formatDisplayNumber.js';
 import { sectorFieldToEtfSlug } from '../utils/sectorEtfMatch.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { ReturnsChartClickableHeading } from '../components/ReturnsChartClickableTitle.jsx';
@@ -98,10 +100,10 @@ const COMPARE_ROWS = [
 ];
 
 const RELATIVE_INDEX_OPTIONS = [
-  { key: 'sp500', label: 'S&P 500', apiIndex: 'sp500' },
-  { key: 'dow-jones', label: 'Dow Jones', apiIndex: 'Dow Jones' },
-  { key: 'nasdaq-composite', label: 'Nasdaq Composite', apiIndex: 'nasdaq composite' },
-  /** Use NDX OHLC + ticker-returns (same pattern as SPX/DJI), not synthetic Nasdaq 100 constituents. */
+  /** Official index tickers via ticker-core-returns (matches TickerSection23Section24 / long table). */
+  { key: 'sp500', label: 'S&P 500', apiIndex: 'sp500', ticker: 'SPX' },
+  { key: 'dow-jones', label: 'Dow Jones', apiIndex: 'Dow Jones', ticker: 'DJI' },
+  { key: 'nasdaq-composite', label: 'Nasdaq Composite', apiIndex: 'nasdaq composite', ticker: 'IXIC' },
   { key: 'nasdaq-100', label: 'Nasdaq 100', apiIndex: 'Nasdaq 100', ticker: 'NDX' }
 ];
 const RELATIVE_INDEX_DROPDOWN_OPTIONS = RELATIVE_INDEX_OPTIONS.map((o) => ({ id: o.key, label: o.label }));
@@ -326,27 +328,6 @@ function signalBucket(sig) {
   if (/^S2/.test(s)) return 'S2';
   if (s.startsWith('S')) return 'S3';
   return 'N';
-}
-
-function formatPct(n) {
-  if (n == null || !Number.isFinite(Number(n))) return '—';
-  const v = Number(n);
-  const s = (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
-  return s;
-}
-
-function formatPx(n) {
-  if (n == null || !Number.isFinite(Number(n))) return '—';
-  return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function formatVolLong(n) {
-  if (n == null || !Number.isFinite(Number(n))) return '—';
-  const v = Number(n);
-  if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
-  if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
-  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
-  return String(Math.round(v));
 }
 
 function toIsoDate(d) {
@@ -1515,6 +1496,7 @@ export default function TickerPage() {
         limit: 400
       });
       return {
+        benchmarkTicker: ticker,
         dynamicPeriods: ret?.data?.performance?.dynamicPeriods || [],
         mtd: mtdFromRows(rows),
         qtd: qtdFromRows(rows)
@@ -1529,7 +1511,8 @@ export default function TickerPage() {
       const opt = RELATIVE_INDEX_OPTIONS.find((x) => x.key === indexKey) || RELATIVE_INDEX_OPTIONS[0];
       const proxyTicker = opt.ticker ? String(opt.ticker).trim().toUpperCase() : '';
       if (proxyTicker) {
-        return loadRelativeTickerSeries(proxyTicker);
+        const series = await loadRelativeTickerSeries(proxyTicker);
+        return series ? { ...series, benchmarkTicker: proxyTicker } : null;
       }
       const idx = await fetchJsonCached({
         path: '/api/market/index-returns',
@@ -1565,6 +1548,7 @@ export default function TickerPage() {
         });
       }
       return {
+        benchmarkTicker: symForOhlc || null,
         dynamicPeriods: d?.performance?.dynamicPeriods || [],
         mtd: mtdFromRows(rows),
         qtd: qtdFromRows(rows)
@@ -1576,7 +1560,16 @@ export default function TickerPage() {
   useEffect(() => {
     let cancelled = false;
     if (!canFetchProtectedApi()) return () => {};
-    const needsIndex = !relativeIndexSeriesByKey[relativeIndexKey];
+    const indexOpt =
+      RELATIVE_INDEX_OPTIONS.find((x) => x.key === relativeIndexKey) || RELATIVE_INDEX_OPTIONS[0];
+    const expectedBenchTicker = indexOpt.ticker
+      ? String(indexOpt.ticker).trim().toUpperCase()
+      : '';
+    const cachedIndex = relativeIndexSeriesByKey[relativeIndexKey];
+    const needsIndex =
+      !cachedIndex ||
+      (expectedBenchTicker &&
+        String(cachedIndex.benchmarkTicker || '').toUpperCase() !== expectedBenchTicker);
     const tickerKey = String(relativeTickerSymbol || '').toUpperCase().trim();
     const symKey = String(sym || '').toUpperCase().trim();
     const needsTicker = !!tickerKey && !relativeTickerSeriesBySymbol[tickerKey];
@@ -1629,17 +1622,16 @@ export default function TickerPage() {
     navigate(`/news?ticker=${encodeURIComponent(sym)}`);
   }, [navigate, sym]);
 
-  const section16Rows = useMemo(() => {
-    const compact = COMPARE_ROWS.filter((r) => ['1D', '5D', 'MTD', '1M', 'QTD', '3M', '6M', 'YTD'].includes(r.key));
-    return compact.map((row) => {
-      const symPct = row.period
+  const relativePerfCompareRows = useMemo(() => {
+    return COMPARE_ROWS.map((row) => {
+      const benchPct = row.period
         ? pickDynamic(selectedIndexSeries.dynamicPeriods, row.period)
         : row.mtd
           ? selectedIndexSeries.mtd
           : row.qtd
             ? selectedIndexSeries.qtd
             : null;
-      const tkPct = row.period
+      const tickPct = row.period
         ? pickDynamic(selectedTickerSeries.dynamicPeriods, row.period)
         : row.mtd
           ? selectedTickerSeries.mtd
@@ -1647,37 +1639,32 @@ export default function TickerPage() {
             ? selectedTickerSeries.qtd
             : null;
       const diff =
-        symPct != null && tkPct != null && Number.isFinite(symPct) && Number.isFinite(tkPct)
-          ? tkPct - symPct
+        benchPct != null && tickPct != null && Number.isFinite(benchPct) && Number.isFinite(tickPct)
+          ? tickPct - benchPct
           : null;
-      return { label: row.key, value: diff, symPct, tkPct, diff };
+      return { key: row.key, benchPct, tickPct, diff };
     });
   }, [selectedIndexSeries, selectedTickerSeries]);
 
+  const section16Rows = useMemo(() => {
+    const compactKeys = ['1D', '5D', 'MTD', '1M', 'QTD', '3M', '6M', 'YTD'];
+    return relativePerfCompareRows
+      .filter((r) => compactKeys.includes(r.key))
+      .map((r) => ({
+        label: r.key,
+        value: r.diff,
+        symPct: r.benchPct,
+        tkPct: r.tickPct,
+        diff: r.diff
+      }));
+  }, [relativePerfCompareRows]);
+
   const section17CompareRows = useMemo(() => {
-    const compact = COMPARE_ROWS.filter((r) => ['1D', '5D', 'MTD', '1M', 'QTD', '3M', '6M', 'YTD'].includes(r.key));
-    return compact.map((row) => {
-      const symPct = row.period
-        ? pickDynamic(selectedIndexSeries.dynamicPeriods, row.period)
-        : row.mtd
-          ? selectedIndexSeries.mtd
-          : row.qtd
-            ? selectedIndexSeries.qtd
-            : null;
-      const spyPct = row.period
-        ? pickDynamic(selectedTickerSeries.dynamicPeriods, row.period)
-        : row.mtd
-          ? selectedTickerSeries.mtd
-          : row.qtd
-            ? selectedTickerSeries.qtd
-            : null;
-      const diff =
-        symPct != null && spyPct != null && Number.isFinite(symPct) && Number.isFinite(spyPct)
-          ? spyPct - symPct
-          : null;
-      return { label: row.key, symPct, spyPct, diff };
-    });
-  }, [selectedIndexSeries, selectedTickerSeries]);
+    const compactKeys = ['1D', '5D', 'MTD', '1M', 'QTD', '3M', '6M', 'YTD'];
+    return relativePerfCompareRows
+      .filter((r) => compactKeys.includes(r.key))
+      .map((r) => ({ label: r.key, symPct: r.benchPct, spyPct: r.tickPct, diff: r.diff }));
+  }, [relativePerfCompareRows]);
 
   const chartHeightMin = mediaChartHeight;
   const basePixelHeight = mainChartResize.plotHeight ?? chartHeightMin;
@@ -1735,7 +1722,7 @@ export default function TickerPage() {
           <div className="ticker-page__header-metric">
             <div className="ticker-page__metric-price-line">
               <span className="ticker-page__sym">{sym}</span>
-              <span className="ticker-page__px ticker-page__px--hero">{formatPx(headerClose)}</span>
+              <span className="ticker-page__px ticker-page__px--hero">{fmtPrice(headerClose)}</span>
               <span className="ticker-page__ccy">USD</span>
             </div>
             <div className="ticker-page__metric-change">
@@ -1743,10 +1730,10 @@ export default function TickerPage() {
                 <span className={'ticker-num ' + pctClass(headerChgPct)}>
                   {headerChgAbs != null && Number.isFinite(headerChgAbs) ? (
                     <>
-                      {(headerChgAbs >= 0 ? '+' : '') + formatPx(headerChgAbs)}{' '}
+                      {fmtAbsSigned(headerChgAbs)}{' '}
                     </>
                   ) : null}
-                  ({formatPct(headerChgPct)})
+                  ({fmtPctSigned(headerChgPct)})
                 </span>
               ) : (
                 <span className="ticker-page__metric-change--muted">—</span>
@@ -1953,21 +1940,21 @@ export default function TickerPage() {
                 <div className="ticker-chart-legend__quote-pills">
                   <span className="ticker-chart-legend__sym">{sym}</span>
                   <span className="ticker-chart-legend__name">{company}</span>
-                  <span className="ticker-chart-legend__price">{formatPx(lastClose)} USD</span>
+                  <span className="ticker-chart-legend__price">{fmtPrice(lastClose)} USD</span>
                   {chartRangeChgAbs != null && Number.isFinite(chartRangeChgAbs) ? (
                     <span className={'ticker-chart-legend__chg ' + pctClass(chartRangeChgAbs)}>
-                      {(chartRangeChgAbs >= 0 ? '+' : '') + formatPx(chartRangeChgAbs)}
+                      {fmtAbsSigned(chartRangeChgAbs)}
                     </span>
                   ) : null}
                   {chartRangeChgPct != null && Number.isFinite(chartRangeChgPct) ? (
-                    <span className={'ticker-chart-legend__chg ' + pctClass(chartRangeChgPct)}>{formatPct(chartRangeChgPct)}</span>
+                    <span className={'ticker-chart-legend__chg ' + pctClass(chartRangeChgPct)}>{fmtPctSigned(chartRangeChgPct)}</span>
                   ) : null}
                 </div>
                 
               </div>
               {chartHoverOhlc ? (
                   <span className="ticker-chart-legend__sigs">
-                    O:{chartHoverOhlc.open != null ? formatPx(chartHoverOhlc.open) : '—'}   H:{chartHoverOhlc.high != null ? formatPx(chartHoverOhlc.high) : '—'}   L:{chartHoverOhlc.low != null ? formatPx(chartHoverOhlc.low) : '—'}   C:{chartHoverOhlc.close != null ? formatPx(chartHoverOhlc.close) : '—'}
+                    O:{chartHoverOhlc.open != null ? fmtPrice(chartHoverOhlc.open) : '—'}   H:{chartHoverOhlc.high != null ? fmtPrice(chartHoverOhlc.high) : '—'}   L:{chartHoverOhlc.low != null ? fmtPrice(chartHoverOhlc.low) : '—'}   C:{chartHoverOhlc.close != null ? fmtPrice(chartHoverOhlc.close) : '—'}
                   </span>
                 ) : null}
               </div>
@@ -2178,7 +2165,7 @@ export default function TickerPage() {
                   <div className="ticker-kd-row">
                     <dt>52-week range</dt>
                     <dd>
-                      {hi52 != null && lo52 != null ? `${formatPx(lo52)} – ${formatPx(hi52)}` : '—'}
+                      {hi52 != null && lo52 != null ? `${fmtPrice(lo52)} – ${fmtPrice(hi52)}` : '—'}
                     </dd>
                   </div>
                   <div className="ticker-kd-row">
@@ -2193,7 +2180,7 @@ export default function TickerPage() {
                 <dl className="ticker-kd-dl">
                   <div className="ticker-kd-row">
                     <dt>Avg volume (1y)</dt>
-                    <dd>{formatVolLong(avgVol)}</dd>
+                    <dd>{fmtVolumeCompact(avgVol)}</dd>
                   </div>
                   <div className="ticker-kd-row">
                     <dt>Market cap</dt>
@@ -2268,34 +2255,14 @@ export default function TickerPage() {
                   <span>{selectedIndexLabel}</span>
                   <span>Diff</span>
                 </div>
-                {COMPARE_ROWS.map((row) => {
-                  let symPct = row.period
-                    ? pickDynamic(selectedIndexSeries.dynamicPeriods, row.period)
-                    : row.mtd
-                      ? selectedIndexSeries.mtd
-                      : row.qtd
-                        ? selectedIndexSeries.qtd
-                        : null;
-                  let spyPct = row.period
-                    ? pickDynamic(selectedTickerSeries.dynamicPeriods, row.period)
-                    : row.mtd
-                      ? selectedTickerSeries.mtd
-                      : row.qtd
-                        ? selectedTickerSeries.qtd
-                        : null;
-                  const diff =
-                    symPct != null && spyPct != null && Number.isFinite(symPct) && Number.isFinite(spyPct)
-                      ? spyPct - symPct
-                      : null;
-                  return (
+                {relativePerfCompareRows.map((row) => (
                     <div key={row.key} className="ticker-compare__row">
                       <span className="ticker-compare__tf">{row.key}</span>
-                      <span className={'ticker-compare__cell ' + pctClass(spyPct)}>{formatPct(spyPct)}</span>
-                      <span className={'ticker-compare__cell ' + pctClass(symPct)}>{formatPct(symPct)}</span>
-                      <span className={'ticker-compare__cell ' + pctClass(diff)}>{formatPct(diff)}</span>
+                      <span className={'ticker-compare__cell ' + pctClass(row.tickPct)}>{formatRelativePerfPct(row.tickPct)}</span>
+                      <span className={'ticker-compare__cell ' + pctClass(row.benchPct)}>{formatRelativePerfPct(row.benchPct)}</span>
+                      <span className={'ticker-compare__cell ' + pctClass(row.diff)}>{formatRelativePerfPct(row.diff)}</span>
                     </div>
-                  );
-                })}
+                  ))}
               </div>
             </div>
           </section>

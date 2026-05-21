@@ -4,12 +4,14 @@ import { ChartDateApplyRow } from './ChartDateApplyRow.jsx';
 import { DataInfoTip } from './DataInfoTip.jsx';
 import { periodModeNouns } from '../utils/periodModeNouns.js';
 import { filterReturnsRows } from '../utils/returnsDateRange.js';
+import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
 import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { PosNegReturnsChartSkeleton } from './ChartSkeletons.jsx';
 import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
 import { ReturnsChartClickableTitle } from './ReturnsChartClickableTitle.jsx';
 import { getReturnsChartViewMoreHref } from '../utils/returnsViewMoreNavigation.js';
+import { fmtPctSigned } from '../utils/formatDisplayNumber.js';
 import { ChartSectionIconActions } from './ChartSectionIconActions.jsx';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
 import { ReturnsChartPieIcon } from './returnsChartToolbarIcons.jsx';
@@ -111,7 +113,7 @@ function buildCounts(rows, mode) {
   return c;
 }
 
-function BucketDonut({ counts, buckets, theme, plotHeight, emptyPeriodLower = 'years' }) {
+function BucketDonut({ counts, buckets, theme, plotHeight, svgFullscreen = false, emptyPeriodLower = 'years' }) {
   const light = theme === 'light';
   const ringStroke = light ? '#e2e8f0' : '#0d1520';
   const labelFill = light ? '#0f172a' : '#f8fafc';
@@ -162,13 +164,14 @@ function BucketDonut({ counts, buckets, theme, plotHeight, emptyPeriodLower = 'y
     );
     theta = d1 + DONUT_GAP_DEG;
   }
-  const h = plotHeight != null ? Math.min(320, plotHeight) : null;
+  const h =
+    plotHeight != null ? Math.min(svgFullscreen ? plotHeight : 320, plotHeight) : null;
   return (
     <svg
       className="ticker-annual-donut__svg"
       viewBox="-110 -110 220 220"
       aria-hidden
-      style={tickerSvgPlotStyle(h)}
+      style={tickerSvgPlotStyle(h, { fullscreen: svgFullscreen })}
     >
       <g>{segs}</g>
     </svg>
@@ -212,6 +215,9 @@ export function TickerAnnualReturnsPosNeg({
   const sectionRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartFsShellRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartCardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const fsPlotSize = useChartFullscreenPlotSize(chartFsShellRef);
+  const plotHeightEffective = fsPlotSize?.height ?? plotHeight;
+  const svgFs = Boolean(fsPlotSize);
   const buckets = useMemo(() => bucketsForTheme(chartTheme), [chartTheme]);
   const [rightMode, setRightMode] = useState('positive');
   const [showTable, setShowTable] = useState(false);
@@ -442,7 +448,8 @@ export function TickerAnnualReturnsPosNeg({
                   counts={countsTotal}
                   buckets={buckets}
                   theme={chartTheme}
-                  plotHeight={plotHeight}
+                  plotHeight={plotHeightEffective}
+                  svgFullscreen={svgFs}
                   emptyPeriodLower={pn.lower}
                 />
               </div>
@@ -501,7 +508,8 @@ export function TickerAnnualReturnsPosNeg({
                   counts={countsRight}
                   buckets={buckets}
                   theme={chartTheme}
-                  plotHeight={plotHeight}
+                  plotHeight={plotHeightEffective}
+                  svgFullscreen={svgFs}
                   emptyPeriodLower={pn.lower}
                 />
               </div>
@@ -539,7 +547,7 @@ export function TickerAnnualReturnsPosNeg({
                     <td>{r.endDate || '—'}</td>
                     <td className={r.totalReturn >= 0 ? 'ticker-num--up' : 'ticker-num--down'}>
                       {r.totalReturn >= 0 ? '+' : ''}
-                      {r.totalReturn.toFixed(2)}%
+                      {fmtPctSigned(r.totalReturn)}
                     </td>
                   </tr>
                 ))}

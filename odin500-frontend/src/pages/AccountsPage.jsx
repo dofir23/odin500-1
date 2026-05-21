@@ -1,3 +1,5 @@
+import { fmtPct, fmtPctSigned } from '../utils/formatDisplayNumber.js';
+
 const accounts = [
   { name: 'Growth Alpha', type: 'Margin', broker: 'Interactive Brokers', balance: 124830.22, pnlDay: 1240.87, pnlPct: 1.01, risk: 'Medium' },
   { name: 'Dividend Core', type: 'Cash', broker: 'Schwab', balance: 68320.55, pnlDay: -212.4, pnlPct: -0.31, risk: 'Low' },
@@ -24,7 +26,7 @@ function money(v) {
 }
 
 function pct(v) {
-  return `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
+  return fmtPctSigned(v);
 }
 
 function toneClass(v) {
@@ -67,7 +69,7 @@ export default function AccountsPage() {
         </article>
         <article className="accounts-kpi">
           <span className="accounts-kpi__label">Buying power used</span>
-          <strong className="accounts-kpi__value">{bpUsed.toFixed(1)}%</strong>
+          <strong className="accounts-kpi__value">{fmtPct(bpUsed, { plainPositive: true })}</strong>
         </article>
         <article className="accounts-kpi">
           <span className="accounts-kpi__label">Cash available</span>

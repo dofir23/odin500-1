@@ -9,6 +9,7 @@ import {
   resolveTickerSymbolsBatched
 } from '../utils/watchlistCsv.js';
 import { WatchlistTickerMultiselect } from './WatchlistTickerMultiselect.jsx';
+import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 
 /**
  * @typedef {{ symbol: string, companyName: string, last: number | null, pctFraction: number | null, tickerId?: string }} WatchlistTickerRow
@@ -179,20 +180,6 @@ function pickSelectedKeyForMerged(merged, prevKey) {
   const firstUser = merged.find((o) => o.kind === 'user');
   if (firstUser) return firstUser.key;
   return merged[0]?.key || '';
-}
-
-function formatLast(n) {
-  if (n == null || !Number.isFinite(n)) return '—';
-  const abs = Math.abs(n);
-  const digits = abs >= 1000 ? 2 : abs >= 1 ? 2 : 4;
-  return n.toFixed(digits);
-}
-
-function formatPctDisplay(fraction) {
-  if (fraction == null || !Number.isFinite(fraction)) return '—';
-  const pct = fraction * 100;
-  const s = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
-  return s;
 }
 
 function pctTone(fraction) {
@@ -1021,8 +1008,8 @@ export function WatchlistRailFlyout({ open, onClose, docked = false }) {
                         <span className="wl-flyout__co">{row.companyName || '—'}</span>
                       </Link>
                     </td>
-                    <td className="wl-flyout__td-num">{formatLast(row.last)}</td>
-                    <td className={'wl-flyout__td-pct ' + pctTone(row.pctFraction)}>{formatPctDisplay(row.pctFraction)}</td>
+                    <td className="wl-flyout__td-num">{fmtPrice(row.last)}</td>
+                    <td className={'wl-flyout__td-pct ' + pctTone(row.pctFraction)}>{fmtPctSigned(row.pctFraction != null && Number.isFinite(row.pctFraction) ? row.pctFraction * 100 : null)}</td>
                   </tr>
                 ))
               )}

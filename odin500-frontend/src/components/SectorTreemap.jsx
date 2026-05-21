@@ -4,6 +4,7 @@ import { hierarchy, treemap as d3treemap, treemapSquarify } from 'd3-hierarchy';
 import { returnToHeatColor } from '../utils/heatmapColors.js';
 import { resolveOdinSignalTreemapRows } from '../utils/odinSignalTreemap.js';
 import { HeatmapIndustryTooltip } from './HeatmapIndustryTooltip.jsx';
+import { fmtPctSigned } from '../utils/formatDisplayNumber.js';
 
 function norm(s) {
   return String(s || '')
@@ -123,12 +124,6 @@ export function resolveTreemapRows(rows) {
     }
     return { ...r, __tmw: treemapWeight(r) };
   });
-}
-
-function formatChangePct(pct) {
-  if (pct == null || !Number.isFinite(Number(pct))) return '—';
-  const v = Number(pct);
-  return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
 }
 
 /** Sector → Industry → stocks (matches TickerDetails: Sector, Industry columns). */
@@ -584,7 +579,7 @@ export function SectorTreemap({
               ? returnToHeatColor(Number(cn), -3, 3, colorFade)
               : returnToHeatColor(pct, scaleMin, scaleMax, colorFade);
           const active = highlightSymbol && String(sym).toUpperCase() === highlightSymbol.toUpperCase();
-          const pctStr = formatChangePct(pct);
+          const pctStr = fmtPctSigned(pct);
           const tooltipTitle = `${sym} — ${pctStr}`;
           const labelFit = fitTileTwoLine(w, h, sym, pctStr);
           const blockH = labelFit

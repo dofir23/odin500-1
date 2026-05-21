@@ -1,4 +1,5 @@
 import { returnToHeatColor } from '../utils/heatmapColors.js';
+import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 
 function hashSeed(str) {
   let h = 0;
@@ -36,20 +37,6 @@ function MiniSparkline({ up, seed, compact }) {
       />
     </svg>
   );
-}
-
-function formatPrice(n) {
-  if (n == null || !Number.isFinite(Number(n))) return '—';
-  return Number(n).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-}
-
-function formatPct(pct) {
-  if (pct == null || !Number.isFinite(Number(pct))) return '—';
-  const v = Number(pct);
-  return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
 }
 
 export function HeatmapIndustryTooltip({
@@ -93,8 +80,8 @@ export function HeatmapIndustryTooltip({
           </div>
           <MiniSparkline up={up} seed={seed} />
           <div className="heatmap-tooltip__hero-right">
-            <div className="heatmap-tooltip__px">{formatPrice(featured.price)}</div>
-            <div className="heatmap-tooltip__hero-pct">{formatPct(featured.changePct)}</div>
+            <div className="heatmap-tooltip__px">{fmtPrice(featured.price)}</div>
+            <div className="heatmap-tooltip__hero-pct">{fmtPctSigned(featured.changePct)}</div>
           </div>
         </div>
       </div>
@@ -136,14 +123,14 @@ export function HeatmapIndustryTooltip({
                 <span className="heatmap-tooltip__li-spark">
                   <MiniSparkline up={rowUp} seed={hashSeed(p.symbol + p.changePct)} compact />
                 </span>
-                <span className="heatmap-tooltip__li-price">{formatPrice(p.price)}</span>
+                <span className="heatmap-tooltip__li-price">{fmtPrice(p.price)}</span>
                 <span
                   className={
                     'heatmap-tooltip__li-chg' +
                     (rowUp ? ' heatmap-tooltip__li-chg--up' : ' heatmap-tooltip__li-chg--down')
                   }
                 >
-                  {formatPct(p.changePct)}
+                  {fmtPctSigned(p.changePct)}
                 </span>
               </li>
             );

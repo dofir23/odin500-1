@@ -13,6 +13,7 @@ import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
+import { fmtAbsSigned, fmtNumber, fmtPct, fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 
 /** `apiIndex` matches POST /api/market/ticker-details `index` field (Supabase / BigQuery). */
 const INDEX_MENU = [
@@ -146,48 +147,13 @@ function buildVolumeTicks(xMin, xMax, maxLines = 14) {
   return ticks;
 }
 
-function formatVolumeTickLabel(t) {
-  const rounded = Math.round(t * 10) / 10;
-  return `${rounded.toFixed(1)}x`;
-}
-
-function formatPercentTickLabel(t) {
-  return `${t.toFixed(2)}%`;
-}
-
-function formatLastPrice(v) {
-  if (v == null || !Number.isFinite(v)) return '—';
-  const abs = Math.abs(v);
-  if (abs >= 100) return v.toFixed(2);
-  if (abs >= 10) return v.toFixed(2);
-  if (abs >= 1) return v.toFixed(2);
-  return v.toFixed(4);
-}
-
-/** Signed dollar change (matches prior close implied by day %). */
-function formatSignedChange(v) {
-  if (v == null || !Number.isFinite(v)) return '—';
-  const abs = formatLastPrice(Math.abs(v));
-  if (abs === '—') return '—';
-  if (v > 0) return `+${abs}`;
-  if (v < 0) return `-${abs}`;
-  return abs;
-}
-
-function formatSignedPctCell(v) {
-  if (v == null || !Number.isFinite(v)) return '—';
-  if (v > 0) return `+${v.toFixed(2)}%`;
-  return `${v.toFixed(2)}%`;
-}
-
 function numOrNull(v) {
   const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? n : null;
 }
 
 function formatBarPctLabel(v) {
-  if (v == null || !Number.isFinite(v)) return '—';
-  return `${v.toFixed(1)}%`;
+  return fmtPct(v, { plainPositive: true });
 }
 
 function useMediaMaxWidth(px) {
@@ -374,7 +340,7 @@ function MarketMoversBarPanel({ bars, yCap, side, title, axisReturnTitle, export
                   className={isZero ? 'market-movers-page__bar-grid-zero' : 'market-movers-page__bar-grid'}
                 />
                 <text x={PAD2.left - 8} y={y + 4} textAnchor="end" className="market-movers-page__bar-tick">
-                  {tick === 0 ? '0' : (tick / 100).toFixed(2)}
+                  {tick === 0 ? '0' : fmtNumber(tick / 100)}
                 </text>
               </g>
             );
@@ -509,13 +475,13 @@ function MarketMoversLeaderTables({ points }) {
           {p.companyName || '—'}
         </td>
         <td className={`market-movers-page__td-num ${chgClass}`} style={numStyle}>
-          {formatLastPrice(last)}
+          {fmtPrice(last)}
         </td>
         <td className={`market-movers-page__td-num ${chgClass}`} style={numStyle}>
-          {formatSignedChange(dChg)}
+          {fmtAbsSigned(dChg)}
         </td>
         <td className={`market-movers-page__td-num ${chgClass}`} style={numStyle}>
-          {formatSignedPctCell(pct)}
+          {fmtPctSigned(pct)}
         </td>
       </tr>
     );
@@ -1142,7 +1108,7 @@ function MarketMoversScatter({ points, volumeNote, axisReturnTitle, tooltipRetur
                   className={isZero ? 'market-movers-page__grid-zero' : 'market-movers-page__grid-line'}
                 />
                 <text x={PAD.left - 8} y={yy + 4} textAnchor="end" className="market-movers-page__axis-tick">
-                  {formatPercentTickLabel(t)}
+                  {(v) => fmtPct(v, { plainPositive: true })(t)}
                 </text>
               </g>
             );
@@ -1158,7 +1124,7 @@ function MarketMoversScatter({ points, volumeNote, axisReturnTitle, tooltipRetur
                 className="market-movers-page__grid-line"
               />
               <text x={xScale(t)} y={PAD.top + plotH + 22} textAnchor="middle" className="market-movers-page__axis-tick">
-                {formatVolumeTickLabel(t)}
+                {(v) => fmtNumber(Math.round(v * 10) / 10, { suffix: 'x' })(t)}
               </text>
             </g>
           ))}
@@ -1254,17 +1220,13 @@ function MarketMoversScatter({ points, volumeNote, axisReturnTitle, tooltipRetur
             <div className="market-movers-page__tooltip-row">
               {tooltipReturnLabel || '1D return'}:{' '}
               <strong>
-                {parsePct(tooltip.dayReturnPct) == null
-                  ? '—'
-                  : (parsePct(tooltip.dayReturnPct) >= 0 ? '+' : '') + parsePct(tooltip.dayReturnPct).toFixed(2) + '%'}
+                {fmtPctSigned(parsePct(tooltip.dayReturnPct))}
               </strong>
             </div>
             <div className="market-movers-page__tooltip-row">
               Rel. volume (10d):{' '}
               <strong>
-                {tooltip.relVol == null || !Number.isFinite(Number(tooltip.relVol))
-                  ? '—'
-                  : Number(tooltip.relVol).toFixed(2) + '×'}
+                {fmtNumber(tooltip.relVol, { suffix: '×' })}
               </strong>
               {tooltip.estimated ? (
                 <span className="market-movers-page__tooltip-hint">

@@ -7,6 +7,7 @@ import {
   ODIN_SIGNAL_GROUP_ORDER,
   resolveOdinSignalTreemapRows
 } from '../utils/odinSignalTreemap.js';
+import { fmtPctSigned } from '../utils/formatDisplayNumber.js';
 
 function readChangePct(row) {
   const candidates = [
@@ -23,12 +24,6 @@ function readChangePct(row) {
     if (Number.isFinite(n)) return n;
   }
   return null;
-}
-
-function formatChangePct(pct) {
-  if (pct == null || !Number.isFinite(Number(pct))) return '—';
-  const v = Number(pct);
-  return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
 }
 
 const TOOLTIP_CURSOR_GAP_X = 56;
@@ -357,7 +352,7 @@ export function OdinFigmaSignalTreemap({
           const fill = figmaFillForSignal(code);
           const { main: fillMain, muted: fillMuted } = labelColorsForFill(fill);
           const active = highlightSymbol && String(sym).toUpperCase() === highlightSymbol.toUpperCase();
-          const pctStr = formatChangePct(pct);
+          const pctStr = fmtPctSigned(pct);
           const tooltipTitle = `${sym} — ${pctStr}`;
           const labelFit = fitTileTwoLine(w, h, sym, pctStr);
           const blockH = labelFit ? labelFit.line1H + labelFit.gap + labelFit.line2H : 0;

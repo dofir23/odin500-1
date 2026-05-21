@@ -134,19 +134,13 @@ export function calcRangeSnapshot(rows) {
   return { close: lastClose, chg: lastClose - firstClose, chgPct };
 }
 
-export function fmtPrice(v) {
-  if (!Number.isFinite(Number(v))) return '—';
-  return Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-export function fmtAbsSigned(v) {
-  if (!Number.isFinite(Number(v))) return '—';
-  const n = Number(v);
-  return `${n >= 0 ? '+' : '-'}${Math.abs(n).toFixed(2)}`;
-}
-
-export function fmtPctSigned(v, digits = 1) {
-  if (!Number.isFinite(Number(v))) return '—';
-  const n = Number(v);
-  return `${n >= 0 ? '+' : '-'}${Math.abs(n).toFixed(digits)}%`;
-}
+export {
+  fmtPrice,
+  fmtAbsSigned,
+  fmtPctSigned,
+  formatRelativePerfPct,
+  fmtPct,
+  fmtNumber,
+  fmtVolumeCompact,
+  fmtChartPrice
+} from './formatDisplayNumber.js';

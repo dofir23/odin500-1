@@ -7,6 +7,7 @@ import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
 import { ChartSectionIconActions } from './ChartSectionIconActions.jsx';
 import { buildRelativeStrengthTickerHref } from '../utils/relativeStrengthNavigation.js';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
+import { fmtPctSigned, formatRelativePerfPct } from '../utils/marketCalculations.js';
 import { ReturnsChartPieIcon } from './returnsChartToolbarIcons.jsx';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 
@@ -28,22 +29,13 @@ function niceChartStep(span, maxTicks = 7) {
   return nf * 10 ** exp;
 }
 
-function formatAxisPct(v) {
-  if (!Number.isFinite(v)) return '—';
-  const a = Math.abs(v);
-  if (a >= 100) return `${v.toFixed(0)}%`;
-  if (a >= 10) return `${v.toFixed(1)}%`;
-  return `${v.toFixed(2)}%`;
-}
-
-function formatBarValuePct(v) {
-  if (!Number.isFinite(v)) return '';
-  const n = Number(v);
-  return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
-}
-
 /** Swatch colors for the two RS comparison tickers (left / right dropdown). */
 const S17_COMPARISON_LEGEND_COLORS = ['#2563eb', '#64748b'];
+
+/** Y-axis / tick labels for relative-strength bar chart. */
+function formatAxisPct(v) {
+  return formatRelativePerfPct(v);
+}
 
 /** Linear map: axisMax → 0%, axisMin → 100%. */
 function yPct(axisMax, axisMin, value) {
@@ -286,7 +278,7 @@ export function TickerSection16Section17({
                   <tr key={r.label}>
                     <th scope="row">{r.label}</th>
                     <td className={valueToneClass(v)}>
-                      {v == null ? '—' : `${v.toFixed(1)}%`}
+                      {fmtPctSigned(v)}
                     </td>
                   </tr>
                 );
@@ -347,7 +339,7 @@ export function TickerSection16Section17({
                 <div className="ticker-s17__bars">
                   {chart.bars?.map((b) => {
                     const tipText =
-                      b.value == null ? `${b.label}: no data` : `${b.label}: ${b.value.toFixed(2)}%`;
+                      b.value == null ? `${b.label}: no data` : `${b.label}: ${formatRelativePerfPct(b.value)}`;
                     return (
                     <div key={b.key} className="ticker-s17__col">
                       <div className="ticker-s17__bar-zone">
@@ -365,7 +357,7 @@ export function TickerSection16Section17({
                                   : `${b.topPct}%`
                             }}
                           >
-                            {formatBarValuePct(b.value)}
+                            {formatRelativePerfPct(b.value)}
                           </span>
                         ) : null}
                         <span className="ticker-s17__bar-tip" role="tooltip">

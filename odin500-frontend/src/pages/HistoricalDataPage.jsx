@@ -8,6 +8,7 @@ import { rowDateToTimeKey } from '../utils/chartData.js';
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 
 const PAGE_SIZE = 50;
 const TABLE_SKELETON_ROWS = 24;
@@ -648,11 +649,11 @@ export default function HistoricalDataPage() {
               return <span className="historical-data__skel-cell" style={{ maxWidth: '64%', animationDelay: `${i * 0.035 + off}s` }} />;
             }
             if (header.key === 'period') return row.period || '—';
-            if (header.key === 'open') return row.open != null ? row.open.toFixed(2) : '—';
-            if (header.key === 'high') return row.high != null ? row.high.toFixed(2) : '—';
-            if (header.key === 'low') return row.low != null ? row.low.toFixed(2) : '—';
-            if (header.key === 'close') return row.close != null ? row.close.toFixed(2) : '—';
-            return row.returnPct != null ? `${row.returnPct >= 0 ? '+' : ''}${row.returnPct.toFixed(2)}%` : '—';
+            if (header.key === 'open') return fmtPrice(row.open);
+            if (header.key === 'high') return fmtPrice(row.high);
+            if (header.key === 'low') return fmtPrice(row.low);
+            if (header.key === 'close') return fmtPrice(row.close);
+            return fmtPctSigned(row.returnPct);
           }}
           cellClassName={({ header, row }) => (row.__skeleton ? '' : header.key === 'returnPct' ? signedToneClass(row.returnPct) : '')}
         />

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback, useSyncExternalStore
 import { createChart, CrosshairMode } from 'lightweight-charts';
 import { mapRowsToCandles, rowDateToTimeKey } from '../utils/chartData.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
+import { fmtChartPrice } from '../utils/formatDisplayNumber.js';
 
 function chartOptionsForTheme(theme, height) {
   if (theme === 'light') {
@@ -99,14 +100,6 @@ function formatChartTime(t) {
     return t.year + '-' + m + '-' + d;
   }
   return String(t);
-}
-
-function formatPrice(n) {
-  if (n == null || Number.isNaN(Number(n))) return '—';
-  const x = Number(n);
-  const abs = Math.abs(x);
-  const digits = abs >= 1000 ? 2 : abs >= 1 ? 4 : 6;
-  return x.toFixed(digits);
 }
 
 /** Clamp chart canvas to plot host so mobile padding/inset does not overflow the viewport. */
@@ -291,6 +284,12 @@ export function TickerLightweightChart({ rows, height = 320, chartType = 'line',
     });
 
     const mainSeries = addMainSeries(chart, chartType, chartTheme);
+    mainSeries.applyOptions({
+      priceFormat: {
+        type: 'custom',
+        formatter: (p) => fmtChartPrice(p)
+      }
+    });
     const volSeries = chart.addHistogramSeries({
       priceFormat: { type: 'volume' },
       priceScaleId: '',

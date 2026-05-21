@@ -11,6 +11,7 @@ import { returnToHeatColor } from '../utils/heatmapColors.js';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 
 /** `apiIndex` must match `market_groups.name` from Supabase (see GET /api/market/indices). */
 const INDEX_MENU = [
@@ -127,21 +128,6 @@ function formatListDate(d) {
     day: '2-digit',
     year: 'numeric'
   }).format(d);
-}
-
-function formatPriceEu(n) {
-  if (n == null || !Number.isFinite(Number(n))) return '—';
-  return Number(n).toLocaleString('de-DE', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-}
-
-function formatPctEuSigned(n) {
-  if (n == null || !Number.isFinite(Number(n))) return '—';
-  const v = Number(n);
-  const s = (v >= 0 ? '+' : '') + Math.abs(v).toFixed(1).replace('.', '.') + '%';
-  return s;
 }
 
 function parsePct(v) {
@@ -569,7 +555,7 @@ export default function MarketHeatmapPage() {
                             {t.symbol}
                           </button>
                         </td>
-                        <td>{formatPriceEu(t.price)}</td>
+                        <td>{fmtPrice(t.price)}</td>
                         <td
                           className={
                             'heatmap-table__chg' +
@@ -577,7 +563,7 @@ export default function MarketHeatmapPage() {
                             (neg ? ' heatmap-table__chg--down' : '')
                           }
                         >
-                          {formatPctEuSigned(t.totalReturnPercentage)}
+                          {fmtPctSigned(t.totalReturnPercentage)}
                         </td>
                       </tr>
                     );
@@ -941,7 +927,7 @@ export default function MarketHeatmapPage() {
                         <td>{t.security || 'N/A'}</td>
                         <td>{t.sector || 'N/A'}</td>
                         <td>{t.industry || 'N/A'}</td>
-                        <td>{formatPriceEu(t.price)}</td>
+                        <td>{fmtPrice(t.price)}</td>
                         <td
                           className={
                             'heatmap-table__chg' +
@@ -949,7 +935,7 @@ export default function MarketHeatmapPage() {
                             (neg ? ' heatmap-table__chg--down' : '')
                           }
                         >
-                          {formatPctEuSigned(t.totalReturnPercentage)}
+                          {fmtPctSigned(t.totalReturnPercentage)}
                         </td>
                         
                       </tr>

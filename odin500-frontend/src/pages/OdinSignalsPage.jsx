@@ -18,6 +18,7 @@ import {
   resolveTickersPageSymbol,
   sanitizeTickerPageInput
 } from '../utils/tickerUrlSync.js';
+import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 import { ODIN_FIGMA_LEGEND_ITEMS, figmaFillForSignal } from '../utils/odinSignalTreemap.js';
 import { CHART_INFO_TIPS } from '../components/chartInfoTips.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
@@ -66,11 +67,6 @@ const OMX_DIRECTION_SCORES = {
   short: 0
 };
 
-function fmtPrice(n) {
-  if (!Number.isFinite(Number(n))) return '—';
-  return Number(n).toFixed(2);
-}
-
 function signalFromReturn(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return 'N';
@@ -111,12 +107,6 @@ function formatListDate(d) {
     day: '2-digit',
     year: 'numeric'
   }).format(d);
-}
-
-function formatPctSigned(n) {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return 'N/A';
-  return `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
 }
 
 export default function OdinSignalsPage() {
@@ -861,7 +851,7 @@ export default function OdinSignalsPage() {
                               (down ? ' heatmap-table__chg--down' : '')
                             }
                           >
-                            {formatPctSigned(r.totalReturnPercentage)}
+                            {fmtPctSigned(r.totalReturnPercentage)}
                           </td>
                         </tr>
                       );

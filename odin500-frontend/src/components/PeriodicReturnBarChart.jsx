@@ -2,12 +2,7 @@ import { useRef } from 'react';
 import { StatsCmpChartSkeleton } from './ChartSkeletons.jsx';
 import { StatsCmpChartToolbarHead } from './StatsCmpChartToolbarHead.jsx';
 import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
-
-function fmtPct(v) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return '—';
-  return `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
-}
+import { fmtPctSigned } from '../utils/formatDisplayNumber.js';
 
 export function PeriodicReturnBarChart({
   mode,
@@ -105,7 +100,7 @@ export function PeriodicReturnBarChart({
                 <g key={`yg-${k}`}>
                   <line x1={padL} y1={yy} x2={W - padR} y2={yy} className="stats-cmp-chart__grid" />
                   <text x={padL - 8} y={yy} textAnchor="end" dominantBaseline="middle" className="stats-cmp-chart__y-axis">
-                    {fmtPct(t)}
+                    {fmtPctSigned(t)}
                   </text>
                 </g>
               );
@@ -137,7 +132,7 @@ export function PeriodicReturnBarChart({
                     textAnchor="middle"
                     className="stats-cmp-chart__bar-label"
                   >
-                    {fmtPct(r.tickerReturn)}
+                    {fmtPctSigned(r.tickerReturn)}
                   </text>
                   <text
                     x={cx + barW / 2 + 1}
@@ -145,7 +140,7 @@ export function PeriodicReturnBarChart({
                     textAnchor="middle"
                     className="stats-cmp-chart__bar-label"
                   >
-                    {fmtPct(r.benchmarkReturn)}
+                    {fmtPctSigned(r.benchmarkReturn)}
                   </text>
                   {i % Math.max(1, Math.ceil(rows.length / 12)) === 0 || i === rows.length - 1 ? (
                     <text x={cx} y={H - 14} textAnchor="middle" className="stats-cmp-chart__x">

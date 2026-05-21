@@ -4934,8 +4934,8 @@ a.mkt-mini-card__ticker--link:hover {
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
+  /* scrollbar-gutter: stable;
+  scrollbar-width: thin; */
 }
 
 html[data-theme='dark'] .mkt-returns-summary__scroll,
@@ -12661,7 +12661,9 @@ h3.returns-chart-title-heading {
 .ticker-chart-fs-shell:fullscreen .ticker-monthly-adv__split,
 .ticker-chart-fs-shell:-webkit-full-screen .ticker-monthly-adv__split,
 .ticker-s17__chart-shell:fullscreen .ticker-s17__chart,
-.ticker-s17__chart-shell:-webkit-full-screen .ticker-s17__chart {
+.ticker-s17__chart-shell:-webkit-full-screen .ticker-s17__chart,
+.ticker-s24__chart-shell:fullscreen .ticker-s24__chart.ticker-s17__chart,
+.ticker-s24__chart-shell:-webkit-full-screen .ticker-s24__chart.ticker-s17__chart {
   flex: 1 1 auto;
   min-height: 0 !important;
   width: 100%;
@@ -12670,14 +12672,32 @@ h3.returns-chart-title-heading {
   max-height: none !important;
 }
 
-.ticker-chart-fs-shell:fullscreen .ticker-annual-figma__svg,
-.ticker-chart-fs-shell:-webkit-full-screen .ticker-annual-figma__svg,
+/* Bar / combo / waterfall SVGs — stretch to full panel */
+.ticker-chart-fs-shell:fullscreen .ticker-annual-figma__svg:not(.ticker-annual-figma__donut-svg),
+.ticker-chart-fs-shell:-webkit-full-screen .ticker-annual-figma__svg:not(.ticker-annual-figma__donut-svg),
 .ticker-chart-fs-shell:fullscreen .ticker-monthly__svg,
 .ticker-chart-fs-shell:-webkit-full-screen .ticker-monthly__svg,
 .ticker-chart-fs-shell:fullscreen .ticker-quarterly__svg,
 .ticker-chart-fs-shell:-webkit-full-screen .ticker-quarterly__svg,
-.ticker-chart-fs-shell:fullscreen .ticker-monthly-adv__svg,
-.ticker-chart-fs-shell:-webkit-full-screen .ticker-monthly-adv__svg,
+.ticker-chart-fs-shell:fullscreen .ticker-monthly-adv__svg:not(.ticker-annual-figma__donut-svg),
+.ticker-chart-fs-shell:-webkit-full-screen .ticker-monthly-adv__svg:not(.ticker-annual-figma__donut-svg),
+.ticker-chart-resize-scope .ticker-chart-fs-shell:fullscreen .ticker-annual-figma__svg,
+.ticker-chart-resize-scope .ticker-chart-fs-shell:-webkit-full-screen .ticker-annual-figma__svg,
+.ticker-chart-resize-scope .ticker-chart-fs-shell:fullscreen .ticker-monthly__svg,
+.ticker-chart-resize-scope .ticker-chart-fs-shell:-webkit-full-screen .ticker-monthly__svg,
+.ticker-chart-resize-scope .ticker-chart-fs-shell:fullscreen .ticker-quarterly__svg,
+.ticker-chart-resize-scope .ticker-chart-fs-shell:-webkit-full-screen .ticker-quarterly__svg {
+  flex: 1 1 auto;
+  align-self: stretch;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  height: 100% !important;
+  aspect-ratio: unset !important;
+}
+
+/* Donut SVGs — largest square centered in panel */
 .ticker-chart-fs-shell:fullscreen .ticker-annual-figma__donut-svg,
 .ticker-chart-fs-shell:-webkit-full-screen .ticker-annual-figma__donut-svg,
 .ticker-chart-fs-shell:fullscreen .ticker-annual-donut__svg,
@@ -12687,7 +12707,7 @@ h3.returns-chart-title-heading {
   width: auto !important;
   max-width: 100% !important;
   min-height: 0 !important;
-  max-height: none !important;
+  max-height: 100% !important;
   height: 100% !important;
   aspect-ratio: 1 / 1;
 }

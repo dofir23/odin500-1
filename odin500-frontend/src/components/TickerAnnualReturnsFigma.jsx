@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ChartInfoTip } from './ChartInfoTip.jsx';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
 import { useChartPlotWidth } from '../hooks/useChartPlotWidth.js';
+import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
 import { useTickerPlotResize } from '../hooks/useTickerPlotResize.js';
 import { CHART_INFO_TIPS } from './chartInfoTips.js';
 import { formatWeekAxisDate, isoYearWeekFromIsoDate } from '../utils/isoWeek.js';
@@ -10,6 +11,7 @@ import { periodModeNouns } from '../utils/periodModeNouns.js';
 import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { getReturnsChartViewMoreHref } from '../utils/returnsViewMoreNavigation.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL } from '../utils/tickerUrlSync.js';
+import { fmtPct, fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 import { AnnualReturnsFigmaChartSkeleton, badgeLabelForPeriodMode } from './ChartSkeletons.jsx';
 import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
 import { ReturnsChartClickableTitle } from './ReturnsChartClickableTitle.jsx';
@@ -98,12 +100,6 @@ function yForValueAxis(v, innerTop, innerH, yMin, yMax) {
   const c = Math.min(yMax, Math.max(yMin, v));
   if (Math.abs(yMax - yMin) < 1e-12) return innerTop + innerH / 2;
   return innerTop + ((yMax - c) / (yMax - yMin)) * innerH;
-}
-
-function formatTickPct(t) {
-  const r = Math.round(t * 10) / 10;
-  if (Math.abs(r - Math.round(r)) < 1e-6) return `${Math.round(r)}%`;
-  return `${r}%`;
 }
 
 function parseYear(period) {
@@ -229,6 +225,10 @@ export function TickerAnnualReturnsFigma({
     [setPlotHostRef]
   );
   const { isFullscreen: chartFs } = useChartFullscreen(chartFsShellRef);
+  const fsPlotSize = useChartFullscreenPlotSize(chartFsShellRef);
+  const plotPxEffective = fsPlotSize?.height ?? plotPx;
+  const plotWidthEffective = fsPlotSize?.width ?? chartPlotWidth;
+  const svgFs = Boolean(fsPlotSize);
   const chartTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
   const { axis: colAxis, label: colLabel } = useMemo(
     () => chartAxisLabelColors(chartTheme),
@@ -593,8 +593,8 @@ export function TickerAnnualReturnsFigma({
 
   const comboSvg = useMemo(() => {
     if (!displayRows.length || !stats) return null;
-    const plotH = Math.max(140, plotPx ?? resizeDefaultHeight);
-    const W = Math.max(280, chartPlotWidth);
+    const plotH = Math.max(140, plotPxEffective ?? resizeDefaultHeight);
+    const W = Math.max(280, plotWidthEffective);
     const H = plotH;
     const padL = 52;
     const padR = 20;
@@ -608,7 +608,7 @@ export function TickerAnnualReturnsFigma({
     const step = iw / n;
 
     const returns = displayRows.map((r) => r.totalReturn);
-    const { yMin, yMax, ticks: yTicks } = computePercentAxis(returns, stats.avg, plotPx, H, ih);
+    const { yMin, yMax, ticks: yTicks } = computePercentAxis(returns, stats.avg, plotPxEffective, H, ih);
     const yearColors = new Map();
     if (periodMode === 'monthly') {
       const years = [...new Set(displayRows.map((r) => r.year))].sort((a, b) => a - b);
@@ -628,7 +628,7 @@ export function TickerAnnualReturnsFigma({
             strokeWidth={Math.abs(t) < 1e-6 ? 1.35 : 1}
           />
           <text x={padL - 8} y={y + 4} textAnchor="end" fill={colAxis} fontSize="11" fontWeight="600">
-            {formatTickPct(t)}
+            {(v) => fmtPct(v, { plainPositive: true })(t)}
           </text>
         </g>
       );
@@ -651,8 +651,7 @@ export function TickerAnnualReturnsFigma({
           fill={periodMode === 'monthly' ? yearColors.get(r.year) || COL_BAR : r.totalReturn < 0 ? COL_NEG : COL_BAR}
         >
           <title>
-            {r.year}: {r.totalReturn >= 0 ? '+' : ''}
-            {r.totalReturn.toFixed(2)}% (Y {yMin.toFixed(0)}%–{yMax.toFixed(0)}%)
+            {r.year}: {fmtPctSigned(r.totalReturn)} (Y {fmtPct(yMin, { plainPositive: true })}–{fmtPct(yMax, { plainPositive: true })})
           </title>
         </rect>
       );
@@ -694,7 +693,7 @@ export function TickerAnnualReturnsFigma({
       return (
         <text key={`t-${r.rowKey}`} x={x + bw / 2} y={labY} textAnchor="middle" fill={colLabel} fontSize="11" fontWeight="700">
           {r.totalReturn >= 0 ? '+' : ''}
-          {r.totalReturn.toFixed(0)}%
+          {fmtPct(r.totalReturn, { plainPositive: true })}
         </text>
       );
     });
@@ -759,8 +758,8 @@ export function TickerAnnualReturnsFigma({
         className="ticker-annual-figma__svg"
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="xMidYMid meet"
-        style={tickerSvgPlotStyle(plotPx)}
-        aria-label={`${periodMode === 'quarterly' ? 'Quarterly' : periodMode === 'monthly' ? 'Monthly' : periodMode === 'weekly' ? 'Weekly' : periodMode === 'daily' ? 'Daily' : 'Annual'} returns bar chart, Y-axis ${formatTickPct(yMin)} to ${formatTickPct(yMax)} from data range; resize to show finer grid labels.`}
+        style={tickerSvgPlotStyle(plotPxEffective, { fullscreen: svgFs })}
+        aria-label={`${periodMode === 'quarterly' ? 'Quarterly' : periodMode === 'monthly' ? 'Monthly' : periodMode === 'weekly' ? 'Weekly' : periodMode === 'daily' ? 'Daily' : 'Annual'} returns bar chart, Y-axis ${(v) => fmtPct(v, { plainPositive: true })(yMin)} to ${(v) => fmtPct(v, { plainPositive: true })(yMax)} from data range; resize to show finer grid labels.`}
       >
         <defs>
           <clipPath id={clipComboId}>
@@ -772,7 +771,7 @@ export function TickerAnnualReturnsFigma({
         <g pointerEvents="none">
           <title>
             Average {stats.avg >= 0 ? '+' : ''}
-            {stats.avg.toFixed(2)}%
+            {fmtPct(stats.avg, { plainPositive: true })}
           </title>
           <line x1={padL} y1={avgY} x2={W - padR} y2={avgY} stroke={COL_ORANGE} strokeWidth={2.5} />
         </g>
@@ -786,13 +785,13 @@ export function TickerAnnualReturnsFigma({
           pointerEvents="none"
         >
           Av. {stats.avg >= 0 ? '+' : ''}
-          {stats.avg.toFixed(1)}%
+          {fmtPct(stats.avg, { plainPositive: true })}
         </text>
         {barLabels}
         {xLabels}
       </svg>
     );
-  }, [chartFs, chartPlotWidth, clipComboId, colAxis, colLabel, displayRows, plotPx, periodMode, resizeDefaultHeight, stats]);
+  }, [chartFs, chartPlotWidth, clipComboId, colAxis, colLabel, displayRows, plotPxEffective, plotWidthEffective, periodMode, resizeDefaultHeight, stats, svgFs]);
 
   const monthlyYearLegend = useMemo(() => {
     if (periodMode !== 'monthly' || !displayRows.length) return [];
@@ -822,7 +821,7 @@ export function TickerAnnualReturnsFigma({
     const step = iw / n;
 
     const sumVals = items.map((it) => it.v).filter((v) => Number.isFinite(v));
-    const summaryPlotPx = plotPx != null ? Math.min(plotPx, 320) : 240;
+    const summaryPlotPx = plotPxEffective != null ? Math.min(plotPxEffective, fsPlotSize ? plotPxEffective : 320) : 240;
     const { yMin: syMin, yMax: syMax, ticks: syTicks } = computePercentAxis(sumVals, null, summaryPlotPx, H, ih);
 
     const gridLines = syTicks.map((t) => {
@@ -838,7 +837,7 @@ export function TickerAnnualReturnsFigma({
             strokeWidth={Math.abs(t) < 1e-6 ? 1.35 : 1}
           />
           <text x={padL - 8} y={y + 4} textAnchor="end" fill={colAxis} fontSize="11" fontWeight="600">
-            {formatTickPct(t)}
+            {(v) => fmtPct(v, { plainPositive: true })(t)}
           </text>
         </g>
       );
@@ -867,7 +866,7 @@ export function TickerAnnualReturnsFigma({
           <text x={x + bw / 2} y={labY} textAnchor="middle" fill={colLabel} fontSize="11" fontWeight="700">
             {!Number.isFinite(it.v)
               ? '—'
-              : `${it.v >= 0 ? '+' : ''}${Number(it.v).toFixed(0)}%`}
+              : fmtPctSigned(it.v)}
           </text>
           <text x={x + bw / 2} y={H - 18} textAnchor="middle" fill={colAxis} fontSize="11" fontWeight="700">
             {it.label}
@@ -881,7 +880,7 @@ export function TickerAnnualReturnsFigma({
         className="ticker-annual-figma__svg"
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="xMidYMid meet"
-        style={tickerSvgPlotStyle(plotPx != null ? Math.min(plotPx, 320) : null)}
+        style={tickerSvgPlotStyle(summaryPlotPx, { fullscreen: svgFs })}
       >
         <defs>
           <clipPath id={clipSummaryId}>
@@ -893,7 +892,7 @@ export function TickerAnnualReturnsFigma({
         {barTexts}
       </svg>
     );
-  }, [clipSummaryId, colAxis, colLabel, stats, plotPx]);
+  }, [clipSummaryId, colAxis, colLabel, stats, plotPxEffective, svgFs, fsPlotSize]);
 
   const donut = useMemo(() => {
     if (!stats) return null;
@@ -902,7 +901,8 @@ export function TickerAnnualReturnsFigma({
     const cy = 100;
     const r0 = 52;
     const r1 = 82;
-    const donutStyle = tickerSvgPlotStyle(plotPx != null ? Math.min(220, plotPx) : null);
+    const donutPx = plotPxEffective != null ? Math.min(plotPxEffective, fsPlotSize ? plotPxEffective : 220) : null;
+    const donutStyle = tickerSvgPlotStyle(donutPx, { fullscreen: svgFs });
 
     if (total === 0) {
       return (
@@ -969,7 +969,7 @@ export function TickerAnnualReturnsFigma({
         </g>
       </svg>
     );
-  }, [colAxis, stats, plotPx]);
+  }, [colAxis, stats, plotPxEffective, svgFs, fsPlotSize]);
 
   if (!rows.length) {
     if (loading) {
@@ -1085,10 +1085,10 @@ export function TickerAnnualReturnsFigma({
                     <td>{periodMode === 'annual' ? r.year : r.xLabel ?? r.period}</td>
                     <td>{r.startDate ?? '—'}</td>
                     <td>{r.endDate ?? '—'}</td>
-                    <td>{r.startPrice != null ? Number(r.startPrice).toFixed(2) : '—'}</td>
-                    <td>{r.endPrice != null ? Number(r.endPrice).toFixed(2) : '—'}</td>
+                    <td>{fmtPrice(r.startPrice)}</td>
+                    <td>{fmtPrice(r.endPrice)}</td>
                     <td className={r.totalReturn >= 0 ? 'ticker-num--up' : 'ticker-num--down'}>
-                      {r.totalReturn.toFixed(2)}
+                      {fmtPctSigned(r.totalReturn)}
                     </td>
                   </tr>
                 ))}

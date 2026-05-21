@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {fetchJsonCached, getAuthToken, canFetchProtectedApi} from '../store/apiStore.js';
+import { fmtAbsSigned, fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 
 const ROWS_MAIN = [
   { id: 'nasdaq', label: 'Nasdaq 100', symbols: ['QQQ'], tone: 'purple' },
@@ -16,23 +17,6 @@ function pickNum(row, keys) {
     if (Number.isFinite(n)) return n;
   }
   return null;
-}
-
-function fmtPx(n) {
-  if (!Number.isFinite(Number(n))) return '—';
-  return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtAbs(n) {
-  if (!Number.isFinite(Number(n))) return '—';
-  const v = Number(n);
-  return `${v >= 0 ? '+' : ''}${Math.abs(v).toFixed(2)}`;
-}
-
-function fmtPct(n) {
-  if (!Number.isFinite(Number(n))) return '—';
-  const v = Number(n);
-  return `${v >= 0 ? '+' : ''}${Math.abs(v).toFixed(1)}%`;
 }
 
 async function fetchLatestForSymbol(symbol) {
@@ -151,9 +135,9 @@ export function UsEquityMarketsCard() {
           <div key={r.id} className="usm-row">
             <span className={'usm-check usm-check--' + r.tone}>✓</span>
             <span className="usm-col usm-col--name">{r.label}</span>
-            <span className="usm-col usm-col--px">{v ? fmtPx(v.close) : '—'}</span>
-            <span className={'usm-col usm-col--chg' + (up ? ' is-up' : down ? ' is-down' : '')}>{v ? fmtAbs(v.chg) : '—'}</span>
-            <span className={'usm-col usm-col--pct' + (up ? ' is-up' : down ? ' is-down' : '')}>{v ? fmtPct(v.chgPct) : '—'}</span>
+            <span className="usm-col usm-col--px">{v ? fmtPrice(v.close) : '—'}</span>
+            <span className={'usm-col usm-col--chg' + (up ? ' is-up' : down ? ' is-down' : '')}>{v ? fmtAbsSigned(v.chg) : '—'}</span>
+            <span className={'usm-col usm-col--pct' + (up ? ' is-up' : down ? ' is-down' : '')}>{v ? fmtPctSigned(v.chgPct) : '—'}</span>
           </div>
         );
       })}
@@ -173,9 +157,9 @@ export function UsEquityMarketsCard() {
           <div key={r.id} className="usm-row">
             <span className={'usm-check usm-check--' + r.tone}>✓</span>
             <span className="usm-col usm-col--name">{r.label}</span>
-            <span className="usm-col usm-col--px">{v ? fmtPx(v.close) : '—'}</span>
-            <span className={'usm-col usm-col--chg' + (up ? ' is-up' : down ? ' is-down' : '')}>{v ? fmtAbs(v.chg) : '—'}</span>
-            <span className={'usm-col usm-col--pct' + (up ? ' is-up' : down ? ' is-down' : '')}>{v ? fmtPct(v.chgPct) : '—'}</span>
+            <span className="usm-col usm-col--px">{v ? fmtPrice(v.close) : '—'}</span>
+            <span className={'usm-col usm-col--chg' + (up ? ' is-up' : down ? ' is-down' : '')}>{v ? fmtAbsSigned(v.chg) : '—'}</span>
+            <span className={'usm-col usm-col--pct' + (up ? ' is-up' : down ? ' is-down' : '')}>{v ? fmtPctSigned(v.chgPct) : '—'}</span>
           </div>
         );
       })}

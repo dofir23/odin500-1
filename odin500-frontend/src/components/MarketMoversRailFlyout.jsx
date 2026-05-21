@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
 import {fetchJsonCached, getAuthToken, canFetchProtectedApi} from '../store/apiStore.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
+import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 
 const TOP_N = 10;
 
@@ -48,26 +49,10 @@ function parsePct(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Match `WatchlistRailFlyout` last-price formatting. */
-function formatLast(n) {
-  if (n == null || !Number.isFinite(Number(n))) return '—';
-  const x = Number(n);
-  const abs = Math.abs(x);
-  const digits = abs >= 1000 ? 2 : abs >= 1 ? 2 : 4;
-  return x.toFixed(digits);
-}
-
 /** `dayReturnPct` is in percent points (e.g. 2.5 → 2.5%); store as fraction for watchlist pct helpers. */
 function pctToFraction(pct) {
   if (pct == null || !Number.isFinite(pct)) return null;
   return pct / 100;
-}
-
-/** Match `WatchlistRailFlyout` percent display (fraction = decimal return). */
-function formatPctDisplay(fraction) {
-  if (fraction == null || !Number.isFinite(fraction)) return '—';
-  const pct = fraction * 100;
-  return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
 }
 
 function pctTone(fraction) {
@@ -202,8 +187,8 @@ export function MarketMoversRailFlyout({ open, onClose, docked = false }) {
                           <span className="wl-flyout__co">{name}</span>
                         </Link>
                       </td>
-                      <td className="wl-flyout__td-num">{formatLast(p.lastPrice)}</td>
-                      <td className={'wl-flyout__td-pct ' + pctTone(frac)}>{formatPctDisplay(frac)}</td>
+                      <td className="wl-flyout__td-num">{fmtPrice(p.lastPrice)}</td>
+                      <td className={'wl-flyout__td-pct ' + pctTone(frac)}>{fmtPctSigned(frac != null && Number.isFinite(frac) ? frac * 100 : null)}</td>
                     </tr>
                   );
                 })

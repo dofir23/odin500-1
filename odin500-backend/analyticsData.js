@@ -31,6 +31,8 @@ const INDEX_RETURNS_SNAPSHOT_FQN =
   `${PROJECT_ID}.${SNAPSHOT_DATASET}.${INDEX_RETURNS_SNAPSHOT_TABLE}`;
 /** API `index` body values for POST /index-returns (same as IndexPage). */
 const SNAPSHOT_INDEX_RETURNS_KEYS = ['sp500', 'Dow Jones', 'Nasdaq 100'];
+/** Bumped when index-returns "Last date" uses prior session → latest session (not calendar days: 1). */
+const INDEX_RETURNS_LAST_DATE_VERSION = 2;
 const SNAPSHOT_INDEX_RETURNS_KEY_SET = new Set(
   SNAPSHOT_INDEX_RETURNS_KEYS.map((k) => String(k).trim().toLowerCase())
 );
@@ -663,21 +665,54 @@ function getStartEndClose(priceData, startDate, endDate) {
  * For "last-date" performance: use the most recent two trading closes on/before `endDate`.
  * This avoids calendar-day gaps (weekends/holidays) collapsing returns to 0.00% for most symbols.
  */
-function getLatestTwoCloses(priceData, endDate) {
+function getLatestTwoSessionCloses(priceData, endDate) {
   const tickerData = (Array.isArray(priceData) ? priceData : []).filter(
     (row) => row.Date <= endDate && row.Close != null
   );
-  if (!tickerData.length) return [null, null];
-  // Defensive: ensure prior close comes from a prior trading date (not duplicate same-day rows).
+  if (!tickerData.length) {
+    return { startDate: null, endDate: null, startPrice: null, endPrice: null };
+  }
   const byDay = new Map();
   for (const r of tickerData) {
     const d = isoDate(r.Date);
-    byDay.set(d, r.Close);
+    if (!byDay.has(d)) byDay.set(d, { Date: r.Date, Close: r.Close });
   }
   const days = [...byDay.keys()].sort();
-  const endClose = byDay.get(days[days.length - 1]);
-  const startClose = days.length > 1 ? byDay.get(days[days.length - 2]) : null;
-  return [startClose, endClose];
+  const last = byDay.get(days[days.length - 1]);
+  const prev = days.length > 1 ? byDay.get(days[days.length - 2]) : null;
+  return {
+    startDate: prev?.Date ?? null,
+    endDate: last?.Date ?? null,
+    startPrice: prev?.Close ?? null,
+    endPrice: last?.Close ?? null
+  };
+}
+
+function getLatestTwoCloses(priceData, endDate) {
+  const { startPrice, endPrice } = getLatestTwoSessionCloses(priceData, endDate);
+  return [startPrice, endPrice];
+}
+
+/** Dynamic "Last date" row: prior session close → latest session close (not calendar days: 1). */
+function buildLastDatePeriodRow(endDate, priceSeries) {
+  const endD = endDate instanceof Date ? endDate : new Date(endDate);
+  const calStart = new Date(endD);
+  calStart.setDate(endD.getDate() - 1);
+  const { startDate, endDate: endFound, startPrice, endPrice } = getLatestTwoSessionCloses(
+    priceSeries,
+    endD
+  );
+  return {
+    period: 'Last date',
+    start_date_requested: isoDate(calStart),
+    end_date_requested: isoDate(endD),
+    start_date_found: startDate ? isoDate(startDate) : null,
+    end_date_found: endFound ? isoDate(endFound) : null,
+    start_price: startPrice,
+    end_price: endPrice,
+    years: startDate && endFound ? yearsBetween(startDate, endFound) : 0,
+    total_return_pct: calcTotalReturnPct(startPrice, endPrice)
+  };
 }
 
 function buildPriceDataByTicker(priceData) {
@@ -890,6 +925,21 @@ function formatPeriods(rows, labelKey = 'period', labelPrefix = null) {
       cagrPercent: Math.round(cagrPercent * 100) / 100
     };
   });
+}
+
+/** Ensure POST /index-returns "Last date" matches ticker last-date (two trading sessions). */
+function patchIndexReturnsPerformanceLastDate(performance, endDate, priceSeries) {
+  if (!performance || !Array.isArray(performance.dynamicPeriods) || !priceSeries?.length) {
+    return performance;
+  }
+  const lastDateFormatted = formatPeriods([buildLastDatePeriodRow(endDate, priceSeries)])[0];
+  if (!lastDateFormatted) return performance;
+  return {
+    ...performance,
+    dynamicPeriods: performance.dynamicPeriods.map((p) =>
+      p.period === 'Last date' ? lastDateFormatted : p
+    )
+  };
 }
 
 const DYNAMIC_PERIOD_DEFS = [
@@ -1223,6 +1273,10 @@ async function calculateDynamicPeriods(ticker, endDate, prices) {
   if (Array.isArray(prices) && prices.length) {
     const results = [];
     for (const def of DYNAMIC_PERIOD_DEFS) {
+      if (def.name === 'Last date') {
+        results.push(buildLastDatePeriodRow(endDate, prices));
+        continue;
+      }
       let start = new Date(endDate);
       if (def.type === 'days') start.setDate(endDate.getDate() - def.days);
       else if (def.type === 'years') start.setDate(endDate.getDate() - Math.floor(def.years * 365));
@@ -1243,10 +1297,13 @@ async function calculateDynamicPeriods(ticker, endDate, prices) {
     }
     return results;
   }
-  const specs = [];
-  specs.push(...buildDynamicPeriodSpecs(endDate));
+  const specs = buildDynamicPeriodSpecs(endDate);
   const rows = await calculatePeriodsViaSql(ticker, specs);
   const byPeriod = new Map(rows.map((r) => [r.period, r]));
+  const lookback = new Date(endDate);
+  lookback.setDate(endDate.getDate() - 14);
+  const recentPrices = await fetchCloseSeries(ticker, lookback, endDate);
+  byPeriod.set('Last date', buildLastDatePeriodRow(endDate, recentPrices));
   return DYNAMIC_PERIOD_DEFS.map((d) => byPeriod.get(d.name)).filter(Boolean);
 }
 
@@ -1595,6 +1652,7 @@ async function calculateIndexReturns(indexValue, customRange = null, annualFromY
     return {
       ...base,
       index: String(indexValue || '').trim(),
+      indexReturnsLastDateVersion: INDEX_RETURNS_LAST_DATE_VERSION,
       seriesMode: 'official-index-ticker',
       officialIndexTicker: officialTicker,
       constituentsCount: 1,
@@ -1604,7 +1662,8 @@ async function calculateIndexReturns(indexValue, customRange = null, annualFromY
       syntheticCloseSeries: prices.map((r) => ({
         date: isoDate(r.Date),
         close: Math.round(Number(r.Close) * 10000) / 10000
-      }))
+      })),
+      performance: patchIndexReturnsPerformanceLastDate(base.performance, endDate, prices)
     };
   }
 
@@ -1685,9 +1744,23 @@ async function calculateIndexReturns(indexValue, customRange = null, annualFromY
     .map((r) => ({ ...r, quarter: r.period }));
   const custom = customRaw.length ? customRaw[0] : null;
 
+  const performance = patchIndexReturnsPerformanceLastDate(
+    {
+      dynamicPeriods: formatPeriods(dynamic),
+      predefinedPeriods: formatPeriods(predefined),
+      annualReturns: formatPeriods(annual, 'year'),
+      customRange: custom ? formatPeriods([custom]) : [],
+      quarterlyReturns: formatPeriods(quarterly, 'quarter'),
+      monthlyReturns: formatPeriods(monthly, 'month')
+    },
+    syntheticEnd,
+    synthetic
+  );
+
   return {
     success: true,
     index: String(indexValue || '').trim(),
+    indexReturnsLastDateVersion: INDEX_RETURNS_LAST_DATE_VERSION,
     seriesMode: 'synthetic-constituents',
     officialIndexTicker: null,
     asOfDate: isoDate(syntheticEnd),
@@ -1699,14 +1772,7 @@ async function calculateIndexReturns(indexValue, customRange = null, annualFromY
       date: isoDate(r.Date),
       close: Math.round(Number(r.Close) * 10000) / 10000
     })),
-    performance: {
-      dynamicPeriods: formatPeriods(dynamic),
-      predefinedPeriods: formatPeriods(predefined),
-      annualReturns: formatPeriods(annual, 'year'),
-      customRange: custom ? formatPeriods([custom]) : [],
-      quarterlyReturns: formatPeriods(quarterly, 'quarter'),
-      monthlyReturns: formatPeriods(monthly, 'month')
-    }
+    performance
   };
 }
 
@@ -2447,6 +2513,7 @@ module.exports = {
   calculateAllReturns,
   calculateReturnsSections,
   calculateIndexReturns,
+  INDEX_RETURNS_LAST_DATE_VERSION,
   calculateTotalReturnPercentage,
   calculateIndexConstituentLeaderboards,
   calculateIndexMarketMovers,

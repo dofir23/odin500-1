@@ -1110,7 +1110,7 @@ const getIndexReturns = async (req, res) => {
 
     try {
         const startedAt = Date.now();
-        const cacheKey = makeCacheKey('market:index-returns:v1', {
+        const cacheKey = makeCacheKey('market:index-returns:v3', {
             index: indexValue.toLowerCase(),
             customStartDate: customRange ? customRange[0] : '',
             customEndDate: customRange ? customRange[1] : ''
@@ -1125,7 +1125,10 @@ const getIndexReturns = async (req, res) => {
 
         if (ENABLE_MARKET_SNAPSHOT_READ && !customRange) {
             const snap = await analyticsData.readIndexReturnsSnapshot(indexValue);
-            if (snap?.payload && snap.payload.success !== false) {
+            const snapLastDateOk =
+                Number(snap?.payload?.indexReturnsLastDateVersion) >=
+                analyticsData.INDEX_RETURNS_LAST_DATE_VERSION;
+            if (snap?.payload && snap.payload.success !== false && snapLastDateOk) {
                 const out = {
                     ...snap.payload,
                     cache_hit: false,

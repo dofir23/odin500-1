@@ -12,7 +12,6 @@ import { DEFAULT_SELECTED_KEYS, META_BY_KEY, MARKET_SERIES } from './marketSerie
 import { useRightRailDock } from '../context/WatchlistDockContext.jsx';
 import { CHART_INFO_TIPS } from './chartInfoTips.js';
 import {
-  calcRangeReturnPct,
   calcRangeSnapshot,
   fmtAbsSigned,
   fmtPct,
@@ -240,7 +239,35 @@ return (
   );
 }
 
-function SummaryReturnsCard({ refreshMs = 0, loadOhlcRows = null }) {
+/** Summary column → `performance.dynamicPeriods[].period` (POST /api/market/ticker-returns). */
+const SUMMARY_TF_PERIOD = {
+  '1D': 'Last date',
+  '1M': 'Last Month',
+  '6M': 'Last 6 months',
+  '1Y': 'Last 1 year',
+  '3Y': 'Last 3 years'
+};
+
+function pickTickerReturnsFromBatch(payload, ticker) {
+  const u = String(ticker || '').toUpperCase().trim();
+  if (!payload || !u) return null;
+  if (payload.batch === true && payload.byTicker && payload.byTicker[u] != null) {
+    const row = payload.byTicker[u];
+    if (row && row.success === false) return null;
+    return row;
+  }
+  if (!payload.batch && String(payload.ticker || '').toUpperCase() === u) return payload;
+  return null;
+}
+
+function pickDynamicReturnPct(dynamicPeriods, periodName) {
+  if (!periodName || !Array.isArray(dynamicPeriods)) return undefined;
+  const row = dynamicPeriods.find((r) => r.period === periodName);
+  const v = row?.totalReturn;
+  return v != null && Number.isFinite(Number(v)) ? Number(v) : undefined;
+}
+
+function SummaryReturnsCard({ refreshMs = 0 }) {
   const [vals, setVals] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -252,58 +279,54 @@ function SummaryReturnsCard({ refreshMs = 0, loadOhlcRows = null }) {
       { key: 'XLK', label: 'Technology' },
       { key: 'XLE', label: 'Energy' },
       { key: 'XLV', label: 'Healthcare' },
-      { key: 'XLI', label: 'Industrials' },
-      
+      { key: 'XLI', label: 'Industrials' }
     ],
     []
   );
-  const tfs = useMemo(
-    () => [
-      { key: '1D', days: 3 },
-      { key: '1M', days: 31 },
-      { key: '6M', days: 184 },
-      { key: '1Y', days: 365 },
-      { key: '3Y', days: 1095 },
-      // { key: '5Y', days: 1825 },
-      // { key: '10Y', days: 3650 },
-      // { key: '20Y', days: 7300 },
-    ],
-    []
-  );
+  const tfs = useMemo(() => Object.keys(SUMMARY_TF_PERIOD).map((key) => ({ key })), []);
+
+  const summaryTickers = useMemo(() => {
+    const seen = new Set();
+    const list = [];
+    for (const d of defs) {
+      const t = String(META_BY_KEY[d.key]?.ticker || '').toUpperCase().trim();
+      if (!t || seen.has(t)) continue;
+      seen.add(t);
+      list.push(t);
+    }
+    return list;
+  }, [defs]);
 
   useEffect(() => {
     let cancel = false;
     async function load() {
       if (!canFetchProtectedApi()) return;
+      if (!summaryTickers.length) return;
       setLoading(true);
       setError('');
-      const now = new Date();
-      const end = now.toISOString().slice(0, 10);
-      const out = {};
       try {
+        const { data: payload } = await fetchJsonCached({
+          path: '/api/market/ticker-returns',
+          method: 'POST',
+          body: { tickers: summaryTickers },
+          auth: true,
+          ttlMs: refreshMs > 0 ? Math.max(refreshMs, 15_000) : 5 * 60 * 1000
+        });
+        if (cancel) return;
+        if (!payload?.success && payload?.batch !== true) {
+          throw new Error(payload?.error || 'Failed loading summary returns');
+        }
+        const out = {};
         for (const d of defs) {
+          const sym = String(META_BY_KEY[d.key]?.ticker || '').toUpperCase().trim();
+          const rec = pickTickerReturnsFromBatch(payload, sym);
+          const periods = rec?.performance?.dynamicPeriods || [];
           out[d.key] = {};
           for (const tf of tfs) {
-            const startDate = new Date(now);
-            startDate.setDate(now.getDate() - tf.days);
-            const start = startDate.toISOString().slice(0, 10);
-            const ticker = META_BY_KEY[d.key]?.ticker;
-            let rows = [];
-            if (typeof loadOhlcRows === 'function') {
-              rows = await loadOhlcRows(ticker, start, end);
-            } else {
-              const res = await fetchWithAuth(apiUrl('/api/market/ohlc-signals-indicator'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ticker, start_date: start, end_date: end })
-              });
-              const payload = await res.json();
-              rows = Array.isArray(payload?.data) ? payload.data : [];
-            }
-            out[d.key][tf.key] = calcRangeReturnPct(rows);
+            out[d.key][tf.key] = pickDynamicReturnPct(periods, SUMMARY_TF_PERIOD[tf.key]);
           }
         }
-        if (!cancel) setVals(out);
+        setVals(out);
       } catch (e) {
         if (!cancel) setError(e.message || 'Failed loading summary');
       } finally {
@@ -317,7 +340,7 @@ function SummaryReturnsCard({ refreshMs = 0, loadOhlcRows = null }) {
       cancel = true;
       if (timer) window.clearInterval(timer);
     };
-  }, [defs, tfs, refreshMs, loadOhlcRows]);
+  }, [defs, tfs, refreshMs, summaryTickers]);
 
   return (
     <section
@@ -826,7 +849,7 @@ export function MarketPageFigmaShell() {
           loadSeriesRows={loadOhlcRows}
         />
         <div className="mkt-center-bottom">
-          <SummaryReturnsCard refreshMs={refreshMs} loadOhlcRows={loadOhlcRows} />
+          <SummaryReturnsCard refreshMs={refreshMs} />
           <MarketHeatmapThumbnail refreshMs={refreshMs} />
         </div>
       </main>

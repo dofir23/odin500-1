@@ -322,7 +322,7 @@ export function TickerSection23Section24({
       const tick = pickDynamic(dynT, tf.period);
       const diff =
         Number.isFinite(bench) && Number.isFinite(tick)
-          ? Number(bench) - Number(tick)
+          ? Number(tick) - Number(bench)
           : null;
       return { tf: tf.key, bench, tick, diff };
     });
@@ -338,7 +338,7 @@ export function TickerSection23Section24({
     const tick = pickDynamic(dynT, period1d);
     const bench = pickDynamic(dynB, period1d);
     const diff =
-      Number.isFinite(bench) && Number.isFinite(tick) ? Number(bench) - Number(tick) : null;
+      Number.isFinite(bench) && Number.isFinite(tick) ? Number(tick) - Number(bench) : null;
 
     // eslint-disable-next-line no-console -- intentional debug trace for 1D / Last date
     console.groupCollapsed('[TickerSection23Section24:1D / Last date]');
@@ -516,8 +516,8 @@ export function TickerSection23Section24({
               {rows.map((r) => (
                 <tr key={r.tf}>
                   <th scope="row">{r.tf}</th>
-                  <td className={signedToneClass(r.bench)}>{fmtPct(r.bench)}</td>
                   <td className={signedToneClass(r.tick)}>{fmtPct(r.tick)}</td>
+                  <td className={signedToneClass(r.bench)}>{fmtPct(r.bench)}</td>
                   <td className={signedToneClass(r.diff)}>{fmtPct(r.diff)}</td>
                 </tr>
               ))}

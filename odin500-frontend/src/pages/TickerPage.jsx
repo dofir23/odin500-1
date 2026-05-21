@@ -101,7 +101,8 @@ const RELATIVE_INDEX_OPTIONS = [
   { key: 'sp500', label: 'S&P 500', apiIndex: 'sp500' },
   { key: 'dow-jones', label: 'Dow Jones', apiIndex: 'Dow Jones' },
   { key: 'nasdaq-composite', label: 'Nasdaq Composite', apiIndex: 'nasdaq composite' },
-  { key: 'nasdaq-100', label: 'Nasdaq 100', apiIndex: 'Nasdaq 100' }
+  /** Use NDX OHLC + ticker-returns (same pattern as SPX/DJI), not synthetic Nasdaq 100 constituents. */
+  { key: 'nasdaq-100', label: 'Nasdaq 100', apiIndex: 'Nasdaq 100', ticker: 'NDX' }
 ];
 const RELATIVE_INDEX_DROPDOWN_OPTIONS = RELATIVE_INDEX_OPTIONS.map((o) => ({ id: o.key, label: o.label }));
 function yesterdayIsoForLongTable() {
@@ -1526,6 +1527,10 @@ export default function TickerPage() {
     async (indexKey) => {
       if (!canFetchProtectedApi()) return null;
       const opt = RELATIVE_INDEX_OPTIONS.find((x) => x.key === indexKey) || RELATIVE_INDEX_OPTIONS[0];
+      const proxyTicker = opt.ticker ? String(opt.ticker).trim().toUpperCase() : '';
+      if (proxyTicker) {
+        return loadRelativeTickerSeries(proxyTicker);
+      }
       const idx = await fetchJsonCached({
         path: '/api/market/index-returns',
         method: 'POST',
@@ -1565,7 +1570,7 @@ export default function TickerPage() {
         qtd: qtdFromRows(rows)
       };
     },
-    [asOfDate, fetchOhlcRowsCached]
+    [asOfDate, fetchOhlcRowsCached, loadRelativeTickerSeries]
   );
 
   useEffect(() => {
@@ -1643,7 +1648,7 @@ export default function TickerPage() {
             : null;
       const diff =
         symPct != null && tkPct != null && Number.isFinite(symPct) && Number.isFinite(tkPct)
-          ? symPct - tkPct
+          ? tkPct - symPct
           : null;
       return { label: row.key, value: diff, symPct, tkPct, diff };
     });
@@ -2280,7 +2285,7 @@ export default function TickerPage() {
                         : null;
                   const diff =
                     symPct != null && spyPct != null && Number.isFinite(symPct) && Number.isFinite(spyPct)
-                      ? symPct - spyPct
+                      ? spyPct - symPct
                       : null;
                   return (
                     <div key={row.key} className="ticker-compare__row">
@@ -2360,7 +2365,7 @@ export default function TickerPage() {
                   </ReturnsChartClickableHeading>
                   <DataInfoTip align="start">
                     <p className="ticker-data-tip__p">
-                      Choose one index and one ticker; relative strength is shown as <strong>index return − ticker return</strong>.
+                      Choose one index and one ticker; relative strength is shown as <strong>ticker return − index return</strong>.
                     </p>
                   </DataInfoTip>
                 </div>

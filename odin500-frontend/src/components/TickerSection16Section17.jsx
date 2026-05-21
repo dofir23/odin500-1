@@ -253,7 +253,6 @@ export function TickerSection16Section17({
     [exportSymbol]
   );
 
-  const fmtTick = chart.fmtTick || formatAxisPct;
   const nCols = Math.max(1, chartRows.length);
   const chartGapPx = nCols > 12 ? 4 : nCols > 8 ? 6 : 8;
   const barMaxPx = nCols > 12 ? 12 : nCols > 8 ? 14 : 18;
@@ -331,22 +330,13 @@ export function TickerSection16Section17({
         <div ref={s17ChartFsRef} className="ticker-chart-fs-shell ticker-s17__chart-shell">
         <div
           ref={s17PlotRef}
-          className="ticker-s17__chart"
+          className="ticker-s17__chart ticker-s17__chart--no-yaxis"
           style={{
             '--ticker-s17-cols': String(nCols),
             '--ticker-s17-gap': `${chartGapPx}px`,
             '--ticker-s17-bar-max': `${barMaxPx}px`
           }}
         >
-          <div className="ticker-s17__yaxis">
-            <div className="ticker-s17__yaxis-area">
-              {chart.ticks?.map((t) => (
-                <span key={t.key} className="ticker-s17__yval" style={{ top: `${t.topPct}%` }}>
-                  {fmtTick(t.value)}
-                </span>
-              ))}
-            </div>
-          </div>
           <div className="ticker-s17__plot">
             <div className="ticker-s17__plot-area">
               <div className="ticker-s17__viz">

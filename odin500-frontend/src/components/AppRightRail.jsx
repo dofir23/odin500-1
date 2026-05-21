@@ -270,7 +270,7 @@ export function AppRightRail({ mobileOpen = false, onRequestClose = null }) {
           >
             <IcoNews />
           </button>
-          <button
+          {/* <button
             type="button"
             className="app-right-rail__btn"
             title="[Alerts]"
@@ -280,7 +280,7 @@ export function AppRightRail({ mobileOpen = false, onRequestClose = null }) {
             }}
           >
             <IcoBell />
-          </button>
+          </button> */}
         </div>
       </aside>
     </>

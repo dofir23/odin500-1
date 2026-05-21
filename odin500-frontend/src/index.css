@@ -12744,6 +12744,12 @@ h3.returns-chart-title-heading {
   align-self: stretch;
 }
 
+/* Relative Strength Bars (s16s17): full-width plot, no left % labels */
+.ticker-s17__chart--no-yaxis {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
 .ticker-s17__yaxis {
   position: relative;
   min-height: 0;

@@ -78,6 +78,7 @@ const OHLC_SIGNALS_INDICATOR_CACHE_TTL_SECS = Number(process.env.OHLC_SIGNALS_IN
 const TICKER_DETAILS_CACHE_TTL_SECS = Number(process.env.TICKER_DETAILS_CACHE_TTL_SECS || 300);
 /** Redis TTL for POST /api/market/ticker-returns (seconds). Override via TICKER_RETURNS_CACHE_TTL_SECS. */
 const TICKER_RETURNS_CACHE_TTL_SECS = Number(process.env.TICKER_RETURNS_CACHE_TTL_SECS || 300);
+const MARKET_RAIL_SNAPSHOT_CACHE_TTL_SECS = Number(process.env.MARKET_RAIL_SNAPSHOT_CACHE_TTL_SECS || 120);
 /** Max inclusive calendar span for ohlc-signals-indicator (raise via OHLC_SIGNALS_MAX_RANGE_DAYS). */
 const OHLC_SIGNALS_MAX_RANGE_DAYS = Number(process.env.OHLC_SIGNALS_MAX_RANGE_DAYS || 40000);
 const WEIGHTS_JSON_PATH = path.resolve(__dirname, '..', 'data', 'index-weights.json');
@@ -1223,6 +1224,58 @@ const getIndexMarketMovers = async (req, res) => {
     }
 };
 
+const getMarketRailSnapshot = async (req, res) => {
+    const data = req.body || {};
+    const timeframe = String(data.timeframe || '6M').trim() || '6M';
+    const series = Array.isArray(data.series) ? data.series : [];
+    if (!series.length) {
+        return res.status(400).json({ success: false, error: 'Missing required field: series' });
+    }
+    if (series.length > 80) {
+        return res.status(400).json({ success: false, error: 'At most 80 series per request' });
+    }
+
+    const normSeries = series
+        .map((s) => ({
+            key: String(s?.key || '').trim(),
+            ticker: String(s?.ticker || '')
+                .toUpperCase()
+                .trim()
+        }))
+        .filter((s) => s.key && s.ticker);
+    const seriesKey = normSeries
+        .map((s) => `${s.key}:${s.ticker}`)
+        .sort()
+        .join(',');
+
+    const cacheKey = makeCacheKey('market:rail-snapshot:v1', {
+        timeframe: timeframe.toUpperCase(),
+        seriesKey
+    });
+
+    try {
+        const startedAt = Date.now();
+        const cached = await getCache(cacheKey);
+        if (cached) {
+            res.set('X-Cache-Hit', '1');
+            res.set('X-Compute-Ms', String(Date.now() - startedAt));
+            return res.status(200).json({ ...cached, cache_hit: true });
+        }
+
+        const payload = await analyticsData.calculateMarketRailSnapshot(normSeries, timeframe);
+        await setCache(cacheKey, payload, MARKET_RAIL_SNAPSHOT_CACHE_TTL_SECS);
+        res.set('X-Cache-Hit', '0');
+        res.set('X-Compute-Ms', String(Date.now() - startedAt));
+        res.status(200).json({ ...payload, cache_hit: false });
+    } catch (error) {
+        console.error('Error calculating market rail snapshot:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to calculate market rail snapshot'
+        });
+    }
+};
+
 const getIndexConstituentLeaders = async (req, res) => {
     const data = req.body || {};
     const indexValue = (data.index || '').trim();
@@ -1278,5 +1331,6 @@ module.exports = {
     getTickerCoreReturns,
     getIndexReturns,
     getIndexMarketMovers,
-    getIndexConstituentLeaders
+    getIndexConstituentLeaders,
+    getMarketRailSnapshot
 };

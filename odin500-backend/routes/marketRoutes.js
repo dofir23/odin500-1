@@ -16,7 +16,8 @@ const {
     getTickerCoreReturns,
     getIndexReturns,
     getIndexMarketMovers,
-    getIndexConstituentLeaders
+    getIndexConstituentLeaders,
+    getMarketRailSnapshot
 } = require('../controllers/marketController');
 const requireAuth = require('../middleware/authMiddleware'); // Protect this route!
 
@@ -50,5 +51,8 @@ router.post('/index-market-movers', requireAuth, getIndexMarketMovers);
 
 /** Best / worst constituents by total return across rolling windows, calendar quarters, and optional custom range. */
 router.post('/index-constituent-leaders', requireAuth, getIndexConstituentLeaders);
+
+/** Batch Last / Δ / % for market page left rail (one query per timeframe). */
+router.post('/market-rail-snapshot', requireAuth, getMarketRailSnapshot);
 
 module.exports = router;

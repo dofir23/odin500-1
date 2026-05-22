@@ -2477,6 +2477,152 @@ async function readIndexMarketMoversSnapshot(indexValue, periodValue) {
   return { snapshotTs, asOfDate, points };
 }
 
+/** Match frontend `tfRange()` in marketCalculations.js (calendar start → latest data date). */
+function resolveMarketRailDateRange(timeframe, endDate) {
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+  const start = new Date(end);
+  const tf = String(timeframe || '6M').toUpperCase();
+  switch (tf) {
+    case '1D':
+      start.setDate(end.getDate() - 3);
+      break;
+    case '5D':
+      start.setDate(end.getDate() - 8);
+      break;
+    case '1M':
+      start.setDate(end.getDate() - 31);
+      break;
+    case '3M':
+      start.setDate(end.getDate() - 92);
+      break;
+    case '6M':
+      start.setDate(end.getDate() - 184);
+      break;
+    case 'YTD':
+      start.setMonth(0, 1);
+      break;
+    case '1Y':
+      start.setDate(end.getDate() - 365);
+      break;
+    case '3Y':
+      start.setDate(end.getDate() - 365 * 3);
+      break;
+    case '5Y':
+      start.setDate(end.getDate() - 365 * 5);
+      break;
+    case '10Y':
+      start.setDate(end.getDate() - 365 * 10);
+      break;
+    default:
+      start.setDate(end.getDate() - 184);
+  }
+  return { start: isoDate(start), end: isoDate(end) };
+}
+
+function buildMarketRailInputSql(series) {
+  const rows = (series || [])
+    .map((s) => {
+      const key = String(s?.key || '').replace(/'/g, "\\'");
+      const ticker = String(s?.ticker || '')
+        .toUpperCase()
+        .trim()
+        .replace(/'/g, "\\'");
+      if (!key || !ticker) return null;
+      return `SELECT '${key}' AS series_key, '${ticker}' AS ticker`;
+    })
+    .filter(Boolean);
+  if (!rows.length) return 'SELECT NULL AS series_key, NULL AS ticker WHERE FALSE';
+  return rows.join('\nUNION ALL\n');
+}
+
+/**
+ * Batch first/last close snapshot for market left rail (Last, Δ, %).
+ * @param {{ key: string, ticker: string }[]} series
+ * @param {string} timeframe
+ */
+async function calculateMarketRailSnapshot(series, timeframe) {
+  const cleaned = (series || [])
+    .map((s) => ({
+      key: String(s?.key || '').trim(),
+      ticker: String(s?.ticker || '')
+        .toUpperCase()
+        .trim()
+    }))
+    .filter((s) => s.key && s.ticker);
+  if (!cleaned.length) {
+    return { success: true, timeframe: timeframe || '6M', asOfDate: null, byKey: {} };
+  }
+
+  const endDate = await getMaxDate();
+  const { start, end } = resolveMarketRailDateRange(timeframe, endDate);
+  const inputSql = buildMarketRailInputSql(cleaned);
+  const query = `
+    WITH input AS (
+      ${inputSql}
+    ),
+    prices AS (
+      SELECT
+        i.series_key,
+        i.ticker,
+        DATE(t.Date) AS d,
+        CAST(t.Close AS FLOAT64) AS c
+      FROM input i
+      INNER JOIN \`${TABLE_FQN}\` t
+        ON UPPER(TRIM(CAST(t.Ticker AS STRING))) = i.ticker
+      WHERE DATE(t.Date) BETWEEN DATE(@start) AND DATE(@end)
+        AND t.Close IS NOT NULL
+    ),
+    spans AS (
+      SELECT
+        series_key,
+        ticker,
+        ARRAY_AGG(STRUCT(d, c) ORDER BY d ASC LIMIT 1)[SAFE_OFFSET(0)] AS first_row,
+        ARRAY_AGG(STRUCT(d, c) ORDER BY d DESC LIMIT 1)[SAFE_OFFSET(0)] AS last_row
+      FROM prices
+      GROUP BY series_key, ticker
+    )
+    SELECT
+      series_key,
+      ticker,
+      last_row.c AS close_price,
+      first_row.c AS start_price
+    FROM spans
+  `;
+  const [rows] = await bigquery.query({
+    query,
+    params: { start, end }
+  });
+
+  const byKey = {};
+  for (const { key } of cleaned) {
+    byKey[key] = null;
+  }
+  for (const r of rows || []) {
+    const key = String(r.series_key || '').trim();
+    if (!key) continue;
+    const last = r.close_price != null ? Number(r.close_price) : null;
+    const first = r.start_price != null ? Number(r.start_price) : null;
+    if (last == null || !Number.isFinite(last)) {
+      byKey[key] = null;
+      continue;
+    }
+    const chg = Number.isFinite(first) ? last - first : 0;
+    const chgPct =
+      Number.isFinite(first) && first !== 0 ? ((last / first) - 1) * 100 : 0;
+    byKey[key] = { close: last, chg, chgPct };
+  }
+
+  return {
+    success: true,
+    timeframe: String(timeframe || '6M'),
+    startDate: start,
+    endDate: end,
+    asOfDate: isoDate(endDate),
+    byKey
+  };
+}
+
 async function readIndexReturnsSnapshot(indexValue) {
   const indexKey = normalizeIndexReturnsSnapshotKey(indexValue);
   if (!indexKey) return null;
@@ -2523,6 +2669,8 @@ module.exports = {
   buildMarketSnapshots,
   readTickerDetailsSnapshot,
   readIndexMarketMoversSnapshot,
-  readIndexReturnsSnapshot
+  readIndexReturnsSnapshot,
+  calculateMarketRailSnapshot,
+  resolveMarketRailDateRange
 };
 

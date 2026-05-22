@@ -8,18 +8,12 @@ import { apiUrl } from '../utils/apiOrigin.js';
 import { NormalizedPerformanceCard } from './NormalizedPerformanceCard.jsx';
 import { SectorTreemap } from './SectorTreemap.jsx';
 import TradingChartLoader from './TradingChartLoader.jsx';
-import { DEFAULT_SELECTED_KEYS, META_BY_KEY, MARKET_SERIES } from './marketSeriesRegistry.js';
+import { DEFAULT_SELECTED_KEYS, MARKET_SERIES, META_BY_KEY } from './marketSeriesRegistry.js';
 import { useRightRailDock } from '../context/WatchlistDockContext.jsx';
 import { CHART_INFO_TIPS } from './chartInfoTips.js';
-import {
-  calcRangeSnapshot,
-  fmtAbsSigned,
-  fmtPct,
-  fmtPctSigned,
-  fmtPrice,
-  tfRange
-} from '../utils/marketCalculations.js';
+import { fmtAbsSigned, fmtPct, fmtPctSigned, fmtPrice } from '../utils/marketCalculations.js';
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
+import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
 
 const LEFT_GROUPS = [
   { id: 'us', title: 'Key US Indices ' },
@@ -119,12 +113,23 @@ function MktMiniCardName({ label }) {
   );
 }
 
+const RAIL_SNAPSHOT_SERIES = MARKET_SERIES.map((s) => ({ key: s.key, ticker: s.ticker }));
+const RAIL_SNAPSHOT_STORAGE_PREFIX = 'mkt-rail-snapshot:v1:';
+
+function rowsByGroupFromByKey(byKey) {
+  const out = {};
+  for (const g of LEFT_GROUPS) {
+    const seriesRows = groupRows(g.id);
+    out[g.id] = Object.fromEntries(seriesRows.map((r) => [r.key, byKey?.[r.key] ?? null]));
+  }
+  return out;
+}
+
 function LeftSnapshotStack({
   selectedKeys,
   onToggleSeries,
   onSelectGroupAll,
   onClearGroup,
-  loadOhlcRows,
   timeframe,
   refreshMs
 }) {
@@ -132,22 +137,46 @@ function LeftSnapshotStack({
 
   useEffect(() => {
     let cancel = false;
+    const tf = timeframe || '6M';
+    const storageKey = RAIL_SNAPSHOT_STORAGE_PREFIX + tf;
+
     async function load() {
-      if (!canFetchProtectedApi() || typeof loadOhlcRows !== 'function') return;
-      const { start, end } = tfRange(timeframe || '6M');
-      const out = {};
-      for (const g of LEFT_GROUPS) {
-        const seriesRows = groupRows(g.id);
-        const vals = await Promise.allSettled(
-          seriesRows.map((r) =>
-            loadOhlcRows(r.ticker, start, end).then((data) => calcRangeSnapshot(data))
-          )
-        );
-        out[g.id] = Object.fromEntries(
-          seriesRows.map((r, i) => [r.key, vals[i].status === 'fulfilled' ? vals[i].value : null])
-        );
+      if (!canFetchProtectedApi()) return;
+
+      try {
+        const stale = sessionStorage.getItem(storageKey);
+        if (stale) {
+          const parsed = JSON.parse(stale);
+          if (parsed?.byKey && !cancel) setRowsByGroup(rowsByGroupFromByKey(parsed.byKey));
+        }
+      } catch {
+        /* ignore */
       }
-      if (!cancel) setRowsByGroup(out);
+
+      try {
+        const { data: payload } = await fetchJsonCached({
+          path: '/api/market/market-rail-snapshot',
+          method: 'POST',
+          body: { timeframe: tf, series: RAIL_SNAPSHOT_SERIES },
+          auth: true,
+          ttlMs: refreshMs > 0 ? Math.max(refreshMs, 30_000) : 2 * 60 * 1000
+        });
+        if (cancel) return;
+        if (!payload?.success) {
+          throw new Error(payload?.error || 'Failed loading market snapshot');
+        }
+        const byKey = payload.byKey || {};
+        setRowsByGroup(rowsByGroupFromByKey(byKey));
+        try {
+          sessionStorage.setItem(storageKey, JSON.stringify({ byKey, ts: Date.now() }));
+        } catch {
+          /* ignore */
+        }
+      } catch (e) {
+        if (!cancel) {
+          console.error('[market-rail-snapshot]', e);
+        }
+      }
     }
     load();
     let timer = null;
@@ -156,7 +185,7 @@ function LeftSnapshotStack({
       cancel = true;
       if (timer) window.clearInterval(timer);
     };
-  }, [loadOhlcRows, timeframe, refreshMs]);
+  }, [timeframe, refreshMs]);
 
 return (
     <aside className="mkt-left">
@@ -717,6 +746,17 @@ function RightWatchlistCard({ refreshMs = 0 }) {
 
 export function MarketPageFigmaShell() {
   const { isDockOpen } = useRightRailDock();
+  const dockLayoutReadyRef = useRef(false);
+
+  useEffect(() => {
+    if (!dockLayoutReadyRef.current) {
+      dockLayoutReadyRef.current = true;
+      return;
+    }
+    const t = window.setTimeout(() => notifyChartFullscreenLayout(), 80);
+    return () => window.clearTimeout(t);
+  }, [isDockOpen]);
+
   const [selectedSeries, setSelectedSeries] = useState(() => {
     try {
       const raw = localStorage.getItem(LS_KEYS.selected);
@@ -797,7 +837,6 @@ export function MarketPageFigmaShell() {
         onToggleSeries={onToggleSeries}
         onSelectGroupAll={onSelectGroupAll}
         onClearGroup={onClearGroup}
-        loadOhlcRows={loadOhlcRows}
         timeframe={timeframe}
         refreshMs={refreshMs}
       />

@@ -7,6 +7,34 @@
   --app-ticker-list-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
+/* Date inputs app-wide: calendar icon white (dark), black (light). Invert only — not color-scheme (that already lightens the icon). */
+input[type='date']::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 1;
+}
+
+html[data-theme='dark'] input[type='date']::-webkit-calendar-picker-indicator,
+html:not([data-theme='light']) input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
+html[data-theme='light'] input[type='date']::-webkit-calendar-picker-indicator {
+  filter: none;
+}
+
+input[type='date']::-moz-calendar-picker-indicator {
+  cursor: pointer;
+}
+
+html[data-theme='dark'] input[type='date']::-moz-calendar-picker-indicator,
+html:not([data-theme='light']) input[type='date']::-moz-calendar-picker-indicator {
+  filter: invert(1);
+}
+
+html[data-theme='light'] input[type='date']::-moz-calendar-picker-indicator {
+  filter: none;
+}
+
 .index-constituents-link,
 .market-movers-page__ticker-sym,
 .market-movers-page__ticker-link,
@@ -4021,7 +4049,7 @@ backdrop-filter: blur(12px);
 
 .mkt-fig-shell {
   display: grid;
-  grid-template-columns: minmax(200px, 312px) minmax(0, 1fr) minmax(150px, 208px);
+  grid-template-columns: minmax(0, 312px) minmax(0, 1fr) minmax(0, 208px);
   gap: 12px;
   align-items: start;
   margin-bottom: 16px;
@@ -4035,12 +4063,12 @@ backdrop-filter: blur(12px);
 
 /* Nav sidebar expanded: main column is narrower — shrink side panes, let Performance chart flex. */
 .app-sidebar--expanded ~ .app-main-column .mkt-fig-shell:not(.mkt-fig-shell--watchlist-dock-open) {
-  grid-template-columns: minmax(180px, 280px) minmax(0, 1fr) minmax(140px, 200px);
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr) minmax(0, 180px);
 }
 
 /* Global watchlist dock open: hide in-shell Tickers List and give chart the third column width. */
 .mkt-fig-shell--watchlist-dock-open {
-  grid-template-columns: minmax(200px, 312px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 312px) minmax(0, 1fr);
 }
 
 .mkt-left,
@@ -4667,6 +4695,17 @@ a.mkt-mini-card__ticker--link:hover {
   grid-template-columns: minmax(260px, 1fr) minmax(300px, 1.15fr);
   gap: 12px;
   align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.mkt-center-bottom > .mkt-returns-summary,
+.mkt-center-bottom > .mkt-heat-thumb-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .mkt-heat-thumb-card__head--figma {
@@ -4914,6 +4953,13 @@ a.mkt-mini-card__ticker--link:hover {
 }
 
 /* Market page — index & sector returns (same row/grid pattern as Tickers List) */
+.mkt-returns-summary.mkt-watch-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .mkt-returns-summary.mkt-watch-card .mkt-watch-card__head.mkt-returns-summary__head {
   flex-direction: row;
   align-items: center;
@@ -5308,7 +5354,9 @@ html[data-theme='light'] .mkt-returns-summary__scroll,
   background: var(--colors-opacity-bg-opacity-3, #FFFFFF08);
   min-width: 0;
   max-width: 100%;
+  width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .np-card__status {
@@ -5323,8 +5371,11 @@ html[data-theme='light'] .mkt-returns-summary__scroll,
 
 .np-chart {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   height: 470px;
   display: block;
+  box-sizing: border-box;
 }
 
 .np-chart__bg {
@@ -5367,6 +5418,8 @@ html[data-theme='light'] .mkt-returns-summary__scroll,
 .np-chart-stack {
   position: relative;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .np-chart-axis-tags {
@@ -5855,11 +5908,30 @@ button:disabled {
   margin-top: 10px;
 }
 
+/* Tablet / small desktop: keep center chart fluid beside left rail + optional right rail. */
+@media (max-width: 1280px) and (min-width: 901px) {
+  .mkt-fig-shell {
+    grid-template-columns: minmax(0, 240px) minmax(0, 1fr) minmax(0, 168px);
+  }
+
+  .app-sidebar--expanded ~ .app-main-column .mkt-fig-shell:not(.mkt-fig-shell--watchlist-dock-open) {
+    grid-template-columns: minmax(0, 210px) minmax(0, 1fr) minmax(0, 150px);
+  }
+
+  .mkt-fig-shell--watchlist-dock-open {
+    grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 900px) {
   .mkt-fig-shell {
-    grid-template-columns: minmax(260px, 32vw) minmax(0, 1fr);
+    grid-template-columns: minmax(0, min(240px, 36vw)) minmax(0, 1fr);
     min-height: 0;
     overflow: visible;
+  }
+
+  .app-sidebar--expanded ~ .app-main-column .mkt-fig-shell:not(.mkt-fig-shell--watchlist-dock-open) {
+    grid-template-columns: minmax(0, min(220px, 34vw)) minmax(0, 1fr);
   }
 
   .mkt-right {
@@ -5921,6 +5993,38 @@ button:disabled {
 
   .mkt-center-bottom {
     grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .mkt-center {
+    grid-column: 1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .mkt-left {
+    grid-column: 1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .mkt-returns-summary__scroll {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .mkt-returns-summary__table {
+    width: 100%;
+    min-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .mkt-returns-summary .mkt-watch-card__row.mkt-returns-summary__row {
+    width: 100%;
+    box-sizing: border-box;
+    grid-template-columns: minmax(0, 1.3fr) repeat(var(--mkt-summary-tf-count, 6), minmax(0, 1fr));
+    gap: 4px 6px;
+    padding: 9px 8px;
   }
 
   .mkt-options {
@@ -5945,12 +6049,34 @@ button:disabled {
   }
 }
 
+@media (max-width: 768px) {
+  .mkt-fig-shell {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .mkt-left,
+  .mkt-center,
+  .mkt-right {
+    grid-column: 1;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+}
+
 @media (max-width: 560px) {
   .mkt-fig-shell {
     grid-template-columns: 1fr;
     gap: 10px;
     min-height: 0;
     overflow: visible;
+  }
+
+  .mkt-returns-summary .mkt-watch-card__row.mkt-returns-summary__row {
+    grid-template-columns: minmax(0, 1.15fr) repeat(var(--mkt-summary-tf-count, 6), minmax(0, 1fr));
+    gap: 3px 5px;
+    padding: 8px 6px;
   }
 
   .mkt-mini-card__head,
@@ -9994,19 +10120,6 @@ a.ticker-page__metric-label--link:hover {
   min-height: 36px;
 }
 
-.ticker-page__date-inp::-webkit-calendar-picker-indicator,
-.ticker-custom-range-popup__date::-webkit-calendar-picker-indicator {
-  cursor: pointer;
-  opacity: 1;
-  filter: invert(1);
-}
-
-.ticker-page__date-inp::-moz-calendar-picker-indicator,
-.ticker-custom-range-popup__date::-moz-calendar-picker-indicator {
-  cursor: pointer;
-  filter: invert(1);
-}
-
 .ticker-custom-range-popup__btn,
 .ticker-custom-range-popup .wl-manage-modal__close {
   border-radius: 12px;
@@ -13744,16 +13857,6 @@ h3.returns-chart-title-heading {
   border-color: #cfd8e6;
   background: #ffffff;
   color: #1e293b;
-}
-
-[data-theme="light"] .ticker-page__date-inp::-webkit-calendar-picker-indicator,
-[data-theme="light"] .ticker-custom-range-popup__date::-webkit-calendar-picker-indicator {
-  filter: none;
-}
-
-[data-theme="light"] .ticker-page__date-inp::-moz-calendar-picker-indicator,
-[data-theme="light"] .ticker-custom-range-popup__date::-moz-calendar-picker-indicator {
-  filter: none;
 }
 
 [data-theme="light"] .ticker-custom-range-popup {
@@ -18503,17 +18606,6 @@ html[data-theme='light'] .about-legal-item {
 }
 
 
-.historical-data__date-input::-webkit-calendar-picker-indicator {
-  cursor: pointer;
-  opacity: 1;
-  filter: invert(1);
-}
-
-.historical-data__date-input::-moz-calendar-picker-indicator {
-  cursor: pointer;
-  filter: invert(1);
-}
-
 .historical-data__select {
   cursor: pointer;
   appearance: auto;
@@ -18724,15 +18816,6 @@ html[data-theme='light'] .about-legal-item {
 
 [data-theme='light'] .historical-data__date-input {
   color-scheme: light;
-}
-
-[data-theme='light'] .historical-data__date-input::-webkit-calendar-picker-indicator {
-  filter: none;
-  opacity: 0.92;
-}
-
-[data-theme='light'] .historical-data__date-input::-moz-calendar-picker-indicator {
-  filter: none;
 }
 
 [data-theme='light'] .historical-data__select-dd .app-dropdown__btn {
@@ -21348,5 +21431,42 @@ svg.ticker-quarterly__svg,
 [data-theme='light'] .heatmap-main:fullscreen,
 [data-theme='light'] .heatmap-main:-webkit-full-screen {
   background: #f8fafc;
+}
+
+/* Statistic returns toolbars (Tailwind date fields) — late cascade vs generated utilities */
+html[data-theme='dark'] input[type='date'].app-date-input::-webkit-calendar-picker-indicator,
+html[data-theme='dark'] .statistic-data__range input[type='date']::-webkit-calendar-picker-indicator,
+html[data-theme='dark'] .returns-chart-toolbar input[type='date']::-webkit-calendar-picker-indicator,
+html:not([data-theme='light']) input[type='date'].app-date-input::-webkit-calendar-picker-indicator,
+html:not([data-theme='light']) .statistic-data__range input[type='date']::-webkit-calendar-picker-indicator,
+html:not([data-theme='light']) .returns-chart-toolbar input[type='date']::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 1;
+  filter: invert(1) !important;
+}
+
+html[data-theme='light'] input[type='date'].app-date-input::-webkit-calendar-picker-indicator,
+html[data-theme='light'] .statistic-data__range input[type='date']::-webkit-calendar-picker-indicator,
+html[data-theme='light'] .returns-chart-toolbar input[type='date']::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 1;
+  filter: none !important;
+}
+
+html[data-theme='dark'] input[type='date'].app-date-input::-moz-calendar-picker-indicator,
+html[data-theme='dark'] .statistic-data__range input[type='date']::-moz-calendar-picker-indicator,
+html[data-theme='dark'] .returns-chart-toolbar input[type='date']::-moz-calendar-picker-indicator,
+html:not([data-theme='light']) input[type='date'].app-date-input::-moz-calendar-picker-indicator,
+html:not([data-theme='light']) .statistic-data__range input[type='date']::-moz-calendar-picker-indicator,
+html:not([data-theme='light']) .returns-chart-toolbar input[type='date']::-moz-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(1) !important;
+}
+
+html[data-theme='light'] input[type='date'].app-date-input::-moz-calendar-picker-indicator,
+html[data-theme='light'] .statistic-data__range input[type='date']::-moz-calendar-picker-indicator,
+html[data-theme='light'] .returns-chart-toolbar input[type='date']::-moz-calendar-picker-indicator {
+  cursor: pointer;
+  filter: none !important;
 }
 

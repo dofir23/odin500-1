@@ -22,6 +22,16 @@ import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme
 import { alignComparisonRows, filterRowsByDateRange, filterRowsByYearRange, normalizePeriodReturnsRows } from '../utils/statisticsComparisonSeries.js';
 import { formatRelativePerfPct } from '../utils/marketCalculations.js';
 import { fmtPctSigned, fmtPrice, fmtVolumeCompact } from '../utils/formatDisplayNumber.js';
+import {
+  applyDateEndChange,
+  applyDateStartChange,
+  applyYearEndChange,
+  applyYearStartChange,
+  coerceDateRange,
+  dateInputBounds,
+  yearOptionsForEnd,
+  yearOptionsForStart
+} from '../utils/dateRangeConstraints.js';
 
 const RESIZE_KEY_M_FIGMA = 'odin_ticker_monthly_resize_figma';
 const RESIZE_KEY_M_POSNEG = 'odin_ticker_monthly_resize_posneg';
@@ -93,21 +103,20 @@ function defaultDailyFetchRange(endIso) {
 
 function normalizeDailyPair(prev, field, rawValue) {
   const v = String(rawValue ?? '').slice(0, 10);
-  let start = field === 'start' ? v : String(prev.start ?? '').slice(0, 10);
-  let end = field === 'end' ? v : String(prev.end ?? '').slice(0, 10);
-  if (start && end && start > end) {
-    const t = start;
-    start = end;
-    end = t;
-  }
-  return { start, end };
+  const start = field === 'start' ? v : String(prev.start ?? '').slice(0, 10);
+  const end = field === 'end' ? v : String(prev.end ?? '').slice(0, 10);
+  return coerceDateRange(start, end);
 }
 
 const DAILY_CHART_DATE_INPUT_CLASS =
-  'h-7 w-[100px] shrink-0 rounded-md border border-slate-400/45  px-1 py-0 text-[11px] leading-7 text-slate-900 shadow-sm outline-none focus:border-sky-500/80 dark:border-white/12  dark:text-slate-100 dark:focus:border-sky-400/60';
+  'app-date-input h-7 w-[100px] shrink-0 rounded-md border border-slate-400/45 bg-white px-1 py-0 text-[11px] leading-7 text-slate-900 shadow-sm outline-none focus:border-sky-500/80 dark:border-white/12 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-sky-400/60';
 
 /** Compact start/end dates for daily charts (same row as toolbar buttons; applies on change). */
 function DailyChartDateRangeToolbar({ draft, loadedRange, onChangeStart, onChangeEnd }) {
+  const bounds = dateInputBounds(draft.start, draft.end, {
+    globalMin: loadedRange.min || undefined,
+    globalMax: loadedRange.max || undefined
+  });
   return (
     <div className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1 self-center mr-2" aria-label="Daily returns date range">
       <label className="inline-flex items-center gap-1.5">
@@ -118,7 +127,8 @@ function DailyChartDateRangeToolbar({ draft, loadedRange, onChangeStart, onChang
           type="date"
           className={DAILY_CHART_DATE_INPUT_CLASS}
           value={draft.start}
-          max={draft.end || loadedRange.max || undefined}
+          min={bounds.startMin}
+          max={bounds.startMax}
           onChange={onChangeStart}
         />
       </label>
@@ -130,8 +140,8 @@ function DailyChartDateRangeToolbar({ draft, loadedRange, onChangeStart, onChang
           type="date"
           className={DAILY_CHART_DATE_INPUT_CLASS}
           value={draft.end}
-          min={draft.start || loadedRange.min || undefined}
-          max={loadedRange.max || undefined}
+          min={bounds.endMin}
+          max={bounds.endMax}
           onChange={onChangeEnd}
         />
       </label>
@@ -655,6 +665,26 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
         .map((y) => ({ id: String(y), label: String(y) })),
     [weekYearOptions]
   );
+  const monthStartYearDropdownOptions = useMemo(
+    () => yearOptionsForStart(monthYearDropdownOptions, chartEndYear),
+    [monthYearDropdownOptions, chartEndYear]
+  );
+  const monthEndYearDropdownOptions = useMemo(
+    () => yearOptionsForEnd(monthYearDropdownOptions, chartStartYear),
+    [monthYearDropdownOptions, chartStartYear]
+  );
+  const weekStartYearDropdownOptions = useMemo(
+    () => yearOptionsForStart(weekYearDropdownOptions, weeklyEndYear),
+    [weekYearDropdownOptions, weeklyEndYear]
+  );
+  const weekEndYearDropdownOptions = useMemo(
+    () => yearOptionsForEnd(weekYearDropdownOptions, weeklyStartYear),
+    [weekYearDropdownOptions, weeklyStartYear]
+  );
+  const dailyTableDateBounds = dateInputBounds(dailyFilterDraft.start, dailyFilterDraft.end, {
+    globalMin: dailyLoadedRange.min || undefined,
+    globalMax: dailyLoadedRange.max || undefined
+  });
 
   /** Avoid resetting user-defined weekly start/end when only raw rows refresh; reset when span or symbol changes. */
   const weekYearSpanKey = useMemo(() => {
@@ -760,8 +790,12 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
         size="sm"
         style={{ minWidth: 96 }}
         value={chartStartYear}
-        options={monthYearDropdownOptions}
-        onChange={setChartStartYear}
+        options={monthStartYearDropdownOptions}
+        onChange={(v) => {
+          const next = applyYearStartChange(chartStartYear, chartEndYear, v);
+          setChartStartYear(next.start);
+          setChartEndYear(next.end);
+        }}
         title="Start year"
         ariaLabelPrefix="Start year"
         labelFallback={chartStartYear}
@@ -771,8 +805,12 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
         size="sm"
         style={{ minWidth: 96 }}
         value={chartEndYear}
-        options={monthYearDropdownOptions}
-        onChange={setChartEndYear}
+        options={monthEndYearDropdownOptions}
+        onChange={(v) => {
+          const next = applyYearEndChange(chartStartYear, chartEndYear, v);
+          setChartStartYear(next.start);
+          setChartEndYear(next.end);
+        }}
         title="End year"
         ariaLabelPrefix="End year"
         labelFallback={chartEndYear}
@@ -786,8 +824,12 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
         size="sm"
         style={{ minWidth: 96 }}
         value={weeklyStartYear}
-        options={weekYearDropdownOptions}
-        onChange={setWeeklyStartYear}
+        options={weekStartYearDropdownOptions}
+        onChange={(v) => {
+          const next = applyYearStartChange(weeklyStartYear, weeklyEndYear, v);
+          setWeeklyStartYear(next.start);
+          setWeeklyEndYear(next.end);
+        }}
         title="Weekly start year"
         ariaLabelPrefix="Start year"
         labelFallback={weeklyStartYear}
@@ -797,8 +839,12 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
         size="sm"
         style={{ minWidth: 96 }}
         value={weeklyEndYear}
-        options={weekYearDropdownOptions}
-        onChange={setWeeklyEndYear}
+        options={weekEndYearDropdownOptions}
+        onChange={(v) => {
+          const next = applyYearEndChange(weeklyStartYear, weeklyEndYear, v);
+          setWeeklyStartYear(next.start);
+          setWeeklyEndYear(next.end);
+        }}
         title="Weekly end year"
         ariaLabelPrefix="End year"
         labelFallback={weeklyEndYear}
@@ -977,7 +1023,8 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
               type="date"
               className={DAILY_CHART_DATE_INPUT_CLASS}
               value={dailyFilterDraft.start}
-              max={dailyFilterDraft.end || dailyLoadedRange.max || undefined}
+              min={dailyTableDateBounds.startMin}
+              max={dailyTableDateBounds.startMax}
               onChange={(e) => onDailyToolbarDateChange('start', e.target.value)}
             />
           </label>
@@ -987,8 +1034,8 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
               type="date"
               className={DAILY_CHART_DATE_INPUT_CLASS}
               value={dailyFilterDraft.end}
-              min={dailyFilterDraft.start || dailyLoadedRange.min || undefined}
-              max={dailyLoadedRange.max || undefined}
+              min={dailyTableDateBounds.endMin}
+              max={dailyTableDateBounds.endMax}
               onChange={(e) => onDailyToolbarDateChange('end', e.target.value)}
             />
           </label>
@@ -1001,8 +1048,12 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
               size="sm"
               style={{ minWidth: 86 }}
               value={weeklyStartYear}
-              options={weekYearDropdownOptions}
-              onChange={setWeeklyStartYear}
+              options={weekStartYearDropdownOptions}
+              onChange={(v) => {
+                const next = applyYearStartChange(weeklyStartYear, weeklyEndYear, v);
+                setWeeklyStartYear(next.start);
+                setWeeklyEndYear(next.end);
+              }}
               title="Table start year"
               ariaLabelPrefix="Start"
               labelFallback={weeklyStartYear}
@@ -1014,8 +1065,12 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
               size="sm"
               style={{ minWidth: 86 }}
               value={weeklyEndYear}
-              options={weekYearDropdownOptions}
-              onChange={setWeeklyEndYear}
+              options={weekEndYearDropdownOptions}
+              onChange={(v) => {
+                const next = applyYearEndChange(weeklyStartYear, weeklyEndYear, v);
+                setWeeklyStartYear(next.start);
+                setWeeklyEndYear(next.end);
+              }}
               title="Table end year"
               ariaLabelPrefix="End"
               labelFallback={weeklyEndYear}
@@ -1042,10 +1097,12 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
       isWeekly,
       dailyFilterDraft,
       dailyLoadedRange,
+      dailyTableDateBounds,
       onDailyToolbarDateChange,
       weeklyStartYear,
       weeklyEndYear,
-      weekYearDropdownOptions,
+      weekStartYearDropdownOptions,
+      weekEndYearDropdownOptions,
       tableRange
     ]
   );

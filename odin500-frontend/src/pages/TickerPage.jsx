@@ -33,6 +33,7 @@ import { ReturnsChartPieIcon } from '../components/returnsChartToolbarIcons.jsx'
 import { ReturnsChartToolbar, ReturnsChartToolbarIconButton } from '../components/ReturnsChartToolbar.jsx';
 import { ReturnsChartIcoDownload } from '../components/returnsChartToolbarIcons.jsx';
 import { ChartFullscreenToggleIcon } from '../components/ChartFullscreenToggleIcon.jsx';
+import { coerceDateRange, dateInputBounds } from '../utils/dateRangeConstraints.js';
 import { ChartSnapshotExportModal } from '../components/ChartSnapshotExportModal.jsx';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { useIsLoggedIn } from '../hooks/useIsLoggedIn.js';
@@ -296,14 +297,11 @@ function normalizeCustomChartRange(startStr, endStr, asOfIso) {
   let sd = new Date(ns + 'T12:00:00');
   let ed = new Date(ne + 'T12:00:00');
   if (Number.isNaN(sd.getTime()) || Number.isNaN(ed.getTime())) return null;
-  if (sd > ed) {
-    const t = sd;
-    sd = ed;
-    ed = t;
-  }
+  const coerced = coerceDateRange(ns, ne);
+  sd = new Date(coerced.start + 'T12:00:00');
+  ed = new Date(coerced.end + 'T12:00:00');
   const cap = new Date(String(asOfIso || '').slice(0, 10) + 'T12:00:00');
   if (!Number.isNaN(cap.getTime()) && ed > cap) ed = cap;
-  if (sd > ed) sd = new Date(ed);
   const capped = clampStartToMaxDays(sd, ed, MAX_SIGNAL_RANGE_DAYS);
   return { start: toIso(capped), end: toIso(ed) };
 }
@@ -659,6 +657,10 @@ export default function TickerPage() {
   const [appliedCustomRange, setAppliedCustomRange] = useState(null);
   const [draftChartStart, setDraftChartStart] = useState('');
   const [draftChartEnd, setDraftChartEnd] = useState('');
+  const customRangeBounds = useMemo(
+    () => dateInputBounds(draftChartStart, draftChartEnd, { globalMax: asOfDate }),
+    [draftChartStart, draftChartEnd, asOfDate]
+  );
   const [isCustomRangePopupOpen, setIsCustomRangePopupOpen] = useState(false);
   const [mainChartType, setMainChartType] = useState('area');
   const [ohlcTickerBounds, setOhlcTickerBounds] = useState(/** @type {{ min: string, max: string } | null} */ (null));
@@ -1902,7 +1904,8 @@ export default function TickerPage() {
                           className="ticker-page__date-inp ticker-custom-range-popup__date"
                           value={draftChartStart}
                           onChange={(e) => onCustomRangeDateChange(e.target.value, draftChartEnd)}
-                          max={draftChartEnd || asOfDate}
+                          min={customRangeBounds.startMin}
+                          max={customRangeBounds.startMax}
                         />
                       </div>
                       <div className="ticker-custom-range-popup__field-row">
@@ -1912,8 +1915,8 @@ export default function TickerPage() {
                           className="ticker-page__date-inp ticker-custom-range-popup__date"
                           value={draftChartEnd}
                           onChange={(e) => onCustomRangeDateChange(draftChartStart, e.target.value)}
-                          min={draftChartStart}
-                          max={asOfDate}
+                          min={customRangeBounds.endMin}
+                          max={customRangeBounds.endMax}
                         />
                       </div>
                     </div>

@@ -9,6 +9,13 @@ import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
+import {
+  applyDateEndChange,
+  applyDateStartChange,
+  coerceDateRange,
+  dateInputBounds,
+  maxStartDateBeforeEnd
+} from '../utils/dateRangeConstraints.js';
 
 const PAGE_SIZE = 50;
 const TABLE_SKELETON_ROWS = 24;
@@ -52,7 +59,9 @@ function clampDailyStartDate(startIso, endIso) {
   const minStart = isoAddCalendarYears(endIso, -DAILY_MAX_HISTORY_YEARS);
   let s = startIso || minStart;
   if (s < minStart) s = minStart;
-  if (s > endIso) s = endIso;
+  const coerced = coerceDateRange(s, endIso);
+  s = coerced.start;
+  if (s > maxStartDateBeforeEnd(endIso)) s = maxStartDateBeforeEnd(endIso);
   return s;
 }
 
@@ -380,6 +389,9 @@ export default function HistoricalDataPage() {
 
   const displayTicker = sanitizeTickerPageInput(ticker) || DEFAULT_TICKER;
   const dailyMinStart = frequency === 'daily' ? isoAddCalendarYears(endDate, -DAILY_MAX_HISTORY_YEARS) : '';
+  const histDateBounds = dateInputBounds(startDate, endDate, {
+    globalMin: frequency === 'daily' ? dailyMinStart : undefined
+  });
 
   useEffect(() => {
     if (frequency !== 'daily') return;
@@ -578,9 +590,15 @@ export default function HistoricalDataPage() {
               type="date"
               className="historical-data__date-input"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              min={frequency === 'daily' ? dailyMinStart : undefined}
-              max={endDate}
+              onChange={(e) => {
+                const next = applyDateStartChange(startDate, endDate, e.target.value);
+                setStartDate(
+                  frequency === 'daily' ? clampDailyStartDate(next.start, next.end) : next.start
+                );
+                setEndDate(next.end);
+              }}
+              min={histDateBounds.startMin}
+              max={histDateBounds.startMax}
             />
           </div>
           <div className="historical-data__dates">
@@ -590,8 +608,15 @@ export default function HistoricalDataPage() {
               type="date"
               className="historical-data__date-input"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              min={startDate}
+              onChange={(e) => {
+                const next = applyDateEndChange(startDate, endDate, e.target.value);
+                setStartDate(
+                  frequency === 'daily' ? clampDailyStartDate(next.start, next.end) : next.start
+                );
+                setEndDate(next.end);
+              }}
+              min={histDateBounds.endMin}
+              max={histDateBounds.endMax}
             />
           </div>
           <div className="historical-data__actions">

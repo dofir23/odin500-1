@@ -13,6 +13,7 @@ import {fetchJsonCached, getAuthToken, canFetchProtectedApi} from '../store/apiS
 import { rowDateToTimeKey } from '../utils/chartData.js';
 import { pickRelatedByCategory, RELATED_INDEX_LINKS } from '../utils/relatedTickers.js';
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
+import { coerceYearRange, yearOptionsForEnd, yearOptionsForStart } from '../utils/dateRangeConstraints.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { alignComparisonRows, filterRowsByYearRange, normalizePeriodReturnsRows } from '../utils/statisticsComparisonSeries.js';
@@ -337,13 +338,9 @@ export default function TickerAnnualPage() {
   const applyYearRange = useCallback((startYearRaw, endYearRaw) => {
     const startYear = String(startYearRaw || '').slice(0, 4) || String(RETURNS_DEFAULT_START).slice(0, 4);
     const endYear = String(endYearRaw || '').slice(0, 4) || String(RETURNS_DEFAULT_END).slice(0, 4);
-    let start = `${startYear}-01-01`;
-    let end = `${endYear}-12-31`;
-    if (start > end) {
-      const t = start;
-      start = end;
-      end = t;
-    }
+    const y = coerceYearRange(startYear, endYear);
+    const start = `${y.start}-01-01`;
+    const end = `${y.end}-12-31`;
     setDraftStartDate(start);
     setDraftEndDate(end);
     setAppliedRange({ start, end });
@@ -583,6 +580,16 @@ export default function TickerAnnualPage() {
     }
     return years.map((y) => String(y)).map((y) => ({ id: y, label: y }));
   }, [annualReturnsRaw]);
+  const annualStartYear = String(draftStartDate || '').slice(0, 4);
+  const annualEndYear = String(draftEndDate || '').slice(0, 4);
+  const annualStartYearDropdownOptions = useMemo(
+    () => yearOptionsForStart(annualYearDropdownOptions, annualEndYear),
+    [annualYearDropdownOptions, annualEndYear]
+  );
+  const annualEndYearDropdownOptions = useMemo(
+    () => yearOptionsForEnd(annualYearDropdownOptions, annualStartYear),
+    [annualYearDropdownOptions, annualStartYear]
+  );
   const annualChartRangeControls = (
     <div className="ticker-page__custom-range" aria-label="Annual chart year range" style={{ marginLeft: 'auto' }}>
       <span className="ticker-page__label ticker-page__label--inline">Start</span>
@@ -590,24 +597,24 @@ export default function TickerAnnualPage() {
         className="ticker-annual__year-dd"
         size="sm"
         style={{ minWidth: 96 }}
-        value={String(draftStartDate || '').slice(0, 4)}
-        options={annualYearDropdownOptions}
-        onChange={(year) => applyYearRange(year, String(draftEndDate || '').slice(0, 4))}
+        value={annualStartYear}
+        options={annualStartYearDropdownOptions}
+        onChange={(year) => applyYearRange(year, annualEndYear)}
         title="Start year"
         ariaLabelPrefix="Start year"
-        labelFallback={String(draftStartDate || '').slice(0, 4)}
+        labelFallback={annualStartYear}
       />
       <span className="ticker-page__label ticker-page__label--inline">End</span>
       <ThemedDropdown
         className="ticker-annual__year-dd"
         size="sm"
         style={{ minWidth: 96 }}
-        value={String(draftEndDate || '').slice(0, 4)}
-        options={annualYearDropdownOptions}
-        onChange={(year) => applyYearRange(String(draftStartDate || '').slice(0, 4), year)}
+        value={annualEndYear}
+        options={annualEndYearDropdownOptions}
+        onChange={(year) => applyYearRange(annualStartYear, year)}
         title="End year"
         ariaLabelPrefix="End year"
-        labelFallback={String(draftEndDate || '').slice(0, 4)}
+        labelFallback={annualEndYear}
       />
     </div>
   );

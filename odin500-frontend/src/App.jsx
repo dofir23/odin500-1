@@ -13,11 +13,7 @@ import {
   extractOdinMarkersByTicker
 } from './utils/chartData.js';
 import { usePageSeo } from './seo/usePageSeo.js';
-
-function clampRange(start, end, setEnd) {
-  if (!start || !end) return;
-  if (start > end) setEnd(start);
-}
+import { applyDateEndChange, applyDateStartChange } from './utils/dateRangeConstraints.js';
 
 export default function App() {
   usePageSeo({
@@ -228,14 +224,16 @@ export default function App() {
   }, [isLoggedIn]);
 
   const onStartDateChange = (v) => {
-    setStartDate(v);
-    clampRange(v, endDate, setEndDate);
+    const next = applyDateStartChange(startDate, endDate, v);
+    setStartDate(next.start);
+    setEndDate(next.end);
     invalidateCachedOdinPayload();
   };
 
   const onEndDateChange = (v) => {
-    setEndDate(v);
-    if (startDate && v && startDate > v) setEndDate(startDate);
+    const next = applyDateEndChange(startDate, endDate, v);
+    setStartDate(next.start);
+    setEndDate(next.end);
     invalidateCachedOdinPayload();
   };
 

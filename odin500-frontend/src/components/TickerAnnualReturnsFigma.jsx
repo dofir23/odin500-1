@@ -20,6 +20,12 @@ import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js'
 import { ReturnsChartPieIcon } from './returnsChartToolbarIcons.jsx';
 import { chartAxisLabelColors } from '../utils/chartAxisLabelColors.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
+import {
+  applyYearEndChange,
+  applyYearStartChange,
+  yearOptionsForEnd,
+  yearOptionsForStart
+} from '../utils/dateRangeConstraints.js';
 
 /** Match `TickerLightweightChart` / dark ticker cards. */
 const COL_BAR = '#2563eb';
@@ -441,6 +447,14 @@ export function TickerAnnualReturnsFigma({
         .map((y) => ({ id: String(y), label: String(y) })),
     [yearOptions]
   );
+  const startYearDropdownOptions = useMemo(
+    () => yearOptionsForStart(dropdownYearOptions, chartEndYear),
+    [dropdownYearOptions, chartEndYear]
+  );
+  const endYearDropdownOptions = useMemo(
+    () => yearOptionsForEnd(dropdownYearOptions, chartStartYear),
+    [dropdownYearOptions, chartStartYear]
+  );
 
   const onDownloadCsv = useCallback(() => {
     if (!displayRows.length) return;
@@ -511,8 +525,12 @@ export function TickerAnnualReturnsFigma({
           <ThemedDropdown
             size="sm"
             value={chartStartYear}
-            options={dropdownYearOptions}
-            onChange={setChartStartYear}
+            options={startYearDropdownOptions}
+            onChange={(v) => {
+              const next = applyYearStartChange(chartStartYear, chartEndYear, v);
+              setChartStartYear(next.start);
+              setChartEndYear(next.end);
+            }}
             title="Start year"
             ariaLabelPrefix="Start year"
             labelFallback="Start"
@@ -521,8 +539,12 @@ export function TickerAnnualReturnsFigma({
           <ThemedDropdown
             size="sm"
             value={chartEndYear}
-            options={dropdownYearOptions}
-            onChange={setChartEndYear}
+            options={endYearDropdownOptions}
+            onChange={(v) => {
+              const next = applyYearEndChange(chartStartYear, chartEndYear, v);
+              setChartStartYear(next.start);
+              setChartEndYear(next.end);
+            }}
             title="End year"
             ariaLabelPrefix="End year"
             labelFallback="End"
@@ -539,7 +561,8 @@ export function TickerAnnualReturnsFigma({
     periodMode,
     chartStartYear,
     chartEndYear,
-    dropdownYearOptions,
+    startYearDropdownOptions,
+    endYearDropdownOptions,
     toolbarControls
   ]);
 

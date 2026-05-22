@@ -19,6 +19,12 @@ import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme
 import { alignComparisonRows, filterRowsByYearRange, normalizePeriodReturnsRows } from '../utils/statisticsComparisonSeries.js';
 import { formatRelativePerfPct } from '../utils/marketCalculations.js';
 import { fmtPctSigned, fmtPrice, fmtVolumeCompact } from '../utils/formatDisplayNumber.js';
+import {
+  applyYearEndChange,
+  applyYearStartChange,
+  yearOptionsForEnd,
+  yearOptionsForStart
+} from '../utils/dateRangeConstraints.js';
 
 const RESIZE_KEY_QTR_FIGMA = 'odin_ticker_quarterly_resize_figma';
 const RESIZE_KEY_QTR_POSNEG = 'odin_ticker_quarterly_resize_posneg';
@@ -579,6 +585,14 @@ export default function TickerQuarterlyPage() {
         .map((y) => ({ id: String(y), label: String(y) })),
     [quarterYearOptions]
   );
+  const quarterStartYearDropdownOptions = useMemo(
+    () => yearOptionsForStart(quarterYearDropdownOptions, chartEndYear),
+    [quarterYearDropdownOptions, chartEndYear]
+  );
+  const quarterEndYearDropdownOptions = useMemo(
+    () => yearOptionsForEnd(quarterYearDropdownOptions, chartStartYear),
+    [quarterYearDropdownOptions, chartStartYear]
+  );
 
   const chartRangeControls = (
     <div className="ticker-page__custom-range" aria-label="Quarterly chart year range">
@@ -587,8 +601,12 @@ export default function TickerQuarterlyPage() {
         size="sm"
         style={{ minWidth: 96 }}
         value={chartStartYear}
-        options={quarterYearDropdownOptions}
-        onChange={setChartStartYear}
+        options={quarterStartYearDropdownOptions}
+        onChange={(v) => {
+          const next = applyYearStartChange(chartStartYear, chartEndYear, v);
+          setChartStartYear(next.start);
+          setChartEndYear(next.end);
+        }}
         title="Start year"
         ariaLabelPrefix="Start year"
         labelFallback={chartStartYear}
@@ -598,8 +616,12 @@ export default function TickerQuarterlyPage() {
         size="sm"
         style={{ minWidth: 96 }}
         value={chartEndYear}
-        options={quarterYearDropdownOptions}
-        onChange={setChartEndYear}
+        options={quarterEndYearDropdownOptions}
+        onChange={(v) => {
+          const next = applyYearEndChange(chartStartYear, chartEndYear, v);
+          setChartStartYear(next.start);
+          setChartEndYear(next.end);
+        }}
         title="End year"
         ariaLabelPrefix="End year"
         labelFallback={chartEndYear}

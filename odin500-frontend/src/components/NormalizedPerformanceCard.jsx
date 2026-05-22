@@ -73,6 +73,14 @@ function layoutBadgeTopsPx(keys, getRawY, containerHeight, minGap = 22, pad = 10
 
 const DEFAULT_NP_TIMEFRAME = '6M';
 
+/** Width available inside the performance chart card (sidebar / tablet layout). */
+function measureNpChartWidth(el) {
+  if (!el) return 0;
+  const wrap = el.closest('.np-chart-wrap');
+  const cap = wrap?.clientWidth ?? el.clientWidth;
+  return Math.max(0, Math.floor(Math.min(el.clientWidth, cap)));
+}
+
 /**
  * html2canvas onclone: export-friendly layout + axis badge position fix.
  * html2canvas walks the cloned DOM and paints to a canvas; it often mis-measures
@@ -201,6 +209,7 @@ export function NormalizedPerformanceCard({
   const cardRef = useRef(null);
   const snapshotExportRef = useRef(null);
   const chartHostRef = useRef(null);
+  const chartWrapRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRefs = useRef(new Map());
   const [axisBadgeTops, setAxisBadgeTops] = useState({});
@@ -387,7 +396,8 @@ export function NormalizedPerformanceCard({
     const isLight = chartTheme === 'light';
     const npChartBg = getNpChartBgColor(isLight, false);
     const chart = createChart(el, {
-      width: el.clientWidth,
+      autoSize: true,
+      width: measureNpChartWidth(el),
       height: el.clientHeight || 390,
       layout: {
         background: { color: npChartBg },
@@ -425,30 +435,42 @@ export function NormalizedPerformanceCard({
     chartRef.current = chart;
     seriesRefs.current = new Map();
 
-    const ro = new ResizeObserver(() => {
+    const applyChartSize = () => {
       if (!chartRef.current || !chartHostRef.current) return;
+      const host = chartHostRef.current;
+      const h = host.clientHeight || 390;
       chartRef.current.applyOptions({
-        width: chartHostRef.current.clientWidth,
-        height: chartHostRef.current.clientHeight || 390
+        autoSize: true,
+        width: measureNpChartWidth(host),
+        height: h
       });
-    });
+      updateAxisBadgePositions();
+    };
+
+    const ro = new ResizeObserver(() => applyChartSize());
     ro.observe(el);
+    const wrap = chartWrapRef.current;
+    if (wrap) ro.observe(wrap);
+    const center = el.closest('.mkt-center');
+    if (center) ro.observe(center);
+
+    const onLayout = () => applyChartSize();
+    window.addEventListener('resize', onLayout);
+    window.addEventListener('odin-chart-layout', onLayout);
 
     requestAnimationFrame(() => {
-      if (!chartRef.current || !chartHostRef.current) return;
-      chartRef.current.applyOptions({
-        width: chartHostRef.current.clientWidth,
-        height: chartHostRef.current.clientHeight || 390
-      });
+      requestAnimationFrame(applyChartSize);
     });
 
     return () => {
       ro.disconnect();
+      window.removeEventListener('resize', onLayout);
+      window.removeEventListener('odin-chart-layout', onLayout);
       chart.remove();
       chartRef.current = null;
       seriesRefs.current = new Map();
     };
-  }, [chartTheme, loading]);
+  }, [chartTheme, loading, updateAxisBadgePositions]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -460,10 +482,15 @@ export function NormalizedPerformanceCard({
     });
     const applySize = () => {
       if (!chartRef.current || !chartHostRef.current) return;
-      const w = chartHostRef.current.clientWidth;
-      const h = chartHostRef.current.clientHeight;
+      const host = chartHostRef.current;
+      const w = measureNpChartWidth(host);
+      const h = host.clientHeight;
       if (w > 0 && h > 0) {
-        chartRef.current.applyOptions({ width: w, height: h });
+        chartRef.current.applyOptions({
+          autoSize: !isFullscreen,
+          width: w,
+          height: h
+        });
       }
     };
     applySize();
@@ -787,7 +814,7 @@ export function NormalizedPerformanceCard({
           </button>
         </div>
 
-        <div className="np-chart-wrap">
+        <div ref={chartWrapRef} className="np-chart-wrap">
           {error ? <div className="np-card__status np-card__status--error">{error}</div> : null}
           {loading ? (
             <div className="chart-viz-loading-wrap" style={{ minHeight: 390 }}>

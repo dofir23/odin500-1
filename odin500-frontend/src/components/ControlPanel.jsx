@@ -2,6 +2,11 @@ import { TickerSearch } from './TickerSearch.jsx';
 import { MultiSignalSelect } from './MultiSignalSelect.jsx';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
 import { computeDefaultApiOrigin } from '../utils/apiOrigin.js';
+import {
+  applyDateEndChange,
+  applyDateStartChange,
+  dateInputBounds
+} from '../utils/dateRangeConstraints.js';
 
 export function ControlPanel({
   ticker,
@@ -27,6 +32,8 @@ export function ControlPanel({
   onInvalidateOdin,
   allTickers
 }) {
+  const dateBounds = dateInputBounds(startDate, endDate);
+
   return (
     <div className="panel">
       <div className="filters">
@@ -42,8 +49,12 @@ export function ControlPanel({
             id="startDate"
             type="date"
             value={startDate}
+            min={dateBounds.startMin}
+            max={dateBounds.startMax}
             onChange={(e) => {
-              onStartDateChange(e.target.value);
+              const next = applyDateStartChange(startDate, endDate, e.target.value);
+              onStartDateChange(next.start);
+              onEndDateChange(next.end);
               onInvalidateOdin();
             }}
           />
@@ -54,8 +65,12 @@ export function ControlPanel({
             id="endDate"
             type="date"
             value={endDate}
+            min={dateBounds.endMin}
+            max={dateBounds.endMax}
             onChange={(e) => {
-              onEndDateChange(e.target.value);
+              const next = applyDateEndChange(startDate, endDate, e.target.value);
+              onStartDateChange(next.start);
+              onEndDateChange(next.end);
               onInvalidateOdin();
             }}
           />

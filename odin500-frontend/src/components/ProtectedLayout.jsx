@@ -11,6 +11,7 @@ import { WatchlistRailFlyout } from './WatchlistRailFlyout.jsx';
 import { NewsRailFlyout } from './NewsRailFlyout.jsx';
 import { MarketMoversRailFlyout } from './MarketMoversRailFlyout.jsx';
 import { useSitewideSeo } from '../seo/usePageSeo.js';
+import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
 
 function ProtectedLayoutShell() {
   useSitewideSeo();
@@ -36,6 +37,7 @@ function ProtectedLayoutShell() {
     return 'dark';
   });
   const mainScrollRef = useRef(null);
+  const sidebarLayoutReadyRef = useRef(false);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -80,6 +82,16 @@ function ProtectedLayoutShell() {
       setMobileRightOpen(false);
     }
   }, [isMobile, sidebarExpanded]);
+
+  useEffect(() => {
+    if (!sidebarLayoutReadyRef.current) {
+      sidebarLayoutReadyRef.current = true;
+      return;
+    }
+    if (isMobile) return;
+    const t = window.setTimeout(() => notifyChartFullscreenLayout(), 280);
+    return () => window.clearTimeout(t);
+  }, [sidebarExpanded, isMobile]);
 
   useEffect(() => {
     const scroller = mainScrollRef.current;

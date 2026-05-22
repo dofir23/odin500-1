@@ -23,6 +23,15 @@ import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme
 import { useTickerList } from '../hooks/useTickerList.js';
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
+import {
+  applyDateEndChange,
+  applyDateStartChange,
+  applyYearEndChange,
+  applyYearStartChange,
+  dateInputBounds,
+  yearOptionsForEnd,
+  yearOptionsForStart
+} from '../utils/dateRangeConstraints.js';
 import { LightweightChartAreaSkeleton } from '../components/ChartSkeletons.jsx';
 import { ReturnsChartToolbar } from '../components/ReturnsChartToolbar.jsx';
 import { ChartSectionIconActions } from '../components/ChartSectionIconActions.jsx';
@@ -1128,6 +1137,7 @@ export default function RelativeStrengthTickerPage() {
 
   const statsRangeControlsAnnual = useMemo(() => {
     if (mode === 'daily') {
+      const bounds = dateInputBounds(statsDailyAnnualStart, statsDailyAnnualEnd);
       return (
         <div className="relative-strength-page__date-row relative-strength-page__stats-chart-range" aria-label="Annual returns chart date range">
           <span className="ticker-page__label ticker-page__label--inline">From</span>
@@ -1135,8 +1145,13 @@ export default function RelativeStrengthTickerPage() {
             className="relative-strength-page__date-inp"
             type="date"
             value={statsDailyAnnualStart}
-            max={statsDailyAnnualEnd}
-            onChange={(e) => setStatsDailyAnnualStart(e.target.value)}
+            min={bounds.startMin}
+            max={bounds.startMax}
+            onChange={(e) => {
+              const next = applyDateStartChange(statsDailyAnnualStart, statsDailyAnnualEnd, e.target.value);
+              setStatsDailyAnnualStart(next.start);
+              setStatsDailyAnnualEnd(next.end);
+            }}
             aria-label="Annual chart start date"
           />
           <span className="ticker-page__label ticker-page__label--inline">To</span>
@@ -1144,8 +1159,13 @@ export default function RelativeStrengthTickerPage() {
             className="relative-strength-page__date-inp"
             type="date"
             value={statsDailyAnnualEnd}
-            min={statsDailyAnnualStart}
-            onChange={(e) => setStatsDailyAnnualEnd(e.target.value)}
+            min={bounds.endMin}
+            max={bounds.endMax}
+            onChange={(e) => {
+              const next = applyDateEndChange(statsDailyAnnualStart, statsDailyAnnualEnd, e.target.value);
+              setStatsDailyAnnualStart(next.start);
+              setStatsDailyAnnualEnd(next.end);
+            }}
             aria-label="Annual chart end date"
           />
         </div>
@@ -1157,8 +1177,12 @@ export default function RelativeStrengthTickerPage() {
         <ThemedDropdown
           className="relative-strength-page__year-dd"
           value={chartAnnualYearStart}
-          options={yearOptions}
-          onChange={setChartAnnualYearStart}
+          options={yearOptionsForStart(yearOptions, chartAnnualYearEnd)}
+          onChange={(v) => {
+            const next = applyYearStartChange(chartAnnualYearStart, chartAnnualYearEnd, v);
+            setChartAnnualYearStart(next.start);
+            setChartAnnualYearEnd(next.end);
+          }}
           title="Annual chart start year"
           ariaLabelPrefix="Annual chart start year"
           size="sm"
@@ -1168,8 +1192,12 @@ export default function RelativeStrengthTickerPage() {
         <ThemedDropdown
           className="relative-strength-page__year-dd"
           value={chartAnnualYearEnd}
-          options={yearOptions}
-          onChange={setChartAnnualYearEnd}
+          options={yearOptionsForEnd(yearOptions, chartAnnualYearStart)}
+          onChange={(v) => {
+            const next = applyYearEndChange(chartAnnualYearStart, chartAnnualYearEnd, v);
+            setChartAnnualYearStart(next.start);
+            setChartAnnualYearEnd(next.end);
+          }}
           title="Annual chart end year"
           ariaLabelPrefix="Annual chart end year"
           size="sm"
@@ -1188,6 +1216,7 @@ export default function RelativeStrengthTickerPage() {
 
   const statsRangeControlsExcess = useMemo(() => {
     if (mode === 'daily') {
+      const bounds = dateInputBounds(statsDailyExcessStart, statsDailyExcessEnd);
       return (
         <div className="relative-strength-page__date-row relative-strength-page__stats-chart-range" aria-label="Excess return chart date range">
           <span className="ticker-page__label ticker-page__label--inline">From</span>
@@ -1195,8 +1224,13 @@ export default function RelativeStrengthTickerPage() {
             className="relative-strength-page__date-inp"
             type="date"
             value={statsDailyExcessStart}
-            max={statsDailyExcessEnd}
-            onChange={(e) => setStatsDailyExcessStart(e.target.value)}
+            min={bounds.startMin}
+            max={bounds.startMax}
+            onChange={(e) => {
+              const next = applyDateStartChange(statsDailyExcessStart, statsDailyExcessEnd, e.target.value);
+              setStatsDailyExcessStart(next.start);
+              setStatsDailyExcessEnd(next.end);
+            }}
             aria-label="Excess chart start date"
           />
           <span className="ticker-page__label ticker-page__label--inline">To</span>
@@ -1204,8 +1238,13 @@ export default function RelativeStrengthTickerPage() {
             className="relative-strength-page__date-inp"
             type="date"
             value={statsDailyExcessEnd}
-            min={statsDailyExcessStart}
-            onChange={(e) => setStatsDailyExcessEnd(e.target.value)}
+            min={bounds.endMin}
+            max={bounds.endMax}
+            onChange={(e) => {
+              const next = applyDateEndChange(statsDailyExcessStart, statsDailyExcessEnd, e.target.value);
+              setStatsDailyExcessStart(next.start);
+              setStatsDailyExcessEnd(next.end);
+            }}
             aria-label="Excess chart end date"
           />
         </div>
@@ -1217,8 +1256,12 @@ export default function RelativeStrengthTickerPage() {
         <ThemedDropdown
           className="relative-strength-page__year-dd"
           value={chartExcessYearStart}
-          options={yearOptions}
-          onChange={setChartExcessYearStart}
+          options={yearOptionsForStart(yearOptions, chartExcessYearEnd)}
+          onChange={(v) => {
+            const next = applyYearStartChange(chartExcessYearStart, chartExcessYearEnd, v);
+            setChartExcessYearStart(next.start);
+            setChartExcessYearEnd(next.end);
+          }}
           title="Excess chart start year"
           ariaLabelPrefix="Excess chart start year"
           size="sm"
@@ -1228,8 +1271,12 @@ export default function RelativeStrengthTickerPage() {
         <ThemedDropdown
           className="relative-strength-page__year-dd"
           value={chartExcessYearEnd}
-          options={yearOptions}
-          onChange={setChartExcessYearEnd}
+          options={yearOptionsForEnd(yearOptions, chartExcessYearStart)}
+          onChange={(v) => {
+            const next = applyYearEndChange(chartExcessYearStart, chartExcessYearEnd, v);
+            setChartExcessYearStart(next.start);
+            setChartExcessYearEnd(next.end);
+          }}
           title="Excess chart end year"
           ariaLabelPrefix="Excess chart end year"
           size="sm"
@@ -1248,6 +1295,7 @@ export default function RelativeStrengthTickerPage() {
 
   const statsRangeControlsPeriodic = useMemo(() => {
     if (mode === 'daily') {
+      const bounds = dateInputBounds(statsDailyPeriodicStart, statsDailyPeriodicEnd);
       return (
         <div className="relative-strength-page__date-row relative-strength-page__stats-chart-range" aria-label="Periodic returns chart date range">
           <span className="ticker-page__label ticker-page__label--inline">From</span>
@@ -1255,8 +1303,13 @@ export default function RelativeStrengthTickerPage() {
             className="relative-strength-page__date-inp"
             type="date"
             value={statsDailyPeriodicStart}
-            max={statsDailyPeriodicEnd}
-            onChange={(e) => setStatsDailyPeriodicStart(e.target.value)}
+            min={bounds.startMin}
+            max={bounds.startMax}
+            onChange={(e) => {
+              const next = applyDateStartChange(statsDailyPeriodicStart, statsDailyPeriodicEnd, e.target.value);
+              setStatsDailyPeriodicStart(next.start);
+              setStatsDailyPeriodicEnd(next.end);
+            }}
             aria-label="Periodic chart start date"
           />
           <span className="ticker-page__label ticker-page__label--inline">To</span>
@@ -1264,8 +1317,13 @@ export default function RelativeStrengthTickerPage() {
             className="relative-strength-page__date-inp"
             type="date"
             value={statsDailyPeriodicEnd}
-            min={statsDailyPeriodicStart}
-            onChange={(e) => setStatsDailyPeriodicEnd(e.target.value)}
+            min={bounds.endMin}
+            max={bounds.endMax}
+            onChange={(e) => {
+              const next = applyDateEndChange(statsDailyPeriodicStart, statsDailyPeriodicEnd, e.target.value);
+              setStatsDailyPeriodicStart(next.start);
+              setStatsDailyPeriodicEnd(next.end);
+            }}
             aria-label="Periodic chart end date"
           />
         </div>
@@ -1277,8 +1335,12 @@ export default function RelativeStrengthTickerPage() {
         <ThemedDropdown
           className="relative-strength-page__year-dd"
           value={chartPeriodicYearStart}
-          options={yearOptions}
-          onChange={setChartPeriodicYearStart}
+          options={yearOptionsForStart(yearOptions, chartPeriodicYearEnd)}
+          onChange={(v) => {
+            const next = applyYearStartChange(chartPeriodicYearStart, chartPeriodicYearEnd, v);
+            setChartPeriodicYearStart(next.start);
+            setChartPeriodicYearEnd(next.end);
+          }}
           title="Periodic chart start year"
           ariaLabelPrefix="Periodic chart start year"
           size="sm"
@@ -1288,8 +1350,12 @@ export default function RelativeStrengthTickerPage() {
         <ThemedDropdown
           className="relative-strength-page__year-dd"
           value={chartPeriodicYearEnd}
-          options={yearOptions}
-          onChange={setChartPeriodicYearEnd}
+          options={yearOptionsForEnd(yearOptions, chartPeriodicYearStart)}
+          onChange={(v) => {
+            const next = applyYearEndChange(chartPeriodicYearStart, chartPeriodicYearEnd, v);
+            setChartPeriodicYearStart(next.start);
+            setChartPeriodicYearEnd(next.end);
+          }}
           title="Periodic chart end year"
           ariaLabelPrefix="Periodic chart end year"
           size="sm"
@@ -1308,6 +1374,7 @@ export default function RelativeStrengthTickerPage() {
 
   const mainRsRangeControls = useMemo(() => {
     if (mode === 'daily') {
+      const bounds = dateInputBounds(dailyStart, dailyEnd);
       return (
         <div className="relative-strength-page__date-row" aria-label="Relative strength chart date range">
           <span className="ticker-page__label ticker-page__label--inline">Start date</span>
@@ -1315,8 +1382,13 @@ export default function RelativeStrengthTickerPage() {
             className="relative-strength-page__date-inp"
             type="date"
             value={dailyStart}
-            max={dailyEnd}
-            onChange={(e) => setDailyStart(e.target.value)}
+            min={bounds.startMin}
+            max={bounds.startMax}
+            onChange={(e) => {
+              const next = applyDateStartChange(dailyStart, dailyEnd, e.target.value);
+              setDailyStart(next.start);
+              setDailyEnd(next.end);
+            }}
             aria-label="Start date"
           />
           <span className="ticker-page__label ticker-page__label--inline">End date</span>
@@ -1324,8 +1396,13 @@ export default function RelativeStrengthTickerPage() {
             className="relative-strength-page__date-inp"
             type="date"
             value={dailyEnd}
-            min={dailyStart}
-            onChange={(e) => setDailyEnd(e.target.value)}
+            min={bounds.endMin}
+            max={bounds.endMax}
+            onChange={(e) => {
+              const next = applyDateEndChange(dailyStart, dailyEnd, e.target.value);
+              setDailyStart(next.start);
+              setDailyEnd(next.end);
+            }}
             aria-label="End date"
           />
         </div>
@@ -1337,8 +1414,12 @@ export default function RelativeStrengthTickerPage() {
         <ThemedDropdown
           className="relative-strength-page__year-dd"
           value={startYear}
-          options={yearOptions}
-          onChange={setStartYear}
+          options={yearOptionsForStart(yearOptions, endYear)}
+          onChange={(v) => {
+            const next = applyYearStartChange(startYear, endYear, v);
+            setStartYear(next.start);
+            setEndYear(next.end);
+          }}
           title="Start year"
           ariaLabelPrefix="Start year"
           size="sm"
@@ -1348,8 +1429,12 @@ export default function RelativeStrengthTickerPage() {
         <ThemedDropdown
           className="relative-strength-page__year-dd"
           value={endYear}
-          options={yearOptions}
-          onChange={setEndYear}
+          options={yearOptionsForEnd(yearOptions, startYear)}
+          onChange={(v) => {
+            const next = applyYearEndChange(startYear, endYear, v);
+            setStartYear(next.start);
+            setEndYear(next.end);
+          }}
           title="End year"
           ariaLabelPrefix="End year"
           size="sm"

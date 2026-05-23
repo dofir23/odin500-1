@@ -693,9 +693,6 @@ export default function HistoricalDataPage() {
                 onPageChange={setPage}
                 ariaLabel="Historical data table pagination"
               />
-              <span className="historical-data__pager-meta">
-                Page {pageSafe} of {totalPages} ({sortedRows.length} rows)
-              </span>
             </>
           ) : null}
         </div>

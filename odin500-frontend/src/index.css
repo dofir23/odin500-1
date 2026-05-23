@@ -10558,13 +10558,18 @@ a.ticker-page__metric-label--link:hover {
 }
 
 .ticker-chart-resize-scope .ticker-annual-donut__svg {
-  height: min(300px, var(--ticker-resize-plot-h));
-  width: min(300px, 100%);
-  max-height: none;
+  width: min(280px, 100%);
+  height: min(280px, var(--ticker-resize-plot-h));
+  max-width: 100%;
+  max-height: min(300px, var(--ticker-resize-plot-h));
+  aspect-ratio: 1 / 1;
+  flex-shrink: 0;
+  display: block;
 }
 
 .ticker-chart-resize-scope .ticker-annual-donut__donut-wrap {
   min-height: min(320px, var(--ticker-resize-plot-h));
+  overflow: visible;
 }
 
 .ticker-chart-legend {
@@ -11902,6 +11907,10 @@ h3.returns-chart-title-heading {
   color: #0f172a;
 }
 
+.ticker-annual-donut__panel.ticker-annual-figma__chart-card--donut {
+  overflow: visible;
+}
+
 .ticker-annual-donut__split {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -11952,12 +11961,16 @@ h3.returns-chart-title-heading {
   justify-content: center;
   min-height: 200px;
   padding: 8px 0 4px;
+  overflow: visible;
 }
 
 .ticker-annual-donut__svg {
   width: min(240px, 100%);
   height: auto;
   max-height: 260px;
+  aspect-ratio: 1 / 1;
+  flex-shrink: 0;
+  display: block;
 }
 
 .ticker-annual-donut__donut-empty {

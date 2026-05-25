@@ -5,7 +5,7 @@ import { DataInfoTip } from './DataInfoTip.jsx';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
 import { filterReturnsRows } from '../utils/returnsDateRange.js';
 import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
-import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
+import { chartSvgPreserveAspectRatio, tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { chartAxisLabelColors } from '../utils/chartAxisLabelColors.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { getReturnsChartViewMoreHref } from '../utils/returnsViewMoreNavigation.js';
@@ -316,7 +316,7 @@ export function TickerMonthlyReturnsWaterfallDonut({
       <svg
         className="ticker-annual-figma__svg ticker-monthly-adv__svg"
         viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio={chartSvgPreserveAspectRatio(svgFs)}
         style={tickerSvgPlotStyle(
           plotHeightEffective != null ? Math.min(plotHeightEffective, svgFs ? plotHeightEffective : 420) : null,
           { fullscreen: svgFs }

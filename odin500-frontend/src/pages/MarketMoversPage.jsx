@@ -12,6 +12,7 @@ import { MarketMoversSplitBarsSkeleton } from '../components/ChartSkeletons.jsx'
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
+import { getRelativeStrengthExportBackground } from '../utils/relativeStrengthChartExport.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { fmtAbsSigned, fmtNumber, fmtPct, fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 
@@ -301,6 +302,7 @@ function MarketMoversBarPanel({ bars, yCap, side, title, axisReturnTitle, export
               fullscreenTargetRef={fsHostRef}
               buildFilename={buildBarsSnapshotFilename}
               disabled={!bars.length}
+              getBackgroundColor={getRelativeStrengthExportBackground}
               exportPreviewAlt={`Exported ${title}`}
               exportModalTitle="Export chart"
             />
@@ -1446,6 +1448,7 @@ export default function MarketMoversPage() {
               fullscreenTargetRef={moversSectionRef}
               buildFilename={buildMoversSectionSnapshotFilename}
               disabled={loading || !filteredPoints.length}
+              getBackgroundColor={getRelativeStrengthExportBackground}
               exportPreviewAlt="Exported market movers charts"
               exportModalTitle="Export chart"
             />

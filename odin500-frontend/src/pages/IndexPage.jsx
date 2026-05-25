@@ -2315,7 +2315,10 @@ export default function IndexPage() {
             <header className="mkt-mini-card__head">
               <span className="mkt-mini-card__k" id="index-constituents-h">
                 {isSectorDataRoute ? (
-                  <>{activeSector ? `${activeSector.label.toUpperCase()} · S&P 500` : 'SECTOR · S&P 500'}</>
+                  <>
+                    {activeSector ? `${activeSector.label.toUpperCase()} · S&P 500` : 'SECTOR · S&P 500'}
+                    {!indexTickersBusy ? ` · [${indexTickersRows.length}]` : null}
+                  </>
                 ) : (
                   <>
                     {activeMeta.label}

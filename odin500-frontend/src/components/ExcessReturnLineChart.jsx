@@ -2,7 +2,7 @@ import { useMemo, useRef, useSyncExternalStore } from 'react';
 import { StatsCmpChartSkeleton } from './ChartSkeletons.jsx';
 import { StatsCmpChartToolbarHead } from './StatsCmpChartToolbarHead.jsx';
 import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
-import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
+import { chartSvgPreserveAspectRatio, tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { applyRelativeStrengthSnapshotCloneFixes } from '../utils/relativeStrengthChartExport.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { fmtPct, fmtPctSigned } from '../utils/formatDisplayNumber.js';
@@ -108,7 +108,7 @@ export function ExcessReturnLineChart({
           <svg
             viewBox={`0 0 ${W} ${H}`}
             className="stats-cmp-chart__svg"
-            preserveAspectRatio="xMidYMid meet"
+            preserveAspectRatio={chartSvgPreserveAspectRatio(fsPlotSize != null)}
             style={svgPlotStyle}
           >
             {[0, 0.25, 0.5, 0.75, 1].map((k) => {

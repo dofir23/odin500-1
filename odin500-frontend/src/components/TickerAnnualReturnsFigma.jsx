@@ -8,7 +8,7 @@ import { useTickerPlotResize } from '../hooks/useTickerPlotResize.js';
 import { CHART_INFO_TIPS } from './chartInfoTips.js';
 import { formatWeekAxisDate, isoYearWeekFromIsoDate } from '../utils/isoWeek.js';
 import { periodModeNouns } from '../utils/periodModeNouns.js';
-import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
+import { chartSvgPreserveAspectRatio, tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { getReturnsChartViewMoreHref } from '../utils/returnsViewMoreNavigation.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL } from '../utils/tickerUrlSync.js';
 import { fmtPct, fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
@@ -780,7 +780,7 @@ export function TickerAnnualReturnsFigma({
       <svg
         className="ticker-annual-figma__svg"
         viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio={chartSvgPreserveAspectRatio(svgFs)}
         style={tickerSvgPlotStyle(plotPxEffective, { fullscreen: svgFs })}
         aria-label={`${periodMode === 'quarterly' ? 'Quarterly' : periodMode === 'monthly' ? 'Monthly' : periodMode === 'weekly' ? 'Weekly' : periodMode === 'daily' ? 'Daily' : 'Annual'} returns bar chart, Y-axis ${(v) => fmtPct(v, { plainPositive: true })(yMin)} to ${(v) => fmtPct(v, { plainPositive: true })(yMax)} from data range; resize to show finer grid labels.`}
       >
@@ -902,7 +902,7 @@ export function TickerAnnualReturnsFigma({
       <svg
         className="ticker-annual-figma__svg"
         viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio={chartSvgPreserveAspectRatio(svgFs)}
         style={tickerSvgPlotStyle(summaryPlotPx, { fullscreen: svgFs })}
       >
         <defs>

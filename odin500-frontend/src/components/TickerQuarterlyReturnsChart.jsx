@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 're
 import { useLocation, useNavigate } from 'react-router-dom';
 import { DataInfoTip } from './DataInfoTip.jsx';
 import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
-import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
+import { chartSvgPreserveAspectRatio, tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { getReturnsChartViewMoreHref } from '../utils/returnsViewMoreNavigation.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL } from '../utils/tickerUrlSync.js';
 import { QuarterlyDualPanelChartSkeleton, QuarterlyReturnsToolbarBadge } from './ChartSkeletons.jsx';
@@ -212,7 +212,7 @@ export function TickerQuarterlyReturnsChart({
       <svg
         className="ticker-annual-figma__svg ticker-quarterly__svg"
         viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio={chartSvgPreserveAspectRatio(svgFs)}
         style={tickerSvgPlotStyle(plotHeightEffective, { fullscreen: svgFs })}
       >
         {gridLines}
@@ -299,7 +299,7 @@ export function TickerQuarterlyReturnsChart({
       <svg
         className="ticker-annual-figma__svg ticker-quarterly__svg"
         viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio={chartSvgPreserveAspectRatio(svgFs)}
         style={tickerSvgPlotStyle(plotHeightEffective, { fullscreen: svgFs })}
       >
         {gridLines}

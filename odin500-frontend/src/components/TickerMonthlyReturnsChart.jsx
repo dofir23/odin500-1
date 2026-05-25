@@ -8,7 +8,7 @@ import { filterReturnsRows } from '../utils/returnsDateRange.js';
 import { useChartPlotWidth } from '../hooks/useChartPlotWidth.js';
 import { useTickerPlotResize } from '../hooks/useTickerPlotResize.js';
 import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
-import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
+import { chartSvgPreserveAspectRatio, tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { getReturnsChartViewMoreHref } from '../utils/returnsViewMoreNavigation.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL } from '../utils/tickerUrlSync.js';
 import { fmtPct, fmtPctSigned } from '../utils/formatDisplayNumber.js';
@@ -335,7 +335,7 @@ export function TickerMonthlyReturnsChart({
       <svg
         className="ticker-annual-figma__svg ticker-monthly__svg"
         viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio={chartSvgPreserveAspectRatio(svgFs)}
         style={tickerSvgPlotStyle(plotPxEffective, { fullscreen: svgFs })}
       >
         {gridLines}

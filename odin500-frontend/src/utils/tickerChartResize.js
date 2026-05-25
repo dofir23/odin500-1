@@ -1,3 +1,10 @@
+export const CHART_SVG_ASPECT_DEFAULT = 'xMidYMid meet';
+
+/** `none` in fullscreen removes top/bottom letterboxing; `meet` in normal view keeps aspect. */
+export function chartSvgPreserveAspectRatio(fullscreen) {
+  return fullscreen ? 'none' : CHART_SVG_ASPECT_DEFAULT;
+}
+
 /** Inline styles so resizable ticker SVGs override global `.ticker-annual-figma__svg` rules (`height: auto`, `max-height`). */
 export function tickerSvgPlotStyle(plotHeight, options = {}) {
   const fullscreen = Boolean(options.fullscreen);

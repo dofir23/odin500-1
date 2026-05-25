@@ -10692,9 +10692,14 @@ a.ticker-page__metric-label--link:hover {
   max-height: 100dvh !important;
   min-height: 100dvh !important;
   box-sizing: border-box;
-  padding: 10px 14px 44px;
+  padding: 10px 14px 12px;
   background: var(--ticker-chart-bg);
   overflow: hidden;
+}
+
+.ticker-chart-body:fullscreen .ticker-chart-toolbar-row,
+.ticker-chart-body:-webkit-full-screen .ticker-chart-toolbar-row {
+  flex: 0 0 auto;
 }
 
 .ticker-chart-body:fullscreen .ticker-chart-plot-host,
@@ -12998,8 +13003,10 @@ h3.returns-chart-title-heading {
   overflow: hidden;
 }
 
-.ticker-chart-fs-shell:fullscreen .ticker-annual-figma__chart-card,
-.ticker-chart-fs-shell:-webkit-full-screen .ticker-annual-figma__chart-card,
+.ticker-chart-fs-shell:fullscreen .ticker-annual-figma__chart-card:not(.ticker-annual-figma__chart-card--donut),
+.ticker-chart-fs-shell:-webkit-full-screen .ticker-annual-figma__chart-card:not(.ticker-annual-figma__chart-card--donut),
+.ticker-chart-fs-shell:fullscreen .ticker-annual-figma__chart-card.ticker-annual-figma__chart-card--summary,
+.ticker-chart-fs-shell:-webkit-full-screen .ticker-annual-figma__chart-card.ticker-annual-figma__chart-card--summary,
 .ticker-chart-fs-shell:fullscreen .ticker-quarterly__split,
 .ticker-chart-fs-shell:-webkit-full-screen .ticker-quarterly__split,
 .ticker-chart-fs-shell:fullscreen .ticker-annual-donut__split,
@@ -13010,10 +13017,28 @@ h3.returns-chart-title-heading {
 .ticker-s17__chart-shell:-webkit-full-screen .ticker-s17__chart,
 .ticker-s24__chart-shell:fullscreen .ticker-s24__chart.ticker-s17__chart,
 .ticker-s24__chart-shell:-webkit-full-screen .ticker-s24__chart.ticker-s17__chart {
+  display: grid !important;
+  grid-template-columns: minmax(52px, auto) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   flex: 1 1 auto;
+  align-self: stretch;
   min-height: 0 !important;
   width: 100%;
   max-width: 100%;
+  height: 100% !important;
+  max-height: none !important;
+  padding-bottom: 0 !important;
+}
+
+.ticker-s17__chart-shell:fullscreen .ticker-s17__chart--no-yaxis,
+.ticker-s17__chart-shell:-webkit-full-screen .ticker-s17__chart--no-yaxis {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.ticker-chart-fs-shell:fullscreen .ticker-annual-figma__chart-card.ticker-annual-figma__chart-card--summary > .ticker-annual-figma__svg,
+.ticker-chart-fs-shell:-webkit-full-screen .ticker-annual-figma__chart-card.ticker-annual-figma__chart-card--summary > .ticker-annual-figma__svg {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
   height: 100% !important;
   max-height: none !important;
 }
@@ -13032,13 +13057,17 @@ h3.returns-chart-title-heading {
 .ticker-chart-resize-scope .ticker-chart-fs-shell:fullscreen .ticker-monthly__svg,
 .ticker-chart-resize-scope .ticker-chart-fs-shell:-webkit-full-screen .ticker-monthly__svg,
 .ticker-chart-resize-scope .ticker-chart-fs-shell:fullscreen .ticker-quarterly__svg,
-.ticker-chart-resize-scope .ticker-chart-fs-shell:-webkit-full-screen .ticker-quarterly__svg {
+.ticker-chart-resize-scope .ticker-chart-fs-shell:-webkit-full-screen .ticker-quarterly__svg,
+.stats-cmp-chart:fullscreen .stats-cmp-chart__svg,
+.stats-cmp-chart:-webkit-full-screen .stats-cmp-chart__svg,
+.market-movers-page__bar-frame:fullscreen .market-movers-page__bar-svg,
+.market-movers-page__bar-frame:-webkit-full-screen .market-movers-page__bar-svg {
   flex: 1 1 auto;
   align-self: stretch;
   width: 100% !important;
   max-width: 100% !important;
   min-height: 0 !important;
-  max-height: 100% !important;
+  max-height: none !important;
   height: 100% !important;
   aspect-ratio: unset !important;
 }
@@ -13497,20 +13526,61 @@ h3.returns-chart-title-heading {
   height: 100dvh !important;
   max-height: 100dvh !important;
   min-height: 100dvh !important;
-  padding: 12px 14px 16px;
+  margin-top: 0 !important;
+  padding: 10px 12px 12px;
   background: var(--ticker-page-bg, #0b1220);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
+.ticker-s24__chart-shell:fullscreen .chart-viz-loading-wrap,
+.ticker-s24__chart-shell:-webkit-full-screen .chart-viz-loading-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.ticker-s24__chart-shell:fullscreen .ticker-s24__legend,
+.ticker-s24__chart-shell:-webkit-full-screen .ticker-s24__legend {
+  flex: 0 0 auto;
+  margin-top: 8px;
+}
+
 .ticker-s24__chart-shell:fullscreen .ticker-s24__chart.ticker-s17__chart,
 .ticker-s24__chart-shell:-webkit-full-screen .ticker-s24__chart.ticker-s17__chart {
-  min-height: 0 !important;
-  height: 100% !important;
-  max-height: none !important;
-  flex: 1 1 auto;
   --ticker-s17-bar-max: 22px;
+}
+
+/* Fullscreen: scale plot insets with panel height (avoid large empty band above bars). */
+.ticker-s24__chart-shell:fullscreen .ticker-s17__yaxis-area,
+.ticker-s24__chart-shell:-webkit-full-screen .ticker-s17__yaxis-area,
+.ticker-s17__chart-shell:fullscreen .ticker-s17__yaxis-area,
+.ticker-s17__chart-shell:-webkit-full-screen .ticker-s17__yaxis-area {
+  top: 1.5%;
+  bottom: 9%;
+}
+
+.ticker-s24__chart-shell:fullscreen .ticker-s17__plot-area,
+.ticker-s24__chart-shell:-webkit-full-screen .ticker-s17__plot-area,
+.ticker-s17__chart-shell:fullscreen .ticker-s17__plot-area,
+.ticker-s17__chart-shell:-webkit-full-screen .ticker-s17__plot-area {
+  inset: 1.5% 1% 9%;
+}
+
+.ticker-s24__chart-shell:fullscreen .ticker-s17__viz,
+.ticker-s24__chart-shell:-webkit-full-screen .ticker-s17__viz,
+.ticker-s17__chart-shell:fullscreen .ticker-s17__viz,
+.ticker-s17__chart-shell:-webkit-full-screen .ticker-s17__viz {
+  bottom: 8%;
+}
+
+.ticker-s24__chart-shell:fullscreen .ticker-s17__plot,
+.ticker-s24__chart-shell:-webkit-full-screen .ticker-s17__plot,
+.ticker-s17__chart-shell:fullscreen .ticker-s17__plot,
+.ticker-s17__chart-shell:-webkit-full-screen .ticker-s17__plot {
+  min-height: 0;
+  height: 100%;
 }
 
 .ticker-s24__bar-val {
@@ -15458,6 +15528,39 @@ html[data-theme="light"] .market-movers-page__card {
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
 }
 
+.market-movers-page__card:fullscreen,
+.market-movers-page__card:-webkit-full-screen {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  min-height: 100dvh !important;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 16px 18px 20px;
+  background: linear-gradient(90deg, #061628 0%, #0b243f 50%, #061628 100%) !important;
+}
+
+.market-movers-page__card:fullscreen::backdrop,
+.market-movers-page__card:-webkit-full-screen::backdrop {
+  background: #061628;
+}
+
+html[data-theme="light"] .market-movers-page__card:fullscreen,
+html[data-theme="light"] .market-movers-page__card:-webkit-full-screen {
+  background: #f1f5f9 !important;
+}
+
+html[data-theme="light"] .market-movers-page__card:fullscreen::backdrop,
+html[data-theme="light"] .market-movers-page__card:-webkit-full-screen::backdrop {
+  background: #f1f5f9;
+}
+
 .market-movers-page__card-head {
   display: flex;
   align-items: center;
@@ -15762,7 +15865,8 @@ html[data-theme="light"] .market-movers-page__export {
   cursor: not-allowed;
 }
 
-.market-movers-page__bar-frame:fullscreen {
+.market-movers-page__bar-frame:fullscreen,
+.market-movers-page__bar-frame:-webkit-full-screen {
   width: 100vw !important;
   max-width: 100vw !important;
   height: 100dvh !important;
@@ -15771,14 +15875,26 @@ html[data-theme="light"] .market-movers-page__export {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  background: rgba(15, 23, 42, 0.98);
+  border: none;
   border-radius: 0;
   padding: 12px;
   overflow: hidden;
+  background: linear-gradient(90deg, #061628 0%, #0b243f 50%, #061628 100%) !important;
 }
 
-html[data-theme="light"] .market-movers-page__bar-frame:fullscreen {
-  background: #f8fafc;
+.market-movers-page__bar-frame:fullscreen::backdrop,
+.market-movers-page__bar-frame:-webkit-full-screen::backdrop {
+  background: #061628;
+}
+
+html[data-theme="light"] .market-movers-page__bar-frame:fullscreen,
+html[data-theme="light"] .market-movers-page__bar-frame:-webkit-full-screen {
+  background: #f1f5f9 !important;
+}
+
+html[data-theme="light"] .market-movers-page__bar-frame:fullscreen::backdrop,
+html[data-theme="light"] .market-movers-page__bar-frame:-webkit-full-screen::backdrop {
+  background: #f1f5f9;
 }
 
 html[data-theme="light"] .market-movers-page__bar-panel-icon-btn {
@@ -15791,9 +15907,18 @@ html[data-theme="light"] .market-movers-page__bar-panel-icon-btn:hover:not(:disa
   background: #e2e8f0;
 }
 
-.market-movers-page__bar-frame:fullscreen .market-movers-page__bar-scroll {
-  flex: 1;
+.market-movers-page__bar-frame:fullscreen .market-movers-page__bar-panel-head,
+.market-movers-page__bar-frame:-webkit-full-screen .market-movers-page__bar-panel-head {
+  flex: 0 0 auto;
+}
+
+.market-movers-page__bar-frame:fullscreen .market-movers-page__bar-scroll,
+.market-movers-page__bar-frame:-webkit-full-screen .market-movers-page__bar-scroll {
+  flex: 1 1 auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .market-movers-page__bar-frame:fullscreen .market-movers-page__bar-svg {
@@ -21783,6 +21908,7 @@ html[data-theme='light'] .stats-cmp-chart:-webkit-full-screen .stats-cmp-chart__
 .stats-cmp-chart:fullscreen .stats-cmp-chart__svg,
 .stats-cmp-chart:-webkit-full-screen .stats-cmp-chart__svg {
   flex: 1 1 auto;
+  align-self: stretch;
   width: 100% !important;
   height: 100% !important;
   min-height: 0 !important;

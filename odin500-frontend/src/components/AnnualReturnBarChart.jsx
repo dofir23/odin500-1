@@ -5,7 +5,7 @@ import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.
 import { useTickerPlotResize } from '../hooks/useTickerPlotResize.js';
 import { applyRelativeStrengthSnapshotCloneFixes } from '../utils/relativeStrengthChartExport.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
-import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
+import { chartSvgPreserveAspectRatio, tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { fmtPctSigned } from '../utils/formatDisplayNumber.js';
 
 export function AnnualReturnBarChart({
@@ -138,7 +138,12 @@ export function AnnualReturnBarChart({
                 <i className="stats-cmp-chart__sw stats-cmp-chart__sw--bench1" /> {benchmarkIndex}
               </span>
             </div>
-            <svg viewBox={`0 0 ${W} ${H}`} className="stats-cmp-chart__svg" preserveAspectRatio="xMidYMid meet" style={svgPlotStyle}>
+            <svg
+              viewBox={`0 0 ${W} ${H}`}
+              className="stats-cmp-chart__svg"
+              preserveAspectRatio={chartSvgPreserveAspectRatio(fsPlotSize != null)}
+              style={svgPlotStyle}
+            >
               {[0, 0.25, 0.5, 0.75, 1].map((k) => {
                 const t = yMin + (yMax - yMin) * k;
                 const yy = y(t);

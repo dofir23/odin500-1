@@ -36,9 +36,19 @@ import { LightweightChartAreaSkeleton } from '../components/ChartSkeletons.jsx';
 import { ReturnsChartToolbar } from '../components/ReturnsChartToolbar.jsx';
 import { ChartSectionIconActions } from '../components/ChartSectionIconActions.jsx';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
+import {
+  applyRelativeStrengthSnapshotCloneFixes,
+  getRelativeStrengthExportBackground,
+  getRelativeStrengthPlotBackground
+} from '../utils/relativeStrengthChartExport.js';
 import { TickerChartResizeScope } from '../components/TickerChartResizeScope.jsx';
 
-const INDEX_OPTIONS = ['SPY', 'QQQ', 'DIA'];
+/** Main index benchmark symbols for the RS table/bars selectors (not ETF tickers). */
+const INDEX_BENCHMARK_OPTIONS = [
+  { id: 'SPX', label: 'S&P 500' },
+  { id: 'DJI', label: 'Dow Jones' },
+  { id: 'NDX', label: 'Nasdaq 100' }
+];
 const COLOR_BY_SERIES = {
   TICKER: '#3B6BC0',
   INDEX: '#E67E22',
@@ -94,10 +104,7 @@ function layoutBadgeTopsPx(keys, getRawY, containerHeight, minGap = 22, pad = 10
 }
 
 function getRsChartBgColor(isLight) {
-  if (isLight) return '#f5f5f5';
-  if (typeof window === 'undefined') return 'rgba(255, 255, 255, 0.03)';
-  const cssVar = getComputedStyle(document.documentElement).getPropertyValue('--colors-opacity-bg-opacity-3').trim();
-  return cssVar || 'rgba(255, 255, 255, 0.03)';
+  return getRelativeStrengthPlotBackground(isLight);
 }
 
 /** html2canvas onclone: hide chip remove buttons, loosen text like NormalizedPerformanceCard export. */
@@ -406,6 +413,7 @@ const RS_MAIN_CHART_DEFAULT_H = 360;
  */
 function RsMainLineChartPlot({
   plotHeight = RS_MAIN_CHART_DEFAULT_H,
+  fullscreenRootRef,
   chartHostRef,
   chartRef,
   loading,
@@ -417,21 +425,50 @@ function RsMainLineChartPlot({
   updateAxisBadgePositions
 }) {
   const plotH = Math.round(Number(plotHeight) || RS_MAIN_CHART_DEFAULT_H);
+  const [chartFsActive, setChartFsActive] = useState(false);
+
+  useEffect(() => {
+    const el = fullscreenRootRef?.current;
+    if (!el) return;
+    const sync = () => {
+      const doc = /** @type {Document & { webkitFullscreenElement?: Element | null }} */ (document);
+      const fs = doc.fullscreenElement ?? doc.webkitFullscreenElement;
+      setChartFsActive(Boolean(el && fs === el));
+    };
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+    sync();
+    return () => {
+      document.removeEventListener('fullscreenchange', sync);
+      document.removeEventListener('webkitfullscreenchange', sync);
+    };
+  }, [fullscreenRootRef]);
 
   useEffect(() => {
     const chart = chartRef.current;
     const host = chartHostRef.current;
-    if (host) {
-      host.style.height = `${plotH}px`;
-      host.style.minHeight = `${plotH}px`;
-    }
-    if (chart) {
-      chart.applyOptions({ height: plotH });
+    if (!host) return;
+    const applySize = () => {
+      if (chartFsActive) {
+        host.style.height = '';
+        host.style.minHeight = '0';
+        const h = Math.max(180, host.clientHeight || 0);
+        if (chart) chart.applyOptions({ height: h, width: host.clientWidth });
+      } else {
+        host.style.height = `${plotH}px`;
+        host.style.minHeight = `${plotH}px`;
+        if (chart) chart.applyOptions({ height: plotH, width: host.clientWidth });
+      }
       requestAnimationFrame(() => {
         requestAnimationFrame(() => updateAxisBadgePositions?.());
       });
-    }
-  }, [plotH, chartRef, chartHostRef, updateAxisBadgePositions]);
+    };
+    applySize();
+    if (!chartFsActive) return;
+    const ro = new ResizeObserver(applySize);
+    ro.observe(host);
+    return () => ro.disconnect();
+  }, [plotH, chartFsActive, chartRef, chartHostRef, updateAxisBadgePositions]);
 
   return (
     <>
@@ -501,10 +538,10 @@ export default function RelativeStrengthTickerPage() {
   /** Symbols currently being fetched for incremental (benchmark-only) loads — per-chart skeletons. */
   const [pendingFetchSymbols, setPendingFetchSymbols] = useState(() => new Set());
   const [error, setError] = useState('');
-  const [indexSymbol, setIndexSymbol] = useState('SPY');
-  const [benchCmpAnnual, setBenchCmpAnnual] = useState('SPY');
-  const [benchCmpExcess, setBenchCmpExcess] = useState('SPY');
-  const [benchCmpPeriodic, setBenchCmpPeriodic] = useState('SPY');
+  const [indexSymbol, setIndexSymbol] = useState('SPX');
+  const [benchCmpAnnual, setBenchCmpAnnual] = useState('SPX');
+  const [benchCmpExcess, setBenchCmpExcess] = useState('SPX');
+  const [benchCmpPeriodic, setBenchCmpPeriodic] = useState('SPX');
   const [tickerSymbol, setTickerSymbol] = useState(tickerFromQuery || 'AAPL');
   const [mode, setMode] = useState('monthly');
   const [seriesData, setSeriesData] = useState({});
@@ -551,7 +588,7 @@ export default function RelativeStrengthTickerPage() {
     return items.map((sym) => ({ id: String(sym), label: String(sym) }));
   }, [tickerOptions]);
 
-  const indexDropdownOptions = useMemo(() => INDEX_OPTIONS.map((v) => ({ id: v, label: v })), []);
+  const indexDropdownOptions = useMemo(() => INDEX_BENCHMARK_OPTIONS, []);
 
   useEffect(() => {
     const ids = new Set(tickerDropdownOptions.map((opt) => opt.id));
@@ -559,6 +596,13 @@ export default function RelativeStrengthTickerPage() {
       setTickerSymbol(tickerDropdownOptions[0]?.id || 'AAPL');
     }
   }, [tickerDropdownOptions, tickerSymbol]);
+
+  useEffect(() => {
+    const ids = new Set(indexDropdownOptions.map((opt) => opt.id));
+    if (indexSymbol && !ids.has(indexSymbol)) {
+      setIndexSymbol(indexDropdownOptions[0]?.id || 'SPX');
+    }
+  }, [indexDropdownOptions, indexSymbol]);
 
   useEffect(() => {
     if (tickerFromQuery) setTickerSymbol(tickerFromQuery);
@@ -702,7 +746,8 @@ export default function RelativeStrengthTickerPage() {
       };
     }
 
-    const blockingSig = `${String(tickerSymbol || '').toUpperCase()}|${ohlcFetchRange.start}|${ohlcFetchRange.end}`;
+    /** Date range only — ticker/index changes merge new symbols without clearing the whole chart. */
+    const blockingSig = `${ohlcFetchRange.start}|${ohlcFetchRange.end}`;
     const incremental =
       prevRsBlockingSigRef.current === blockingSig && prevRsBlockingSigRef.current !== '';
 
@@ -775,7 +820,7 @@ export default function RelativeStrengthTickerPage() {
     return () => {
       cancelled = true;
     };
-  }, [requestedSymbols, ohlcFetchRange.start, ohlcFetchRange.end, tickerSymbol]);
+  }, [requestedSymbols, ohlcFetchRange.start, ohlcFetchRange.end]);
 
   const chartSeries = useMemo(() => {
     const toChartPoints = (rows) => {
@@ -788,16 +833,18 @@ export default function RelativeStrengthTickerPage() {
       return Array.from(uniq.values()).sort((a, b) => a.time - b.time);
     };
     const ticker = toChartPoints(seriesDataForToolbar[tickerSymbol] || []);
+    const indexLabel =
+      indexDropdownOptions.find((o) => o.id === indexSymbol)?.label || indexSymbol || 'Index';
     const selectedIndex = toChartPoints(seriesDataForToolbar[indexSymbol] || []);
     const qqq = toChartPoints(seriesDataForToolbar.QQQ || []);
     const dia = toChartPoints(seriesDataForToolbar.DIA || []);
     return [
       { key: 'TICKER', label: tickerSymbol || 'Ticker', color: COLOR_BY_SERIES.TICKER, data: ticker },
-      { key: 'INDEX', label: indexSymbol, color: COLOR_BY_SERIES.INDEX, data: selectedIndex },
+      { key: 'INDEX', label: indexLabel, color: COLOR_BY_SERIES.INDEX, data: selectedIndex },
       { key: 'QQQ', label: 'QQQ', color: COLOR_BY_SERIES.QQQ, data: qqq },
       { key: 'DIA', label: 'DIA', color: COLOR_BY_SERIES.DIA, data: dia }
     ];
-  }, [seriesDataForToolbar, tickerSymbol, indexSymbol, mode]);
+  }, [seriesDataForToolbar, tickerSymbol, indexSymbol, indexDropdownOptions, mode]);
 
   const filteredChartSeries = useMemo(() => {
     const byKey = new Map(chartSeries.map((s) => [s.key, s]));
@@ -878,7 +925,7 @@ export default function RelativeStrengthTickerPage() {
     [section16Rows]
   );
   const benchmarkDropdownOptions = useMemo(
-    () => INDEX_OPTIONS.map((v) => ({ id: v, label: v })),
+    () => INDEX_BENCHMARK_OPTIONS.map((o) => ({ id: o.id, label: o.label })),
     []
   );
 
@@ -1013,7 +1060,9 @@ export default function RelativeStrengthTickerPage() {
     chartRef.current = chart;
 
     const ro = new ResizeObserver(() => {
-      chart.applyOptions({ width: host.clientWidth });
+      const h = Math.max(120, host.clientHeight || RS_MAIN_CHART_DEFAULT_H);
+      chart.applyOptions({ width: host.clientWidth, height: h });
+      requestAnimationFrame(() => updateAxisBadgePositions());
     });
     ro.observe(host);
 
@@ -1122,15 +1171,16 @@ export default function RelativeStrengthTickerPage() {
   }, []);
 
   const getMainRsExportBackground = useCallback(
-    (light) => {
-      const root = chartPanelRef.current;
-      if (root && typeof window !== 'undefined') {
-        const c = window.getComputedStyle(root).backgroundColor;
-        if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c;
-      }
-      return getRsChartBgColor(light);
-    },
+    (light) => getRelativeStrengthExportBackground(light),
     []
+  );
+
+  const mainRsExportOnclone = useCallback(
+    (clonedDoc, clonedRoot) => {
+      applyRsSnapshotCloneFixes(clonedDoc, clonedRoot);
+      applyRelativeStrengthSnapshotCloneFixes(clonedDoc, clonedRoot, docTheme === 'light');
+    },
+    [docTheme]
   );
 
   const modeDropdownOptions = MODE_OPTIONS;
@@ -1465,7 +1515,9 @@ export default function RelativeStrengthTickerPage() {
           <div className="relative-strength-page__ticker-search">
             <TickerSymbolCombobox
               symbol={tickerSymbol}
-              onSymbolChange={(raw) => setTickerSymbol(sanitizeTickerPageInput(raw))}
+              onSymbolChange={(raw) =>
+                startTransition(() => setTickerSymbol(sanitizeTickerPageInput(raw)))
+              }
               inputId="relative-strength-ticker-symbol"
               placeholder="Search ticker (e.g. AAPL)"
             />
@@ -1500,7 +1552,7 @@ export default function RelativeStrengthTickerPage() {
             disabled={loading}
             getBackgroundColor={getMainRsExportBackground}
             getFallbackCanvas={getMainRsExportFallbackCanvas}
-            onclone={applyRsSnapshotCloneFixes}
+            onclone={mainRsExportOnclone}
             exportPreviewAlt="Exported relative strength chart"
           />
         </div>
@@ -1559,6 +1611,7 @@ export default function RelativeStrengthTickerPage() {
             className="relative-strength-page__main-rs-resize-scope"
           >
             <RsMainLineChartPlot
+              fullscreenRootRef={chartPanelRef}
               chartHostRef={chartHostRef}
               chartRef={chartRef}
               loading={loading}
@@ -1752,7 +1805,16 @@ export default function RelativeStrengthTickerPage() {
           relativeStrengthHeader={`Relative Strength (${indexSymbol} - ${tickerSymbol})`}
           chartBarsAscending
         /> */}
-          <TickerSection23Section24 pageSymbol={tickerSymbol} />
+          <TickerSection23Section24
+            pageSymbol={tickerSymbol}
+            rsPageSelectors
+            selectedTicker={tickerSymbol}
+            onSelectedTickerChange={(next) => startTransition(() => setTickerSymbol(next))}
+            selectedBenchmarkSymbol={indexSymbol}
+            onSelectedBenchmarkSymbolChange={(next) => startTransition(() => setIndexSymbol(next))}
+            tickerSelectOptions={tickerDropdownOptions}
+            indexSelectOptions={indexDropdownOptions}
+          />
         </section>
       </div>
 

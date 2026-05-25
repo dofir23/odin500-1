@@ -10,7 +10,6 @@ import { AppRightRail } from './AppRightRail.jsx';
 import { WatchlistRailFlyout } from './WatchlistRailFlyout.jsx';
 import { NewsRailFlyout } from './NewsRailFlyout.jsx';
 import { MarketMoversRailFlyout } from './MarketMoversRailFlyout.jsx';
-import { SeoSiteFooter } from './SeoSiteFooter.jsx';
 import { useSitewideSeo } from '../seo/usePageSeo.js';
 import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
 
@@ -144,7 +143,6 @@ function ProtectedLayoutShell() {
             <div className="app-main-scroll" ref={mainScrollRef}>
               <main id="app-main-content">
                 <Outlet />
-                <SeoSiteFooter />
               </main>
             </div>
             {isDockOpen && isMobile ? (

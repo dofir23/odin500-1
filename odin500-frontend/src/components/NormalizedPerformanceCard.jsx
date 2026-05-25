@@ -6,7 +6,12 @@ import { CHART_INFO_TIPS } from './chartInfoTips.js';
 import TradingChartLoader from './TradingChartLoader.jsx';
 import {fetchWithAuth, getAuthToken, canFetchProtectedApi} from '../store/apiStore.js';
 import { apiUrl } from '../utils/apiOrigin.js';
-import { DEFAULT_SELECTED_KEYS, META_BY_KEY, TICKER_BY_KEY } from './marketSeriesRegistry.js';
+import {
+  DEFAULT_SELECTED_KEYS,
+  META_BY_KEY,
+  TICKER_BY_KEY,
+  marketSeriesChipLabel
+} from './marketSeriesRegistry.js';
 import { TF_OPTIONS, tfRange, normalizeRows } from '../utils/marketCalculations.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { ChartFullscreenToggleIcon } from './ChartFullscreenToggleIcon.jsx';
@@ -780,14 +785,15 @@ export function NormalizedPerformanceCard({
             {activeKeys.map((k) => {
               const s = META_BY_KEY[k];
               if (!s) return null;
+              const chipLabel = marketSeriesChipLabel(s);
               return (
                 <div key={s.key} className="np-card__chip">
                   <div className="np-card__chip-main">
-                    <span className="np-card__chip-label">{s.label}</span>
+                    <span className="np-card__chip-label">{chipLabel}</span>
                     <button
                       type="button"
                       className="np-card__chip-x"
-                      aria-label={`Remove ${s.label}`}
+                      aria-label={`Remove ${chipLabel}`}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();

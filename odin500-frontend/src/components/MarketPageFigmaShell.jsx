@@ -8,7 +8,12 @@ import { apiUrl } from '../utils/apiOrigin.js';
 import { NormalizedPerformanceCard } from './NormalizedPerformanceCard.jsx';
 import { SectorTreemap } from './SectorTreemap.jsx';
 import TradingChartLoader from './TradingChartLoader.jsx';
-import { DEFAULT_SELECTED_KEYS, MARKET_SERIES, META_BY_KEY } from './marketSeriesRegistry.js';
+import {
+  DEFAULT_SELECTED_KEYS,
+  MARKET_SERIES,
+  META_BY_KEY,
+  OTHER_MARKET_SUBSECTIONS
+} from './marketSeriesRegistry.js';
 import { useRightRailDock } from '../context/WatchlistDockContext.jsx';
 import { CHART_INFO_TIPS } from './chartInfoTips.js';
 import { fmtAbsSigned, fmtPct, fmtPctSigned, fmtPrice } from '../utils/marketCalculations.js';
@@ -17,12 +22,35 @@ import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
 
 const LEFT_GROUPS = [
   { id: 'us', title: 'Key US Indices ' },
+  { id: 'index', title: 'Index ETFs' },
   { id: 'sector', title: 'SP500 Sectors' },
-  { id: 'other', title: 'Other Markets (ETFs)' }
+  { id: 'other', title: 'Other Markets ETFs' }
 ];
 
 /** Matches left-aside `mkt-mini-card` header title typography. */
 const MKT_ASIDE_TITLE_CLASS = 'uppercase text-[12px] font-medium leading-[1.1]';
+
+/** Renders titles with a smaller “s” in “ETFs” (e.g. Index ETF<span>s</span>). */
+function MktAsideTitleText({ text }) {
+  const str = String(text ?? '');
+  if (!/ETFs/i.test(str)) return str;
+  const parts = [];
+  const re = /ETFs/gi;
+  let last = 0;
+  let m;
+  let i = 0;
+  while ((m = re.exec(str)) !== null) {
+    if (m.index > last) parts.push(str.slice(last, m.index));
+    parts.push(
+      <span key={`etf-${i++}`} className="mkt-title-etfs">
+        ETF<span className="mkt-title-etfs__s">s</span>
+      </span>
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < str.length) parts.push(str.slice(last));
+  return <>{parts}</>;
+}
 const REFRESH_MAP = { manual: 0, '15s': 15000, '30s': 30000, '60s': 60000 };
 const LS_KEYS = {
   selected: 'market_shell_selected_keys',
@@ -33,6 +61,67 @@ const LS_KEYS = {
 
 function groupRows(groupId) {
   return MARKET_SERIES.filter((s) => s.group === groupId);
+}
+
+function otherMarketSubsections() {
+  const rows = groupRows('other');
+  return OTHER_MARKET_SUBSECTIONS.map((sub) => ({
+    ...sub,
+    rows: rows.filter((r) => r.subsection === sub.id)
+  })).filter((sub) => sub.rows.length > 0);
+}
+
+function MarketMiniCardRow({ row: r, groupId, snapshot, selectedKeys, onToggleSeries }) {
+  const v = snapshot;
+  const up = Number(v?.chgPct) > 0;
+  const down = Number(v?.chgPct) < 0;
+  const checked = selectedKeys.includes(r.key);
+  const tickerLabel = r.symbol
+    ? String(r.symbol)
+    : String(r.ticker || r.key || '').toUpperCase();
+  const routeSym = sanitizeTickerPageInput(r.ticker || r.symbol || r.key);
+  const indexTo = r.indexRouteSlug ? `/indices/${encodeURIComponent(r.indexRouteSlug)}` : '';
+  const tickerTo =
+    indexTo ||
+    (routeSym ? `/ticker/${encodeURIComponent(routeSym)}?ticker=${encodeURIComponent(routeSym)}` : '');
+  const linkTitle = indexTo
+    ? `Open ${r.label} index page`
+    : routeSym
+      ? `Open ${routeSym} on ticker page (OHLC: ${String(r.ticker || '').toUpperCase()})`
+      : '';
+
+  return (
+    <div className="mkt-mini-card__row">
+      <label className="mkt-mini-card__check-label" style={{ ['--mkt-check-accent']: r.color }}>
+        <input
+          type="checkbox"
+          className="mkt-mini-card__check"
+          checked={checked}
+          onChange={() => onToggleSeries(r.key)}
+          aria-label={`Show ${r.label} in chart`}
+        />
+      </label>
+      {indexTo ? (
+        <Link className="mkt-mini-card__name mkt-mini-card__name--link" to={indexTo} title={linkTitle}>
+          {r.label}
+        </Link>
+      ) : (
+        <MktMiniCardName label={r.label} />
+      )}
+      {tickerTo ? (
+        <Link className="mkt-mini-card__ticker mkt-mini-card__ticker--link" to={tickerTo} title={linkTitle}>
+          {tickerLabel || '—'}
+        </Link>
+      ) : (
+        <span className="mkt-mini-card__ticker" title={`OHLC symbol: ${String(r.ticker || '').toUpperCase()}`}>
+          {tickerLabel || '—'}
+        </span>
+      )}
+      <span>{v ? fmtPrice(v.close) : '—'}</span>
+      <span className={up ? 'is-up' : down ? 'is-down' : ''}>{v ? fmtAbsSigned(v.chg) : '—'}</span>
+      <span className={up ? 'is-up' : down ? 'is-down' : ''}>{v ? fmtPctSigned(v.chgPct) : '—'}</span>
+    </div>
+  );
 }
 
 /** Full label on hover when the name cell is ellipsis-truncated. */
@@ -130,6 +219,8 @@ function LeftSnapshotStack({
   onToggleSeries,
   onSelectGroupAll,
   onClearGroup,
+  onSelectSubsectionAll,
+  onClearSubsection,
   timeframe,
   refreshMs
 }) {
@@ -193,7 +284,7 @@ return (
         <section key={g.id} className="mkt-mini-card">
           <header className="mkt-mini-card__head">
             <span className={MKT_ASIDE_TITLE_CLASS}>
-              {g.title}
+              <MktAsideTitleText text={g.title} />
               <span
                 className={'mkt-mini-card__tf' + (String(timeframe).toUpperCase() === '10Y' ? ' mkt-mini-card__tf--10y' : '')}
                 title="Same date range as the performance chart"
@@ -218,50 +309,56 @@ return (
             <span>Δ</span>
             <span>%</span>
           </div>
-          {groupRows(g.id).map((r) => {
-            const v = rowsByGroup[g.id]?.[r.key];
-            const up = Number(v?.chgPct) > 0;
-            const down = Number(v?.chgPct) < 0;
-            const checked = selectedKeys.includes(r.key);
-            const tickerLabel = String(r.symbol || r.ticker || r.key || '').toUpperCase();
-            const routeSym = sanitizeTickerPageInput(r.ticker || r.symbol || r.key);
-            const tickerTo = routeSym
-              ? `/ticker/${encodeURIComponent(routeSym)}?ticker=${encodeURIComponent(routeSym)}`
-              : '';
-            return (
-              <div key={r.key} className="mkt-mini-card__row">
-                <label
-                  className="mkt-mini-card__check-label"
-                  style={{ ['--mkt-check-accent']: r.color }}
-                >
-                  <input
-                    type="checkbox"
-                    className="mkt-mini-card__check"
-                    checked={checked}
-                    onChange={() => onToggleSeries(r.key)}
-                    aria-label={`Show ${r.label} in chart`}
-                  />
-                </label>
-                <MktMiniCardName label={r.label} />
-                {routeSym ? (
-                  <Link
-                    className="mkt-mini-card__ticker mkt-mini-card__ticker--link"
-                    to={tickerTo}
-                    title={`Open ${routeSym} on ticker page (OHLC: ${String(r.ticker || '').toUpperCase()})`}
-                  >
-                    {tickerLabel || '—'}
-                  </Link>
-                ) : (
-                  <span className="mkt-mini-card__ticker" title={`OHLC symbol: ${String(r.ticker || '').toUpperCase()}`}>
-                    {tickerLabel || '—'}
-                  </span>
-                )}
-                <span>{v ? fmtPrice(v.close) : '—'}</span>
-                <span className={up ? 'is-up' : down ? 'is-down' : ''}>{v ? fmtAbsSigned(v.chg) : '—'}</span>
-                <span className={up ? 'is-up' : down ? 'is-down' : ''}>{v ? fmtPctSigned(v.chgPct) : '—'}</span>
-              </div>
-            );
-          })}
+          {g.id === 'other'
+            ? otherMarketSubsections().map((sub) => (
+                <div key={sub.id} className="mkt-mini-card__subsection">
+                  <header className="mkt-mini-card__subsection-head">
+                    <span className={MKT_ASIDE_TITLE_CLASS}>
+                      <MktAsideTitleText text={sub.title} />
+                      <span
+                        className={
+                          'mkt-mini-card__tf' + (String(timeframe).toUpperCase() === '10Y' ? ' mkt-mini-card__tf--10y' : '')
+                        }
+                        title="Same date range as the performance chart"
+                      >
+                        {timeframe}
+                      </span>
+                    </span>
+                    <span className="mkt-mini-card__head-actions">
+                      <button
+                        type="button"
+                        className="mkt-mini-card__tiny-btn"
+                        onClick={() => onSelectSubsectionAll(sub.id)}
+                      >
+                        All
+                      </button>
+                      <button type="button" className="mkt-mini-card__tiny-btn" onClick={() => onClearSubsection(sub.id)}>
+                        None
+                      </button>
+                    </span>
+                  </header>
+                  {sub.rows.map((r) => (
+                    <MarketMiniCardRow
+                      key={r.key}
+                      row={r}
+                      groupId={g.id}
+                      snapshot={rowsByGroup[g.id]?.[r.key]}
+                      selectedKeys={selectedKeys}
+                      onToggleSeries={onToggleSeries}
+                    />
+                  ))}
+                </div>
+              ))
+            : groupRows(g.id).map((r) => (
+                <MarketMiniCardRow
+                  key={r.key}
+                  row={r}
+                  groupId={g.id}
+                  snapshot={rowsByGroup[g.id]?.[r.key]}
+                  selectedKeys={selectedKeys}
+                  onToggleSeries={onToggleSeries}
+                />
+              ))}
         </section>
       ))}
     </aside>
@@ -274,7 +371,10 @@ const SUMMARY_TF_PERIOD = {
   '1M': 'Last Month',
   '6M': 'Last 6 months',
   '1Y': 'Last 1 year',
-  '3Y': 'Last 3 years'
+  '3Y': 'Last 3 years',
+  '5Y': 'Last 5 years',
+  '10Y': 'Last 10 years',
+  '20Y': 'Last 20 years'
 };
 
 function pickTickerReturnsFromBatch(payload, ticker) {
@@ -395,12 +495,16 @@ function SummaryReturnsCard({ refreshMs = 0 }) {
           ))}
         </div>
         {defs.map((d) => {
-          const ticker = META_BY_KEY[d.key]?.ticker;
+          const meta = META_BY_KEY[d.key];
+          const ticker = meta?.ticker;
           const routeSym = sanitizeTickerPageInput(ticker || d.key);
+          const indexTo = meta?.indexRouteSlug ? `/indices/${encodeURIComponent(meta.indexRouteSlug)}` : '';
           const tickerTo =
-            routeSym && ticker
+            indexTo ||
+            (routeSym && ticker
               ? `/ticker/${encodeURIComponent(routeSym)}?ticker=${encodeURIComponent(routeSym)}`
-              : '';
+              : '');
+          const rowTitle = indexTo ? `Open ${d.label} index page` : routeSym ? `Open ${routeSym}` : '';
           const cells = tfs.map((tf) => {
             const raw = vals?.[d.key]?.[tf.key];
             const v = Number(raw);
@@ -419,7 +523,7 @@ function SummaryReturnsCard({ refreshMs = 0 }) {
           });
           if (tickerTo) {
             return (
-              <Link key={d.key} to={tickerTo} className="mkt-watch-card__row mkt-returns-summary__row" title={`Open ${routeSym}`}>
+              <Link key={d.key} to={tickerTo} className="mkt-watch-card__row mkt-returns-summary__row" title={rowTitle}>
                 <span className="mkt-returns-summary__cell mkt-returns-summary__cell--label">{d.label}</span>
                 {cells}
               </Link>
@@ -510,7 +614,14 @@ function MarketHeatmapThumbnail({ refreshMs = 0 }) {
         >
           {error ? <div className="mkt-treemap-thumb-host__err">{error}</div> : null}
           {!error && rows.length > 0 ? (
-            <SectorTreemap rows={rows} scaleMin={-3} scaleMax={3} highlightSymbol="" disableTooltip />
+            <SectorTreemap
+              rows={rows}
+              scaleMin={-3}
+              scaleMax={3}
+              highlightSymbol=""
+              disableTooltip
+              titleCaseGroupLabels
+            />
           ) : !error && !loading ? (
             <div className="mkt-treemap-thumb-host__empty">No data</div>
           ) : null}
@@ -812,6 +923,23 @@ export function MarketPageFigmaShell() {
       return next.length ? next : prev;
     });
   };
+  const onSelectSubsectionAll = (subsectionId) => {
+    const keys = groupRows('other')
+      .filter((s) => s.subsection === subsectionId)
+      .map((s) => s.key);
+    setSelectedSeries((prev) => Array.from(new Set([...prev, ...keys])));
+  };
+  const onClearSubsection = (subsectionId) => {
+    const subsectionKeys = new Set(
+      groupRows('other')
+        .filter((s) => s.subsection === subsectionId)
+        .map((s) => s.key)
+    );
+    setSelectedSeries((prev) => {
+      const next = prev.filter((k) => !subsectionKeys.has(k));
+      return next.length ? next : prev;
+    });
+  };
 
   useEffect(() => {
     try {
@@ -837,6 +965,8 @@ export function MarketPageFigmaShell() {
         onToggleSeries={onToggleSeries}
         onSelectGroupAll={onSelectGroupAll}
         onClearGroup={onClearGroup}
+        onSelectSubsectionAll={onSelectSubsectionAll}
+        onClearSubsection={onClearSubsection}
         timeframe={timeframe}
         refreshMs={refreshMs}
       />

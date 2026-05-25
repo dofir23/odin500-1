@@ -109,13 +109,13 @@ function normalizeDailyPair(prev, field, rawValue) {
 }
 
 const DAILY_CHART_DATE_INPUT_CLASS =
-  'app-date-input h-7 w-[100px] shrink-0 rounded-md border border-slate-400/45 bg-white px-1 py-0 text-[11px] leading-7 text-slate-900 shadow-sm outline-none focus:border-sky-500/80 dark:border-white/12 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-sky-400/60';
+  'app-date-input h-7 w-[110px] shrink-0 rounded-md border border-slate-400/45 bg-white px-1 py-0 text-[11px] leading-7 text-slate-900 shadow-sm outline-none focus:border-sky-500/80 dark:border-white/12 dark:bg-transparent dark:text-slate-100 dark:focus:border-sky-400/60';
 
 /** Compact start/end dates for daily charts (same row as toolbar buttons; applies on change). */
-function DailyChartDateRangeToolbar({ draft, loadedRange, onChangeStart, onChangeEnd }) {
+function DailyChartDateRangeToolbar({ draft, pickerMax, onChangeStart, onChangeEnd }) {
   const bounds = dateInputBounds(draft.start, draft.end, {
-    globalMin: loadedRange.min || undefined,
-    globalMax: loadedRange.max || undefined
+    globalMin: RETURNS_DEFAULT_START,
+    globalMax: pickerMax || undefined
   });
   return (
     <div className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1 self-center mr-2" aria-label="Daily returns date range">
@@ -387,8 +387,12 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
   const [tableRange, setTableRange] = useState(DEFAULT_TABLE_RANGE_PRESET);
   const [tableSort, setTableSort] = useState({ column: 'period', direction: 'desc' });
   const [tablePage, setTablePage] = useState(1);
-  const [dailyFilter, setDailyFilter] = useState(() => ({ start: '', end: '' }));
-  const [dailyFilterDraft, setDailyFilterDraft] = useState(() => ({ start: '', end: '' }));
+  const [dailyFilter, setDailyFilter] = useState(() =>
+    defaultDailyFetchRange(new Date().toISOString().slice(0, 10))
+  );
+  const [dailyFilterDraft, setDailyFilterDraft] = useState(() =>
+    defaultDailyFetchRange(new Date().toISOString().slice(0, 10))
+  );
   const [dailyFetchRange, setDailyFetchRange] = useState(() =>
     defaultDailyFetchRange(new Date().toISOString().slice(0, 10))
   );
@@ -624,10 +628,23 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
 
   useEffect(() => {
     const fallback = defaultDailyFetchRange(new Date().toISOString().slice(0, 10));
-    setDailyFilter({ start: '', end: '' });
-    setDailyFilterDraft({ start: '', end: '' });
+    setDailyFilter(fallback);
+    setDailyFilterDraft(fallback);
     setDailyFetchRange(fallback);
   }, [sym]);
+
+  useEffect(() => {
+    if (!isDaily) return;
+    const sync = (prev) => {
+      if (prev.start && prev.end) return prev;
+      const start = dailyFetchRange.start || '';
+      const end = dailyFetchRange.end || '';
+      if (!start || !end) return prev;
+      return { start, end };
+    };
+    setDailyFilter(sync);
+    setDailyFilterDraft(sync);
+  }, [isDaily, dailyFetchRange.start, dailyFetchRange.end, monthlyReturnsRaw]);
 
   const monthYearOptions = useMemo(() => {
     const rows = Array.isArray(monthlyReturnsRaw) ? monthlyReturnsRaw : [];
@@ -681,9 +698,10 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
     () => yearOptionsForEnd(weekYearDropdownOptions, weeklyStartYear),
     [weekYearDropdownOptions, weeklyStartYear]
   );
+  const dailyPickerMax = asOfDate || new Date().toISOString().slice(0, 10);
   const dailyTableDateBounds = dateInputBounds(dailyFilterDraft.start, dailyFilterDraft.end, {
-    globalMin: dailyLoadedRange.min || undefined,
-    globalMax: dailyLoadedRange.max || undefined
+    globalMin: RETURNS_DEFAULT_START,
+    globalMax: dailyPickerMax
   });
 
   /** Avoid resetting user-defined weekly start/end when only raw rows refresh; reset when span or symbol changes. */
@@ -855,12 +873,12 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
     () => (
       <DailyChartDateRangeToolbar
         draft={dailyFilterDraft}
-        loadedRange={dailyLoadedRange}
+        pickerMax={dailyPickerMax}
         onChangeStart={(e) => onDailyToolbarDateChange('start', e.target.value)}
         onChangeEnd={(e) => onDailyToolbarDateChange('end', e.target.value)}
       />
     ),
-    [dailyFilterDraft, dailyLoadedRange, onDailyToolbarDateChange]
+    [dailyFilterDraft, dailyPickerMax, onDailyToolbarDateChange]
   );
   const tableRowsFiltered = useMemo(() => {
     const source = isDaily ? dailyReturnsForUi || [] : monthlyReturnsRaw;

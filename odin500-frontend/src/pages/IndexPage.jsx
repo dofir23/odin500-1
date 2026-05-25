@@ -1943,7 +1943,7 @@ export default function IndexPage() {
           
           <div className="ticker-page__header-metric">
             <div className="ticker-page__metric-value-row">
-              <span className="ticker-page__metric-value">Data mode</span>
+              <span className="ticker-page__metric-value">Related ETF</span>
               {/* <DataInfoTip align="start">
                 <p className="ticker-data-tip__p">
                   <strong>seriesMode</strong>{' '}
@@ -1968,9 +1968,9 @@ export default function IndexPage() {
 
           <div className="ticker-page__header-metric">
             <div className="ticker-page__metric-value-row">
-              <span className="ticker-page__metric-value">{isSectorDataRoute ? 'S&P 500' : apiIndexLabel}</span>
+              <span className="ticker-page__metric-value">{isSectorDataRoute ? 'S&P 500' : ""}</span>
             </div>
-            <p className="ticker-page__metric-label">{isSectorDataRoute ? 'Constituent universe' : 'API index'}</p>
+            <p className="ticker-page__metric-label">{isSectorDataRoute ? 'Constituent universe' : ''}</p>
           </div>
 
         </div>

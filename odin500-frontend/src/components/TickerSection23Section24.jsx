@@ -39,6 +39,9 @@ const TF_ROWS = [
   { key: '20Y', period: 'Last 20 years' }
 ];
 const TABLE_ONLY_START_DATE = '2005-01-01';
+const S24_TWENTY_Y_KEY = '20Y';
+/** Minimum visible bar height (%) for non-zero returns so 1D/5D/1M stay readable. */
+const S24_MIN_BAR_HEIGHT_PCT = 2.5;
 
 /** Stable empty default — `= []` in params is a new array every render when the prop is omitted. */
 const DEFAULT_INITIAL_SP500_ROWS = Object.freeze([]);
@@ -108,21 +111,34 @@ function chartYPct(axisMax, axisMin, value) {
 }
 
 /**
- * @param {number} axisMax
- * @param {number} axisMin
- * @param {unknown} v
- * @returns {{ topPct: number, heightPct: number, empty: boolean, dir: 'up' | 'down' | 'flat' }}
+ * Bar geometry with a shared zero line (main axis) and per-column positive scale.
+ * Non-20Y columns use `valueMax` = main axis max; 20Y uses its own max so long horizons stay visible.
  */
-function s24BarGeom(axisMax, axisMin, v) {
-  const z = chartYPct(axisMax, axisMin, 0);
+function s24BarGeomScaled(axisMin, axisMainMax, valueMax, v) {
+  const z = chartYPct(axisMainMax, axisMin, 0);
   if (v == null || !Number.isFinite(Number(v))) {
     return { topPct: z, heightPct: 0, empty: true, dir: 'flat' };
   }
   const num = Number(v);
-  const yv = chartYPct(axisMax, axisMin, num);
-  if (num > 0) return { topPct: yv, heightPct: Math.max(0, z - yv), empty: false, dir: 'up' };
-  if (num < 0) return { topPct: z, heightPct: Math.max(0, yv - z), empty: false, dir: 'down' };
+  const posCap = Math.max(axisMainMax, valueMax, 1e-9);
+  if (num > 0) {
+    let heightPct = (num / posCap) * z;
+    if (heightPct > 0 && heightPct < S24_MIN_BAR_HEIGHT_PCT) heightPct = S24_MIN_BAR_HEIGHT_PCT;
+    const topPct = z - heightPct;
+    return { topPct, heightPct, empty: false, dir: 'up' };
+  }
+  if (num < 0) {
+    const yv = chartYPct(axisMainMax, axisMin, num);
+    let heightPct = Math.max(0, yv - z);
+    if (heightPct > 0 && heightPct < S24_MIN_BAR_HEIGHT_PCT) heightPct = S24_MIN_BAR_HEIGHT_PCT;
+    return { topPct: z, heightPct, empty: false, dir: 'down' };
+  }
   return { topPct: z, heightPct: 0, empty: false, dir: 'flat' };
+}
+
+function s24BarValTopPct(geom) {
+  if (geom.empty) return null;
+  return geom.dir === 'down' ? geom.topPct + geom.heightPct : geom.topPct;
 }
 
 export function TickerSection23Section24({
@@ -133,7 +149,15 @@ export function TickerSection23Section24({
   prefetchedLongBusy = false,
   onSectionBenchmarkSymbolChange,
   initialSp500Rows = DEFAULT_INITIAL_SP500_ROWS,
-  onViewMore: onViewMoreProp
+  onViewMore: onViewMoreProp,
+  /** Relative Strength ticker page: IndexPage-style head selectors (ticker + index ETF). */
+  rsPageSelectors = false,
+  selectedTicker = '',
+  onSelectedTickerChange,
+  selectedBenchmarkSymbol = 'SPX',
+  onSelectedBenchmarkSymbolChange,
+  tickerSelectOptions = [],
+  indexSelectOptions = []
 }) {
   const navigate = useNavigate();
   const [groupId, setGroupId] = useState('sp500');
@@ -147,6 +171,17 @@ export function TickerSection23Section24({
   const filtersMenuMode = useReturnsChartFiltersMenuMode();
 
   const activeGroup = useMemo(() => GROUPS.find((g) => g.id === groupId) || GROUPS[0], [groupId]);
+
+  const benchSymbol = useMemo(() => {
+    if (rsPageSelectors) {
+      return String(selectedBenchmarkSymbol || 'SPX').toUpperCase().trim();
+    }
+    return String(activeGroup.benchmark || '').toUpperCase().trim();
+  }, [rsPageSelectors, selectedBenchmarkSymbol, activeGroup.benchmark]);
+
+  const benchLabel = rsPageSelectors
+    ? indexSelectOptions.find((o) => o.id === benchSymbol)?.label || benchSymbol || 'Index'
+    : activeGroup.benchLabel;
 
   const onViewMore = useCallback(() => {
     if (typeof onViewMoreProp === 'function') {
@@ -168,16 +203,21 @@ export function TickerSection23Section24({
   }, [initialSp500Rows]);
 
   useEffect(() => {
+    if (rsPageSelectors) {
+      const next = String(selectedTicker || pageSymbol || '').toUpperCase();
+      if (next) setTicker(next);
+      return;
+    }
     setTicker(String(pageSymbol || '').toUpperCase());
-  }, [pageSymbol]);
+  }, [pageSymbol, rsPageSelectors, selectedTicker]);
 
   const usePrefetchLong = useMemo(() => {
+    if (rsPageSelectors) return false;
     const symPage = String(pageSymbol || '').toUpperCase().trim();
     const tick = String(ticker || '').toUpperCase().trim();
-    const bench = String(activeGroup.benchmark || '').toUpperCase().trim();
     const prefB = String(prefetchedLongBenchSymbol || '').toUpperCase().trim();
-    return tick === symPage && bench === prefB;
-  }, [pageSymbol, ticker, activeGroup.benchmark, prefetchedLongBenchSymbol]);
+    return tick === symPage && benchSymbol === prefB;
+  }, [pageSymbol, ticker, benchSymbol, prefetchedLongBenchSymbol, rsPageSelectors]);
 
   const tickerReturns = usePrefetchLong ? prefetchedLongTickerReturns : localTickerReturns;
   const benchReturns = usePrefetchLong ? prefetchedLongBenchReturns : localBenchReturns;
@@ -185,10 +225,11 @@ export function TickerSection23Section24({
     loadingGroup || (usePrefetchLong ? prefetchedLongBusy : localReturnsBusy);
 
   useEffect(() => {
-    onSectionBenchmarkSymbolChange?.(activeGroup.benchmark);
-  }, [groupId, activeGroup.benchmark, onSectionBenchmarkSymbolChange]);
+    onSectionBenchmarkSymbolChange?.(benchSymbol);
+  }, [benchSymbol, onSectionBenchmarkSymbolChange]);
 
   useEffect(() => {
+    if (rsPageSelectors) return;
     let cancelled = false;
     async function loadGroupRows() {
       if (!canFetchProtectedApi()) return;
@@ -228,7 +269,7 @@ export function TickerSection23Section24({
     return () => {
       cancelled = true;
     };
-  }, [activeGroup.apiIndex, activeGroup.id, initialSp500RowsSig]);
+  }, [activeGroup.apiIndex, activeGroup.id, initialSp500RowsSig, rsPageSelectors]);
 
   /**
    * When the peer ticker differs from the page symbol, load only missing core payloads.
@@ -238,7 +279,7 @@ export function TickerSection23Section24({
     let cancelled = false;
     const symPage = String(pageSymbol || '').toUpperCase().trim();
     const tick = String(ticker || '').toUpperCase().trim();
-    const bench = String(activeGroup.benchmark || '').toUpperCase().trim();
+    const bench = benchSymbol;
     const prefB = String(prefetchedLongBenchSymbol || '').toUpperCase().trim();
     const usePrefetch = tick === symPage && bench === prefB;
 
@@ -302,7 +343,7 @@ export function TickerSection23Section24({
     return () => {
       cancelled = true;
     };
-  }, [ticker, activeGroup.benchmark, pageSymbol, prefetchedLongBenchSymbol]);
+  }, [ticker, benchSymbol, pageSymbol, prefetchedLongBenchSymbol]);
 
   const rows = useMemo(() => {
     const dynT = tickerReturns?.performance?.dynamicPeriods || [];
@@ -381,28 +422,57 @@ export function TickerSection23Section24({
     rows
   ]);
 
-  const axis = useMemo(() => niceAxisBounds(rows), [rows]);
+  const rowsMain = useMemo(() => rows.filter((r) => r.tf !== S24_TWENTY_Y_KEY), [rows]);
+  const row20Y = useMemo(() => rows.find((r) => r.tf === S24_TWENTY_Y_KEY) ?? null, [rows]);
 
-  const s24Ticks = useMemo(
-    () =>
-      axis.ticks.map((t) => ({
-        key: `s24y-${t}`,
-        value: t,
-        topPct: chartYPct(axis.max, axis.min, t)
-      })),
-    [axis]
-  );
-  const s24ZeroTopPct = useMemo(() => chartYPct(axis.max, axis.min, 0), [axis]);
+  const axisMain = useMemo(() => niceAxisBounds(rowsMain), [rowsMain]);
+  const axis20Y = useMemo(() => {
+    if (!row20Y) return axisMain;
+    const b = niceAxisBounds([row20Y]);
+    return {
+      min: axisMain.min,
+      max: Math.max(b.max, axisMain.max),
+      ticks: b.ticks
+    };
+  }, [row20Y, axisMain]);
+
+  const s24Ticks = useMemo(() => {
+    const ticks = axisMain.ticks.map((t) => ({
+      key: `s24y-${t}`,
+      value: t,
+      topPct: chartYPct(axisMain.max, axisMain.min, t),
+      is20YCap: false
+    }));
+    // if (
+    //   row20Y &&
+    //   Number.isFinite(axis20Y.max) &&
+    //   axis20Y.max > axisMain.max + 1e-6
+    // ) {
+    //   ticks.push({
+    //     key: 's24y-20y-cap',
+    //     value: axis20Y.max,
+    //     topPct: 0,
+    //     is20YCap: true
+    //   });
+    // }
+    return ticks;
+  }, [axisMain, axis20Y, row20Y]);
+
+  const s24ZeroTopPct = useMemo(() => chartYPct(axisMain.max, axisMain.min, 0), [axisMain]);
+
   const s24Cols = useMemo(
     () =>
-      rows.map((r) => ({
-        tf: r.tf,
-        benchV: r.bench,
-        tickV: r.tick,
-        bench: s24BarGeom(axis.max, axis.min, r.bench),
-        tick: s24BarGeom(axis.max, axis.min, r.tick)
-      })),
-    [rows, axis]
+      rows.map((r) => {
+        const valueMax = r.tf === S24_TWENTY_Y_KEY ? axis20Y.max : axisMain.max;
+        return {
+          tf: r.tf,
+          benchV: r.bench,
+          tickV: r.tick,
+          bench: s24BarGeomScaled(axisMain.min, axisMain.max, valueMax, r.bench),
+          tick: s24BarGeomScaled(axisMain.min, axisMain.max, valueMax, r.tick)
+        };
+      }),
+    [rows, axisMain, axis20Y]
   );
   const s24NCols = Math.max(1, rows.length);
   const s24GapPx = s24NCols > 12 ? 4 : s24NCols > 8 ? 6 : 8;
@@ -413,7 +483,7 @@ export function TickerSection23Section24({
   const s24PlotRef = useRef(/** @type {HTMLDivElement | null} */ (null));
 
   const exportSymbol = String(pageSymbol || ticker || '').trim().toUpperCase() || 'chart';
-  const benchSlug = String(activeGroup.benchmark || activeGroup.id || 'benchmark').toLowerCase();
+  const benchSlug = String(benchSymbol || activeGroup.benchmark || activeGroup.id || 'benchmark').toLowerCase();
 
   const exportS24Csv = useCallback(() => {
     const header = ['period', 'benchmark_pct', 'ticker_pct', 'difference_pct'];
@@ -445,6 +515,43 @@ export function TickerSection23Section24({
   );
 
   const s24ChartActionsDisabled = loadingReturns || !rows.length;
+
+  const rsPageSelectorControls =
+    rsPageSelectors && (tickerSelectOptions.length || indexSelectOptions.length) ? (
+      <div className="ticker-rs-controls ticker-rs-controls--inline">
+        {tickerSelectOptions.length ? (
+          <ThemedDropdown
+            wideLabel
+            style={{ minWidth: 0, maxWidth: '100%' }}
+            value={ticker}
+            options={tickerSelectOptions}
+            onChange={(id) => {
+              const next = String(id || '').toUpperCase();
+              setTicker(next);
+              onSelectedTickerChange?.(next);
+            }}
+            title="Ticker"
+            ariaLabelPrefix="Ticker"
+            labelFallback={ticker || '—'}
+          />
+        ) : null}
+        {indexSelectOptions.length ? (
+          <ThemedDropdown
+            wideLabel
+            style={{ minWidth: 0, maxWidth: '100%' }}
+            value={benchSymbol}
+            options={indexSelectOptions}
+            onChange={(id) => {
+              const next = String(id || '').toUpperCase();
+              onSelectedBenchmarkSymbolChange?.(next);
+            }}
+            title="Index"
+            ariaLabelPrefix="Index"
+            labelFallback={benchLabel || 'S&P 500'}
+          />
+        ) : null}
+      </div>
+    ) : null;
 
   const benchmarkControls = (
     <div className="ticker-s23s24__controls">
@@ -481,24 +588,46 @@ export function TickerSection23Section24({
   return (
     <section className="ticker-s23s24">
       <div className="ticker-s23s24__card ticker-s23">
-        <div className="ticker-s23s24__head-row ticker-s23s24__head-row--title-only">
-          <div className="ticker-card__h-with-tip">
-            <div className="inline-flex shrink-0 items-center gap-2 uppercase">
-              <ReturnsChartPieIcon />
-              <ReturnsChartClickableTitle className="ticker-annual-figma__badge uppercase" onClick={onViewMore}>
-                Relative Strength
-              </ReturnsChartClickableTitle>
+        {rsPageSelectors ? (
+          <div className="ticker-s23s24__head-row ticker-subh-with-tip ticker-subh-with-tip--in-card ticker-rs-selector-head">
+            <div className="ticker-rs-selector-head__left">
+              <div className="flex shrink-0 align-centers">
+                <ReturnsChartPieIcon />
+              </div>
+              <div className="ticker-subh-left">
+                <ReturnsChartClickableTitle
+                  className="ticker-subh ticker-subh--flex uppercase"
+                  onClick={onViewMore}
+                >
+                  Relative Strength
+                </ReturnsChartClickableTitle>
+                <ChartInfoTip tip={CHART_INFO_TIPS.tickerCompareBars} align="start" />
+              </div>
             </div>
-            <ChartInfoTip tip={CHART_INFO_TIPS.tickerCompareBars} align="start" />
+            {rsPageSelectorControls ? (
+              <div className="ticker-rs-selector-head__right">{rsPageSelectorControls}</div>
+            ) : null}
           </div>
-        </div>
+        ) : (
+          <div className="ticker-s23s24__head-row ticker-s23s24__head-row--title-only">
+            <div className="ticker-card__h-with-tip">
+              <div className="inline-flex shrink-0 items-center gap-2 uppercase">
+                <ReturnsChartPieIcon />
+                <ReturnsChartClickableTitle className="ticker-annual-figma__badge uppercase" onClick={onViewMore}>
+                  Relative Strength
+                </ReturnsChartClickableTitle>
+              </div>
+              <ChartInfoTip tip={CHART_INFO_TIPS.tickerCompareBars} align="start" />
+            </div>
+          </div>
+        )}
         <div className="ticker-s23__body">
           <table className="ticker-s23__table">
             <thead>
               <tr>
                 <th> Time</th>
                 <th>{ticker || 'Ticker'}</th>
-                <th>{activeGroup.benchLabel}</th>
+                <th>{benchLabel}</th>
                 <th>Difference</th>
               </tr>
             </thead>
@@ -546,13 +675,13 @@ export function TickerSection23Section24({
             />
           </div>
         </div>
-        {!filtersMenuMode ? benchmarkControls : null}
+        {!filtersMenuMode && !rsPageSelectors ? benchmarkControls : null}
         <div ref={s24FsRef} className="ticker-chart-fs-shell ticker-s24__chart-shell">
           {loadingReturns ? (
             <div className="chart-viz-loading-wrap ticker-s24__viz-loading">
               <TradingChartLoader
                 label="Loading benchmark comparison…"
-                sublabel={`${activeGroup.label} vs ${ticker || 'ticker'}`}
+                sublabel={`${benchLabel} vs ${ticker || 'ticker'}`}
               />
             </div>
           ) : (
@@ -596,10 +725,22 @@ export function TickerSection23Section24({
                                   style={{ top: `${c.bench.topPct}%`, height: `${c.bench.heightPct}%` }}
                                   title={
                                     c.bench.empty
-                                      ? `${activeGroup.benchLabel}: —`
-                                      : `${activeGroup.benchLabel}: ${formatRelativePerfPct(c.benchV)}`
+                                      ? `${benchLabel}: —`
+                                      : `${benchLabel}: ${formatRelativePerfPct(c.benchV)}`
                                   }
                                 />
+                                {!c.bench.empty && s24BarValTopPct(c.bench) != null ? (
+                                  <span
+                                    className={
+                                      'ticker-s17__bar-val ticker-s17__bar-val--' +
+                                      c.bench.dir +
+                                      ' ticker-s24__bar-val'
+                                    }
+                                    style={{ top: `${s24BarValTopPct(c.bench)}%` }}
+                                  >
+                                    {formatRelativePerfPct(c.benchV)}
+                                  </span>
+                                ) : null}
                               </div>
                               <div className="ticker-s17__bar-zone ticker-s24__bar-zone--twin">
                                 <div
@@ -613,6 +754,18 @@ export function TickerSection23Section24({
                                     c.tick.empty ? `${ticker || 'Ticker'}: —` : `${ticker || 'Ticker'}: ${formatRelativePerfPct(c.tickV)}`
                                   }
                                 />
+                                {!c.tick.empty && s24BarValTopPct(c.tick) != null ? (
+                                  <span
+                                    className={
+                                      'ticker-s17__bar-val ticker-s17__bar-val--' +
+                                      c.tick.dir +
+                                      ' ticker-s24__bar-val'
+                                    }
+                                    style={{ top: `${s24BarValTopPct(c.tick)}%` }}
+                                  >
+                                    {formatRelativePerfPct(c.tickV)}
+                                  </span>
+                                ) : null}
                               </div>
                             </div>
                           </div>
@@ -636,7 +789,7 @@ export function TickerSection23Section24({
                 </span>
                 <span>
                   <i className="ticker-s24__dot ticker-s24__dot--bench" />
-                  {activeGroup.benchmark}
+                  {benchSymbol || activeGroup.benchmark}
                 </span>
                 
               </div>

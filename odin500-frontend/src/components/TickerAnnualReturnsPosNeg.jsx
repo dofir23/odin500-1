@@ -96,6 +96,70 @@ function donutSegPath(r0, r1, deg0, deg1) {
   return `M ${x1} ${y1} A ${r1} ${r1} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${r0} ${r0} 0 ${large} 0 ${x4} ${y4} Z`;
 }
 
+/** SVG cannot draw a full 360° ring in one arc — split into halves. */
+function donutSegPaths(r0, r1, deg0, deg1) {
+  const sweep = deg1 - deg0;
+  if (sweep >= 359.99) {
+    const mid = deg0 + sweep / 2;
+    return [donutSegPath(r0, r1, deg0, mid), donutSegPath(r0, r1, mid, deg1)];
+  }
+  return [donutSegPath(r0, r1, deg0, deg1)];
+}
+
+/** Thin placeholder slices (deg) for empty buckets when one band holds 100% of years. */
+const EMPTY_BUCKET_SLICE_DEG = 3.5;
+
+/**
+ * @param {number[]} counts
+ * @param {{ emptySliversForSingleBucket?: boolean }} opts
+ * @returns {Array<{ bucketIndex: number, d0: number, d1: number, count: number, placeholder: boolean }>}
+ */
+function planDonutSegments(counts, { emptySliversForSingleBucket = false } = {}) {
+  const total = counts.reduce((a, b) => a + b, 0);
+  if (total === 0) return [];
+
+  const activeIndices = counts.map((n, i) => (n > 0 ? i : -1)).filter((i) => i >= 0);
+
+  if (emptySliversForSingleBucket && activeIndices.length === 1) {
+    const mainIdx = activeIndices[0];
+    const gap = DONUT_GAP_DEG > 0 ? DONUT_GAP_DEG : 0.4;
+    const emptyCount = 4;
+    const reserved = emptyCount * (EMPTY_BUCKET_SLICE_DEG + gap);
+    const mainSweep = Math.max(280, 360 - reserved);
+    let theta = -90;
+    const segments = [];
+    for (let i = 0; i < 5; i++) {
+      if (i === mainIdx) {
+        const d0 = theta;
+        const d1 = theta + mainSweep;
+        segments.push({ bucketIndex: i, d0, d1, count: counts[i], placeholder: false });
+        theta = d1 + gap;
+      } else {
+        const d0 = theta;
+        const d1 = theta + EMPTY_BUCKET_SLICE_DEG;
+        segments.push({ bucketIndex: i, d0, d1, count: 0, placeholder: true });
+        theta = d1 + gap;
+      }
+    }
+    return segments;
+  }
+
+  const drawn = activeIndices.length;
+  const avail = 360 - DONUT_GAP_DEG * drawn;
+  let theta = -90;
+  const segments = [];
+  for (let i = 0; i < 5; i++) {
+    const n = counts[i];
+    if (n <= 0) continue;
+    const sweep = (n / total) * avail;
+    const d0 = theta;
+    const d1 = theta + sweep;
+    segments.push({ bucketIndex: i, d0, d1, count: n, placeholder: false });
+    theta = d1 + DONUT_GAP_DEG;
+  }
+  return segments;
+}
+
 function labelOnDonut(r, degMid) {
   const rad = Math.PI / 180;
   return { x: r * Math.cos(degMid * rad), y: r * Math.sin(degMid * rad) };
@@ -113,9 +177,16 @@ function buildCounts(rows, mode) {
   return c;
 }
 
-function BucketDonut({ counts, buckets, theme, plotHeight, svgFullscreen = false, emptyPeriodLower = 'years' }) {
+function BucketDonut({
+  counts,
+  buckets,
+  theme,
+  plotHeight,
+  svgFullscreen = false,
+  emptyPeriodLower = 'years',
+  emptySliversForSingleBucket = false
+}) {
   const light = theme === 'light';
-  const ringStroke = light ? '#e2e8f0' : '#0d1520';
   const labelFill = light ? '#0f172a' : '#f8fafc';
   const labelShadow = light ? 'none' : '0 1px 3px rgba(0,0,0,0.85)';
 
@@ -127,43 +198,41 @@ function BucketDonut({ counts, buckets, theme, plotHeight, svgFullscreen = false
       </div>
     );
   }
-  const drawn = counts.filter((n) => n > 0).length;
-  const avail = 360 - DONUT_GAP_DEG * drawn;
-  let theta = -90;
-  const segs = [];
-  for (let i = 0; i < 5; i++) {
-    const n = counts[i];
-    if (n <= 0) continue;
-    const sweep = (n / total) * avail;
-    const d0 = theta;
-    const d1 = theta + sweep;
-    const mid = (d0 + d1) / 2;
+
+  const segmentPlan = planDonutSegments(counts, { emptySliversForSingleBucket });
+  const segs = segmentPlan.map((seg) => {
+    const meta = buckets[seg.bucketIndex];
+    const mid = (seg.d0 + seg.d1) / 2;
     const lp = labelOnDonut(LABEL_R, mid);
-    const meta = buckets[i];
-    segs.push(
-      <g key={meta.key}>
-        <path
-          d={donutSegPath(R0, R1, d0, d1)}
-          fill={meta.color}
-          stroke={ringStroke}
-          strokeWidth="0"
-          strokeLinejoin="round"
-        />
-        <text
-          x={lp.x}
-          y={lp.y + 4}
-          textAnchor="middle"
-          fill={labelFill}
-          fontSize="11"
-          fontWeight="700"
-          style={{ textShadow: labelShadow }}
-        >
-          {meta.legend}, {n}
-        </text>
+    const sweep = seg.d1 - seg.d0;
+    const showLabel = !seg.placeholder && seg.count > 0 && sweep >= 14;
+    return (
+      <g key={`${meta.key}-${seg.placeholder ? 'ph' : 'data'}`}>
+        {donutSegPaths(R0, R1, seg.d0, seg.d1).map((d, pi) => (
+          <path
+            key={`${meta.key}-p${pi}`}
+            d={d}
+            fill={meta.color}
+            fillOpacity={seg.placeholder ? 0.32 : 1}
+            strokeLinejoin="round"
+          />
+        ))}
+        {showLabel ? (
+          <text
+            x={lp.x}
+            y={lp.y + 4}
+            textAnchor="middle"
+            fill={labelFill}
+            fontSize="11"
+            fontWeight="700"
+            style={{ textShadow: labelShadow }}
+          >
+            {meta.legend}, {seg.count}
+          </text>
+        ) : null}
       </g>
     );
-    theta = d1 + DONUT_GAP_DEG;
-  }
+  });
   const h =
     plotHeight != null ? Math.min(svgFullscreen ? plotHeight : 320, plotHeight) : null;
   return (
@@ -198,7 +267,7 @@ function PosNegToolbarBadgeWithIcon({ periodMode, pn, onClick }) {
 
 /**
  * Figma-style bucketed donuts + center toggle (uses annual/quarterly returns payload rows).
- * @param {{ symbol: string, annualReturns?: unknown[], asOfDate?: string, plotHeight?: number, periodMode?: 'annual' | 'quarterly' | 'monthly' | 'weekly' | 'daily', suppressChartDateFilter?: boolean }} props
+ * @param {{ symbol: string, annualReturns?: unknown[], asOfDate?: string, plotHeight?: number, periodMode?: 'annual' | 'quarterly' | 'monthly' | 'weekly' | 'daily', suppressChartDateFilter?: boolean, singleBucketEmptySlivers?: boolean }} props
  */
 export function TickerAnnualReturnsPosNeg({
   symbol,
@@ -207,7 +276,8 @@ export function TickerAnnualReturnsPosNeg({
   plotHeight,
   periodMode = 'annual',
   suppressChartDateFilter = false,
-  loading = false
+  loading = false,
+  singleBucketEmptySlivers = false
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -511,6 +581,7 @@ export function TickerAnnualReturnsPosNeg({
                   plotHeight={plotHeightEffective}
                   svgFullscreen={svgFs}
                   emptyPeriodLower={pn.lower}
+                  emptySliversForSingleBucket={singleBucketEmptySlivers}
                 />
               </div>
               <div className="ticker-annual-donut__panel-total">

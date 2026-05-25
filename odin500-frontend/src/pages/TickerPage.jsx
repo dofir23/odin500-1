@@ -104,7 +104,6 @@ const RELATIVE_INDEX_OPTIONS = [
   /** Official index tickers via ticker-core-returns (matches TickerSection23Section24 / long table). */
   { key: 'sp500', label: 'S&P 500', apiIndex: 'sp500', ticker: 'SPX' },
   { key: 'dow-jones', label: 'Dow Jones', apiIndex: 'Dow Jones', ticker: 'DJI' },
-  { key: 'nasdaq-composite', label: 'Nasdaq Composite', apiIndex: 'nasdaq composite', ticker: 'IXIC' },
   { key: 'nasdaq-100', label: 'Nasdaq 100', apiIndex: 'Nasdaq 100', ticker: 'NDX' }
 ];
 const RELATIVE_INDEX_DROPDOWN_OPTIONS = RELATIVE_INDEX_OPTIONS.map((o) => ({ id: o.key, label: o.label }));

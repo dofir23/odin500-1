@@ -18,61 +18,68 @@ const OTHER_PALETTE = [
   { color: '#0f766e', badge: '#134e4a', tone: 'teal' }
 ];
 
-/**
- * Client list — Other Markets (ETFs & global indices).
- * Each row: [key, shortLabel, ohlcTicker, optionalFundName]
- */
-const OTHER_MARKET_ROWS = [
-  ['SPY', 'S&P 500 ETF', 'SPY', 'SPDR S&P 500 ETF Trust'],
-  ['SSO', 'Ultra S&P 500', 'SSO', 'ProShares Ultra S&P 500'],
-  ['SPXL', 'S&P 500 Bull 3X', 'SPXL', 'Direxion Daily S&P 500 Bull 3X Shares'],
-  ['RSP', 'S&P 500 Eq Weight', 'RSP', 'Invesco S&P 500 Equal Weight ETF'],
-  ['QQQ', 'QQQ Trust', 'QQQ', 'Invesco QQQ Trust'],
-  ['QLD', 'Ultra QQQ', 'QLD', 'ProShares Ultra QQQ'],
-  ['TQQQ', 'UltraPro QQQ', 'TQQQ', 'ProShares UltraPro QQQ'],
-  ['DIA', 'Dow Jones ETF', 'DIA', 'SPDR Dow Jones Industrial Average ETF Trust'],
-  ['WEBL', 'Dow Internet Bull 3X', 'WEBL', 'Direxion Daily Dow Jones Internet Bull 3X Shares'],
-  ['IWF', 'Russell 1000 Growth', 'IWF', 'iShares Russell 1000 Growth ETF'],
-  ['OM_XLK', 'Technology', 'XLK', 'Technology Select Sector SPDR Fund'],
-  ['OM_XLV', 'Healthcare', 'XLV', 'Health Care Select Sector SPDR Fund'],
-  ['OM_XLY', 'Cons. Discretionary', 'XLY', 'Consumer Discretionary Select Sector SPDR Fund'],
-  ['OM_XLC', 'Communication', 'XLC', 'Communication Services Select Sector SPDR Fund'],
-  ['OM_XLF', 'Financials', 'XLF', 'Financial Select Sector SPDR Fund'],
-  ['OM_XLI', 'Industrials', 'XLI', 'Industrial Select Sector SPDR Fund'],
-  ['OM_XLP', 'Cons. Staples', 'XLP', 'Consumer Staples Select Sector SPDR Fund'],
-  ['OM_XLU', 'Utilities', 'XLU', 'Utilities Select Sector SPDR Fund'],
-  ['OM_XLB', 'Materials', 'XLB', 'Materials Select Sector SPDR Fund'],
-  ['OM_XLRE', 'Real Estate', 'XLRE', 'Real Estate Select Sector SPDR Fund'],
-  ['OM_XLE', 'Energy', 'XLE', 'Energy Select Sector SPDR Fund'],
-  ['MDY', 'S&P MidCap 400', 'MDY', 'SPDR S&P MidCap 400 ETF Trust'],
-  ['SPMD', 'Mid Cap ETF', 'SPMD', 'SPDR Portfolio Mid Cap ETF'],
-  ['SH', 'Short S&P 500', 'SH', 'ProShares Short S&P500'],
-  ['SDS', 'UltraShort S&P 500', 'SDS', 'ProShares UltraShort S&P500'],
-  ['SPXS', 'S&P 500 Bear 3X', 'SPXS', 'Direxion Daily S&P 500 Bear 3X Shares'],
-  ['PSQ', 'Short QQQ', 'PSQ', 'ProShares Short QQQ'],
-  ['QID', 'UltraShort QQQ', 'QID', 'ProShares UltraShort QQQ'],
-  ['SQQQ', 'UltraPro Short QQQ', 'SQQQ', 'ProShares UltraPro Short QQQ'],
-  ['RWM', 'Short Russell 2000', 'RWM', 'ProShares Short Russell2000'],
-  ['N225', 'Nikkei 225', 'N225', 'Nikkei 225'],
-  ['FTSE', 'FTSE 100', 'FTSE', 'FTSE 100 Index'],
-  ['FCHI', 'CAC 40', 'FCHI', 'CAC 40 Index'],
-  ['HSI', 'Hang Seng', 'HSI', 'Hang Seng Index'],
-  ['TA35TA', 'Tel Aviv 35', 'TA35.TA', 'Tel Aviv 35 Index'],
-  ['IBEX', 'IBEX 35', 'Ibex', 'IBEX 35 Index'],
-  ['GLD', 'Gold', 'GLD', 'SPDR Gold Shares'],
-  ['SLV', 'Silver', 'SLV', 'iShares Silver Trust'],
-  ['USO', 'Oil', 'USO', 'United States Oil Fund'],
-  ['UNG', 'Natural Gas', 'UNG', 'United States Natural Gas Fund']
+/** Subsections inside “Other Markets (ETFs)” on the market page sidebar. */
+export const OTHER_MARKET_SUBSECTIONS = [
+  { id: 'us-index-etf', title: 'Other US Index ETFs' },
+  { id: 'foreign', title: 'Foreign Indices' },
+  { id: 'commodities', title: 'Commodities ETFs' },
+  { id: 'leveraged', title: 'Leveraged ETFs' },
+  { id: 'inverse', title: 'Inverse ETFs' }
 ];
 
+/**
+ * Other Markets rows.
+ * Tuple: [key, label, ohlcTicker, fundName, subsectionId, optionalDisplaySymbol]
+ */
+const OTHER_MARKET_ROWS = [
+  ['RSP', 'SP500 Equal Weight', 'RSP', 'Invesco S&P 500 Equal Weight ETF', 'us-index-etf'],
+  ['IWF', 'Russel 1000', 'IWF', 'iShares Russell 1000 Growth ETF', 'us-index-etf'],
+  ['SPMD', 'S&P MidCap', 'SPMD', 'SPDR Portfolio Mid Cap ETF', 'us-index-etf'],
+
+  ['N225', 'Japan Nikkei 225', 'N225', 'Nikkei 225', 'foreign'],
+  ['HSI', 'Hong Kong Hang Seng', 'HSI', 'Hang Seng Index', 'foreign', '^HSI'],
+  ['FTSE', 'UK FTSE', 'FTSE', 'FTSE 100 Index', 'foreign'],
+  ['FCHI', 'France CAC40', 'FCHI', 'CAC 40 Index', 'foreign'],
+  ['IBEX', 'Spain IBEX', 'Ibex', 'IBEX 35 Index', 'foreign', '^Ibex'],
+  ['TA35TA', 'Israel TA35', 'TA35.TA', 'Tel Aviv 35 Index', 'foreign', 'TA35.TA'],
+
+  ['GLD', 'Gold', 'GLD', 'SPDR Gold Shares', 'commodities'],
+  ['SLV', 'Silver', 'SLV', 'iShares Silver Trust', 'commodities'],
+  ['USO', 'Oil', 'USO', 'United States Oil Fund', 'commodities'],
+  ['UNG', 'Natural Gas', 'UNG', 'United States Natural Gas Fund', 'commodities'],
+
+  ['SSO', 'SP500 2X', 'SSO', 'ProShares Ultra S&P 500', 'leveraged'],
+  ['SPXL', 'SP500 3X', 'SPXL', 'Direxion Daily S&P 500 Bull 3X Shares', 'leveraged'],
+  ['QLD', 'Nasdaq-100 2X', 'QLD', 'ProShares Ultra QQQ', 'leveraged'],
+  ['TQQQ', 'Nasdaq-100 3X', 'TQQQ', 'ProShares UltraPro QQQ', 'leveraged'],
+  ['WEBL', 'Dow Jones 3X', 'WEBL', 'Direxion Daily Dow Jones Internet Bull 3X Shares', 'leveraged'],
+
+  ['SH', 'S&P500 1X', 'SH', 'ProShares Short S&P500', 'inverse'],
+  ['SDS', 'S&P500 2X', 'SDS', 'ProShares UltraShort S&P500', 'inverse'],
+  ['SPXS', 'S&P500 3X', 'SPXS', 'Direxion Daily S&P 500 Bear 3X Shares', 'inverse'],
+  ['PSQ', 'Nasdaq-100 1X', 'PSQ', 'ProShares Short QQQ', 'inverse'],
+  ['QID', 'Nasdaq-100 2X', 'QID', 'ProShares UltraShort QQQ', 'inverse'],
+  ['SQQQ', 'Nasdaq-100 3X', 'SQQQ', 'ProShares UltraPro Short QQQ', 'inverse']
+];
+
+/** Chart/checkbox colors for Index ETF rows only (not used by US indices, sectors, or other markets). */
+const INDEX_ETF_COLORS = {
+  QQQ: { color: '#84cc16', badge: '#3f6212', tone: 'lime' },
+  DIA: { color: '#2dd4bf', badge: '#0f5c55', tone: 'turquoise' },
+  SPY: { color: '#db2777', badge: '#701a3f', tone: 'rose' }
+};
+
 function buildOtherMarketSeries() {
-  return OTHER_MARKET_ROWS.map(([key, label, ticker, addon], i) => {
+  return OTHER_MARKET_ROWS.map((row, i) => {
+    const [key, label, ticker, addon, subsection, symbol] = row;
     const pal = OTHER_PALETTE[i % OTHER_PALETTE.length];
     return {
       key,
       label,
       ticker,
+      symbol: symbol || ticker,
       addon,
+      subsection,
       color: pal.color,
       badge: pal.badge,
       tone: pal.tone,
@@ -83,9 +90,34 @@ function buildOtherMarketSeries() {
 
 export const MARKET_SERIES = [
   /** `symbol` = short label in UI (e.g. DJI); `ticker` = OHLC / API symbol (e.g. DIA). */
-  { key: 'NDX', label: 'Nasdaq 100', ticker: 'QQQ', symbol: 'NDX', color: '#7a2fff', badge: '#5b21b6', tone: 'purple', group: 'us' },
-  { key: 'INDU', label: 'Dow Jones', ticker: 'DIA', symbol: 'DJI', color: '#ff6b00', badge: '#9a3412', tone: 'orange', group: 'us' },
-  { key: 'SPX', label: 'S&P 500', ticker: 'SPY', symbol: 'SPX', color: '#56208E', badge: '#1e40af', tone: 'blue', group: 'us' },
+  { key: 'NDX', label: 'Nasdaq 100', ticker: 'NDX', symbol: 'NDX', indexRouteSlug: 'nasdaq-100', color: '#7a2fff', badge: '#5b21b6', tone: 'purple', group: 'us' },
+  { key: 'INDU', label: 'Dow Jones', ticker: 'DJI', symbol: 'DJI', indexRouteSlug: 'dow-jones', color: '#ff6b00', badge: '#9a3412', tone: 'orange', group: 'us' },
+  { key: 'SPX', label: 'S&P 500', ticker: 'SPX', symbol: 'SPX', indexRouteSlug: 'sp500', color: '#56208E', badge: '#1e40af', tone: 'blue', group: 'us' },
+  {
+    key: 'QQQ',
+    label: 'Nasdaq 100',
+    ticker: 'QQQ',
+    symbol: 'QQQ',
+    group: 'index',
+    ...INDEX_ETF_COLORS.QQQ
+  },
+  {
+    key: 'DIA',
+    label: 'Dow Jones',
+    ticker: 'DIA',
+    symbol: 'DIA',
+    group: 'index',
+    ...INDEX_ETF_COLORS.DIA
+  },
+  {
+    key: 'SPY',
+    label: 'S&P 500',
+    ticker: 'SPY',
+    symbol: 'SPY',
+    group: 'index',
+    ...INDEX_ETF_COLORS.SPY
+  },
+
 
   { key: 'XLB', label: 'Materials', ticker: 'XLB', addon: 'Select Sector SPDR Fund', color: '#6b7280', badge: '#374151', tone: 'gray', group: 'sector' },
   { key: 'XLK', label: 'Technology', ticker: 'XLK', addon: 'Select Sector SPDR Fund', color: '#00b894', badge: '#065f46', tone: 'teal', group: 'sector' },
@@ -105,3 +137,11 @@ export const MARKET_SERIES = [
 export const META_BY_KEY = Object.fromEntries(MARKET_SERIES.map((s) => [s.key, s]));
 export const TICKER_BY_KEY = Object.fromEntries(MARKET_SERIES.map((s) => [s.key, s.ticker]));
 export const DEFAULT_SELECTED_KEYS = ['INDU', 'SPX', 'NDX', 'XLK'];
+
+/** Chip / legend label; Index ETF group is prefixed with “ETF ”. */
+export function marketSeriesChipLabel(meta) {
+  if (!meta) return '';
+  const name = String(meta.label || meta.key || '').trim();
+  if (meta.group === 'index') return name ? `ETF ${name}` : 'ETF';
+  return name;
+}

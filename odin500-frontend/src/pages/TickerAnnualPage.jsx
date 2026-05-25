@@ -774,6 +774,7 @@ export default function TickerAnnualPage() {
               asOfDate={asOfDate}
               suppressChartDateFilter
               loading={loading}
+              singleBucketEmptySlivers
             />
           </TickerChartResizeScope>
           

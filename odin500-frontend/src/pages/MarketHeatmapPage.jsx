@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Upload } from 'lucide-react';
+import { ChartFullscreenToggleIcon } from '../components/ChartFullscreenToggleIcon.jsx';
 import { ChartInfoTip } from '../components/ChartInfoTip.jsx';
+import { ChartSnapshotExportModal } from '../components/ChartSnapshotExportModal.jsx';
+import { useChartFullscreen } from '../components/ChartSectionIconActions.jsx';
 import { ThemedDropdown } from '../components/ThemedDropdown.jsx';
 import { SectorTreemap } from '../components/SectorTreemap.jsx';
 import { resolveTreemapRows } from '../components/SectorTreemap.jsx';
@@ -8,8 +12,8 @@ import TradingChartLoader from '../components/TradingChartLoader.jsx';
 import {fetchJsonCached, getAuthToken, canFetchProtectedApi} from '../store/apiStore.js';
 import { CHART_INFO_TIPS } from '../components/chartInfoTips.js';
 import { returnToHeatColor } from '../utils/heatmapColors.js';
+import { useChartSnapshotExport } from '../hooks/useChartSnapshotExport.js';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
-import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 
@@ -40,6 +44,13 @@ const BOTTOM_SORT_ABS = 'absChange';
 
 function cmpStr(a, b) {
   return String(a || '').localeCompare(String(b || ''), undefined, { sensitivity: 'base' });
+}
+
+/** Sector / industry labels: Title Case (e.g. “Health Care”) — matches market heatmap preview. */
+function toTitleCaseGroupLabel(name) {
+  const s = String(name || '').trim();
+  if (!s) return '';
+  return s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function cmpNumNullable(a, b) {
@@ -192,8 +203,9 @@ export default function MarketHeatmapPage() {
   const [tablePage, setTablePage] = useState(1);
   const [bottomSortKey, setBottomSortKey] = useState(BOTTOM_SORT_ABS);
   const [bottomSortDir, setBottomSortDir] = useState('desc');
-  const mainRef = useRef(null);
+  const heatmapVizRef = useRef(null);
   const treemapHostRef = useRef(null);
+  const exportTitleId = useId().replace(/:/g, '');
   const indicesInitRef = useRef(false);
 
   useEffect(() => {
@@ -398,16 +410,34 @@ export default function MarketHeatmapPage() {
   const scaleMin = -scaleSpan;
   const scaleMax = scaleSpan;
 
-  const toggleFullscreen = useCallback(() => {
-    const el = mainRef.current;
-    if (!el) return;
-    if (!document.fullscreenElement) {
-      el.requestFullscreen?.();
-    } else {
-      document.exitFullscreen?.();
-    }
-    notifyChartFullscreenLayout();
-  }, []);
+  const { isFullscreen, toggleFullscreen } = useChartFullscreen(heatmapVizRef);
+
+  const buildHeatmapSnapshotFilename = useCallback(() => {
+    const idx = String(fetchIndex || 'heatmap')
+      .replace(/[^\w.-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const per = String(periodValue || 'period')
+      .replace(/[^\w.-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    return `heatmap-${idx || 'index'}-${per || 'period'}.png`;
+  }, [fetchIndex, periodValue]);
+
+  const {
+    exportingSnapshot,
+    exportModalOpen,
+    exportModalStatus,
+    exportPreviewUrl,
+    exportModalError,
+    openExportModal,
+    closeExportModal,
+    downloadFromExportModal
+  } = useChartSnapshotExport({
+    snapshotRootRef: heatmapVizRef,
+    plotHostRef: treemapHostRef,
+    buildFilename: buildHeatmapSnapshotFilename,
+    disabled: loading || !filteredRows.length,
+    getBackgroundColor: (isLight) => (isLight ? '#f8fafc' : '#0b0f16')
+  });
 
   const downloadCsv = useCallback(() => {
     if (!bottomSortedRows.length) return;
@@ -547,7 +577,7 @@ export default function MarketHeatmapPage() {
                         onMouseEnter={() => setHoverSymbol(String(t.symbol || ''))}
                         onMouseLeave={() => setHoverSymbol('')}
                       >
-                        <td>
+                        <td className="heatmap-table__td-ticker">
                           <button
                             type="button"
                             className="index-constituents-link"
@@ -556,10 +586,10 @@ export default function MarketHeatmapPage() {
                             {t.symbol}
                           </button>
                         </td>
-                        <td>{fmtPrice(t.price)}</td>
+                        <td className="heatmap-table__td-num">{fmtPrice(t.price)}</td>
                         <td
                           className={
-                            'heatmap-table__chg' +
+                            'heatmap-table__td-num' +
                             (pos ? ' heatmap-table__chg--up' : '') +
                             (neg ? ' heatmap-table__chg--down' : '')
                           }
@@ -575,7 +605,11 @@ export default function MarketHeatmapPage() {
           </section>
         </aside>
 
-        <main className="heatmap-main" ref={mainRef}>
+        <main className="heatmap-main">
+          <div
+            className={'heatmap-main__viz' + (isFullscreen ? ' heatmap-main__viz--fullscreen-active' : '')}
+            ref={heatmapVizRef}
+          >
           <header className="heatmap-main__header">
             <div className="heatmap-main__date">
               <span className="heatmap-main__cal" aria-hidden>
@@ -588,28 +622,35 @@ export default function MarketHeatmapPage() {
               <ChartInfoTip tip={CHART_INFO_TIPS.heatmapTreemap} align="start" />
             </div>
             <div className="heatmap-main__tools">
-              <button type="button" className="heatmap-icon-btn" onClick={toggleFullscreen} title="Fullscreen">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 3H5a2 2 0 00-2 2v4M21 9V5a2 2 0 00-2-2h-4M15 21h4a2 2 0 002-2v-4M3 15v4a2 2 0 002 2h4" />
-                </svg>
-              </button>
-              <button type="button" className="heatmap-icon-btn" title="Share" disabled>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="18" cy="5" r="3" />
-                  <circle cx="6" cy="12" r="3" />
-                  <circle cx="18" cy="19" r="3" />
-                  <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" />
-                </svg>
+              <button
+                type="button"
+                className="heatmap-icon-btn"
+                onClick={toggleFullscreen}
+                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen heatmap'}
+                aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen heatmap'}
+              >
+                <ChartFullscreenToggleIcon isFullscreen={isFullscreen} />
               </button>
               <button
                 type="button"
                 className="heatmap-icon-btn"
                 onClick={downloadCsvClick}
                 title="Download CSV"
+                aria-label="Download CSV"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 3v12m0 0l4-4m-4 4L8 11M5 21h14" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
+              </button>
+              <button
+                type="button"
+                className="heatmap-icon-btn"
+                onClick={openExportModal}
+                disabled={loading || exportingSnapshot || !filteredRows.length}
+                title={exportingSnapshot ? 'Exporting…' : 'Export heatmap'}
+                aria-label={exportingSnapshot ? 'Exporting heatmap' : 'Export heatmap snapshot'}
+              >
+                <Upload size={18} strokeWidth={2} aria-hidden />
               </button>
               <button type="button" className="heatmap-icon-btn" onClick={zoomIn} title="Zoom in">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -653,6 +694,7 @@ export default function MarketHeatmapPage() {
                   colorFade={colorFade}
                   highlightSymbol={hoverSymbol}
                   finvizStrict
+                  titleCaseGroupLabels
                 />
               </div>
             )}
@@ -752,6 +794,7 @@ export default function MarketHeatmapPage() {
               </div>
             </div>
           </footer>
+          </div>
 
           <section className="heatmap-bottom-table" aria-labelledby="heatmap-bottom-table-title">
             <div className="heatmap-bottom-table__head">
@@ -916,7 +959,7 @@ export default function MarketHeatmapPage() {
                         onMouseEnter={() => setHoverSymbol(String(t.symbol || ''))}
                         onMouseLeave={() => setHoverSymbol('')}
                       >
-                        <td>
+                        <td className="heatmap-table__td-ticker">
                           <button
                             type="button"
                             className="index-constituents-link"
@@ -925,13 +968,19 @@ export default function MarketHeatmapPage() {
                             {t.symbol || 'N/A'}
                           </button>
                         </td>
-                        <td>{t.security || 'N/A'}</td>
-                        <td>{t.sector || 'N/A'}</td>
-                        <td>{t.industry || 'N/A'}</td>
-                        <td>{fmtPrice(t.price)}</td>
+                        <td className="heatmap-table__td-muted" title={t.security || undefined}>
+                          {t.security || 'N/A'}
+                        </td>
+                        <td className="heatmap-table__td-muted">
+                          {t.sector ? toTitleCaseGroupLabel(t.sector) : 'N/A'}
+                        </td>
+                        <td className="heatmap-table__td-muted">
+                          {t.industry ? toTitleCaseGroupLabel(t.industry) : 'N/A'}
+                        </td>
+                        <td className="heatmap-table__td-num">{fmtPrice(t.price)}</td>
                         <td
                           className={
-                            'heatmap-table__chg' +
+                            'heatmap-table__td-num' +
                             (pos ? ' heatmap-table__chg--up' : '') +
                             (neg ? ' heatmap-table__chg--down' : '')
                           }
@@ -987,6 +1036,17 @@ export default function MarketHeatmapPage() {
           </section>
         </main>
       </div>
+      <ChartSnapshotExportModal
+        open={exportModalOpen}
+        status={exportModalStatus}
+        error={exportModalError}
+        previewUrl={exportPreviewUrl}
+        onClose={closeExportModal}
+        onDownload={downloadFromExportModal}
+        title="Export heatmap"
+        titleId={exportTitleId}
+        previewAlt="Exported market heatmap"
+      />
     </div>
   );
 }

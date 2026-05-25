@@ -2,6 +2,7 @@ import { ThemedDropdown } from './ThemedDropdown.jsx';
 import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
 import { ChartSectionIconActions } from './ChartSectionIconActions.jsx';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
+import { getRelativeStrengthExportBackground } from '../utils/relativeStrengthChartExport.js';
 
 /**
  * Inline toolbar for stats comparison charts: range controls, benchmark, table/download icons, export/fullscreen.
@@ -21,7 +22,9 @@ export function StatsCmpChartToolbarHead({
   exportDisabled = false,
   exportChartSlug = 'stats-chart',
   exportSymbol = '',
-  exportPreviewAlt = 'Exported chart'
+  exportPreviewAlt = 'Exported chart',
+  getBackgroundColor = getRelativeStrengthExportBackground,
+  onclone
 }) {
   const benchmarkDd = (
     <ThemedDropdown
@@ -60,6 +63,8 @@ export function StatsCmpChartToolbarHead({
         fullscreenTargetRef={sectionRef}
         buildFilename={buildFilename}
         disabled={exportDisabled}
+        getBackgroundColor={getBackgroundColor}
+        onclone={onclone}
         exportPreviewAlt={exportPreviewAlt}
       />
     </div>

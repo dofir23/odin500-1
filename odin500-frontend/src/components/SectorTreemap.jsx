@@ -269,6 +269,14 @@ function fitTileTwoLine(w, h, sym, pctStr) {
   return null;
 }
 
+/** Sector / industry band labels: Title Case (e.g. “Health Care”) instead of ALL CAPS. */
+function toTitleCaseGroupLabel(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function SectorTreemap({
   rows,
   scaleMin = -3,
@@ -277,6 +285,8 @@ export function SectorTreemap({
   highlightSymbol = '',
   disableTooltip = false,
   finvizStrict = false,
+  /** Sector + industry header bands use Title Case instead of uppercase (market preview). */
+  titleCaseGroupLabels = false,
   /** When true, tile size follows signal tier (L1/S1 largest … N smallest) and fill uses discrete chart −3…+3 → S3…L3 colors. */
   odinSignalMode = false,
   /** Half-range in %-points for bucketing returns into chart numbers (odin mode only). */
@@ -290,6 +300,17 @@ export function SectorTreemap({
     if (odinSignalMode) return resolveOdinSignalTreemapRows(rows, signalBinSpan);
     return resolveTreemapRows(rows);
   }, [rows, odinSignalMode, signalBinSpan]);
+
+  const formatGroupLabel = useCallback(
+    (name) => (titleCaseGroupLabels ? toTitleCaseGroupLabel(name) : String(name || '').toUpperCase()),
+    [titleCaseGroupLabels]
+  );
+
+  const sectorTitleClass =
+    'sector-treemap__sector-title' +
+    (titleCaseGroupLabels ? ' sector-treemap__group-label--title' : ' heatmap-sector-label');
+  const industryTitleClass =
+    'sector-treemap__industry-title' + (titleCaseGroupLabels ? ' sector-treemap__group-label--title' : '');
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current != null) {
@@ -488,19 +509,16 @@ export function SectorTreemap({
                 y={node.y0}
                 width={sw}
                 height={band}
-                fill="#0a0f16"
-                stroke="rgba(148, 163, 184, 0.22)"
-                strokeWidth={0.8}
+                className="sector-treemap__band-rect--sector"
                 style={{ cursor: 'pointer' }}
               />
               <text
                 x={node.x0 + 8}
                 y={node.y0 + band * 0.72}
-                className="sector-treemap__sector-title heatmap-sector-label"
-                fill="rgba(255,255,255,0.75)"
+                className={sectorTitleClass}
                 pointerEvents="none"
               >
-                {String(node.data.name).toUpperCase()}
+                {formatGroupLabel(node.data.name)}
               </text>
             </g>
           );
@@ -510,8 +528,8 @@ export function SectorTreemap({
           const ih = node.y1 - node.y0;
           const band = finvizStrict ? Math.min(11, Math.max(7, ih * 0.07)) : Math.min(14, Math.max(10, ih * 0.09));
           if (iw < (finvizStrict ? 18 : 28) || ih < (finvizStrict ? 12 : 18)) return null;
-          const label = String(node.data.name).toUpperCase();
-          const maxChars = Math.floor(iw / 6.5);
+          const label = formatGroupLabel(node.data.name);
+          const maxChars = Math.floor(iw / (titleCaseGroupLabels ? 5.5 : 6.5));
           const short = label.length > maxChars && maxChars > 6 ? label.slice(0, maxChars - 2) + '…' : label;
           const industryFeatured = node
             .leaves()
@@ -551,16 +569,13 @@ export function SectorTreemap({
                 y={node.y0}
                 width={iw}
                 height={band}
-                fill="rgba(4, 12, 10, 0.96)"
-                stroke="rgba(34, 197, 94, 0.38)"
-                strokeWidth={0.8}
+                className="sector-treemap__band-rect--industry"
                 style={{ cursor: 'pointer' }}
               />
               <text
                 x={node.x0 + 5}
                 y={node.y0 + band * 0.72}
-                className="sector-treemap__industry-title"
-                fill="rgba(255,255,255,0.55)"
+                className={industryTitleClass}
                 pointerEvents="none"
               >
                 {short}

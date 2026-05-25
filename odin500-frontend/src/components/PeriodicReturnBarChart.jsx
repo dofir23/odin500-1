@@ -1,7 +1,10 @@
-import { useRef } from 'react';
+import { useMemo, useRef, useSyncExternalStore } from 'react';
 import { StatsCmpChartSkeleton } from './ChartSkeletons.jsx';
 import { StatsCmpChartToolbarHead } from './StatsCmpChartToolbarHead.jsx';
+import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
 import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
+import { applyRelativeStrengthSnapshotCloneFixes } from '../utils/relativeStrengthChartExport.js';
+import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { fmtPctSigned } from '../utils/formatDisplayNumber.js';
 
 export function PeriodicReturnBarChart({
@@ -46,14 +49,27 @@ export function PeriodicReturnBarChart({
   const groupW = iw / n;
   const barW = Math.max(4, Math.min(16, groupW * 0.32));
 
-  const resizeChrome = plotHeight != null && Number.isFinite(Number(plotHeight));
-  const hPx = resizeChrome ? Math.round(Number(plotHeight)) : null;
-  const svgPlotStyle = resizeChrome && hPx != null ? tickerSvgPlotStyle(hPx) : undefined;
-  const rootClass = ['stats-cmp-chart', resizeChrome ? 'stats-cmp-chart--plot-resize' : ''].filter(Boolean).join(' ');
-
   const sectionRef = useRef(null);
   const plotHostRef = useRef(null);
   const exportSymbol = `${ticker}-vs-${benchmarkIndex}`;
+  const chartTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
+  const fsPlotSize = useChartFullscreenPlotSize(sectionRef);
+  const exportOnclone = useMemo(
+    () => (clonedDoc, clonedRoot) =>
+      applyRelativeStrengthSnapshotCloneFixes(clonedDoc, clonedRoot, chartTheme === 'light'),
+    [chartTheme]
+  );
+
+  const resizeChrome = fsPlotSize != null || (plotHeight != null && Number.isFinite(Number(plotHeight)));
+  const hPx =
+    fsPlotSize != null ? null : resizeChrome && plotHeight != null ? Math.round(Number(plotHeight)) : null;
+  const svgPlotStyle =
+    fsPlotSize != null
+      ? tickerSvgPlotStyle(null, { fullscreen: true })
+      : resizeChrome && hPx != null
+        ? tickerSvgPlotStyle(hPx)
+        : undefined;
+  const rootClass = ['stats-cmp-chart', resizeChrome ? 'stats-cmp-chart--plot-resize' : ''].filter(Boolean).join(' ');
 
   return (
     <section ref={sectionRef} className={rootClass}>
@@ -72,6 +88,7 @@ export function PeriodicReturnBarChart({
         exportChartSlug={`rs-periodic-${mode}`}
         exportSymbol={exportSymbol}
         exportPreviewAlt={`${ticker} vs ${benchmarkIndex} periodic returns chart`}
+        onclone={exportOnclone}
       />
       {loading ? (
         <StatsCmpChartSkeleton variant="denseBars" />

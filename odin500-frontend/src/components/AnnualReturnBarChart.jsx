@@ -1,7 +1,10 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useSyncExternalStore } from 'react';
 import { StatsCmpChartSkeleton } from './ChartSkeletons.jsx';
 import { StatsCmpChartToolbarHead } from './StatsCmpChartToolbarHead.jsx';
+import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
 import { useTickerPlotResize } from '../hooks/useTickerPlotResize.js';
+import { applyRelativeStrengthSnapshotCloneFixes } from '../utils/relativeStrengthChartExport.js';
+import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { fmtPctSigned } from '../utils/formatDisplayNumber.js';
 
@@ -54,6 +57,11 @@ export function AnnualReturnBarChart({
   const groupW = iw / n;
   const barW = Math.max(6, Math.min(28, groupW * 0.28));
 
+  const sectionRef = useRef(null);
+  const plotHostRef = useRef(null);
+  const chartTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
+  const fsPlotSize = useChartFullscreenPlotSize(sectionRef);
+
   const externalH =
     plotHeightProp != null && Number.isFinite(Number(plotHeightProp)) ? Math.round(Number(plotHeightProp)) : null;
   const internalResize = useTickerPlotResize(
@@ -62,9 +70,14 @@ export function AnnualReturnBarChart({
     200,
     560
   );
-  const heightPx = externalH ?? internalResize.plotHeight;
-  const resizeChrome = externalH != null || internalResize.enabled;
-  const svgPlotStyle = resizeChrome && heightPx != null ? tickerSvgPlotStyle(heightPx) : undefined;
+  const heightPx = fsPlotSize != null ? null : externalH ?? internalResize.plotHeight;
+  const resizeChrome = fsPlotSize != null || externalH != null || internalResize.enabled;
+  const svgPlotStyle =
+    fsPlotSize != null
+      ? tickerSvgPlotStyle(null, { fullscreen: true })
+      : resizeChrome && heightPx != null
+        ? tickerSvgPlotStyle(heightPx)
+        : undefined;
 
   const xLabelStride = useMemo(() => {
     const cap = Math.max(4, Number(xAxisMaxLabels) || 16);
@@ -84,9 +97,12 @@ export function AnnualReturnBarChart({
     .filter(Boolean)
     .join(' ');
 
-  const sectionRef = useRef(null);
-  const plotHostRef = useRef(null);
   const exportSymbol = `${ticker}-vs-${benchmarkIndex}`;
+  const exportOnclone = useMemo(
+    () => (clonedDoc, clonedRoot) =>
+      applyRelativeStrengthSnapshotCloneFixes(clonedDoc, clonedRoot, chartTheme === 'light'),
+    [chartTheme]
+  );
 
   return (
     <section ref={sectionRef} className={rootClass} style={scopeStyle}>
@@ -105,6 +121,7 @@ export function AnnualReturnBarChart({
         exportChartSlug={`rs-annual-${mode}`}
         exportSymbol={exportSymbol}
         exportPreviewAlt={`${ticker} vs ${benchmarkIndex} annual returns chart`}
+        onclone={exportOnclone}
       />
       {loading ? (
         <StatsCmpChartSkeleton variant="groupedBar" />

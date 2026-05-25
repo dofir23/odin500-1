@@ -6,6 +6,16 @@ function defaultTickerChartBg(isLight) {
   return isLight ? '#ffffff' : '#0f172a';
 }
 
+/** Prefer explicit export bg when the card uses a transparent CSS background. */
+function isMostlyOpaqueCssColor(c) {
+  const s = String(c || '').trim();
+  if (!s || s === 'transparent') return false;
+  const m = s.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)/i);
+  if (!m) return true;
+  const a = m[4] != null ? Number(m[4]) : 1;
+  return Number.isFinite(a) && a >= 0.85;
+}
+
 /**
  * Capture chart area → preview modal → PNG download (NormalizedPerformanceCard flow).
  * @param {{
@@ -85,7 +95,7 @@ export function useChartSnapshotExport({
         let exportBg = getBackgroundColor(isLight);
         if (typeof window !== 'undefined') {
           const c = window.getComputedStyle(root).backgroundColor;
-          if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') exportBg = c;
+          if (isMostlyOpaqueCssColor(c)) exportBg = c;
         }
         try {
           canvas = await html2canvas(root, {

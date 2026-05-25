@@ -281,7 +281,7 @@ export default function NewsPage() {
         <div className="news-page__col news-page__col--right">
           <header className="news-page__hero">
             <div className="news-page__hero-top">
-              <h1>Ticker-Specific News</h1>
+              <h2 className="news-page__title">Ticker-Specific News</h2>
               <div className="news-page__hero-actions">
                 <TickerSymbolCombobox
                   symbol={ticker}

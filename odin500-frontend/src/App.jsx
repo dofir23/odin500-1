@@ -239,6 +239,7 @@ export default function App() {
 
   return (
     <div className="container">
+      <h1 className="sr-only">Odin500 Market Dashboard — Quant Signals and U.S. Equity Analytics</h1>
       <MarketPageFigmaShell />
       {/* <h1>OHLC + Signals Indicator Chart</h1>
 

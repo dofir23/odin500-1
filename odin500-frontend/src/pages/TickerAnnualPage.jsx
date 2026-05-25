@@ -896,6 +896,9 @@ export default function TickerAnnualPage() {
             {annualTableTotalPages > 1 ? (
               <div className="statistic-data__pager">
                 <FigmaPagination page={annualTablePageSafe} totalPages={annualTableTotalPages} onPageChange={setAnnualTablePage} />
+                <span className="statistic-data__pager-meta">
+                  Page {annualTablePageSafe} of {annualTableTotalPages} ({annualTableRowsSorted.length} rows)
+                </span>
               </div>
             ) : null}
           </section>

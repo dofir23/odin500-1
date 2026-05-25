@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
 import { Check, X, Focus, Lock, Plus } from 'lucide-react';
+import { usePageSeo } from '../seo/usePageSeo.js';
 
 const OdinPricingPage = () => {
+  usePageSeo({
+    title: 'Odin500 Premium Plans | Pro Quant Signals & Market Data',
+    description:
+      'Compare Odin500 Basic, Premium, and Pro plans for index signals, ETF coverage, and full Odin trading signal access.',
+    canonicalPath: '/premium'
+  });
   const [isAnnual, setIsAnnual] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
 

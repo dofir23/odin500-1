@@ -861,6 +861,9 @@ export default function TickerQuarterlyPage() {
             {tableTotalPages > 1 ? (
               <div className="statistic-data__pager">
                 <FigmaPagination page={tablePageSafe} totalPages={tableTotalPages} onPageChange={setTablePage} />
+                <span className="statistic-data__pager-meta">
+                  Page {tablePageSafe} of {tableTotalPages} ({tableRowsSorted.length} rows)
+                </span>
               </div>
             ) : null}
           </section>

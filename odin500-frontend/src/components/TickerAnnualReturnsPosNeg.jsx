@@ -43,11 +43,6 @@ const R0 = 56;
 const R1 = 90;
 const LABEL_R = (R0 + R1) / 2 + 6;
 
-function parseReturnPct(v) {
-  const n = Number(String(v ?? '').replace(/%/g, '').replace(/,/g, '').trim());
-  return Number.isFinite(n) ? n : NaN;
-}
-
 function parseYear(period) {
   const m = String(period || '').match(/(\d{4})/);
   const y = m ? parseInt(m[1], 10) : NaN;
@@ -120,6 +115,7 @@ function buildCounts(rows, mode) {
 
 function BucketDonut({ counts, buckets, theme, plotHeight, svgFullscreen = false, emptyPeriodLower = 'years' }) {
   const light = theme === 'light';
+  const ringStroke = light ? '#e2e8f0' : '#0d1520';
   const labelFill = light ? '#0f172a' : '#f8fafc';
   const labelShadow = light ? 'none' : '0 1px 3px rgba(0,0,0,0.85)';
 
@@ -149,6 +145,8 @@ function BucketDonut({ counts, buckets, theme, plotHeight, svgFullscreen = false
         <path
           d={donutSegPath(R0, R1, d0, d1)}
           fill={meta.color}
+          stroke={ringStroke}
+          strokeWidth="0"
           strokeLinejoin="round"
         />
         <text
@@ -167,18 +165,13 @@ function BucketDonut({ counts, buckets, theme, plotHeight, svgFullscreen = false
     theta = d1 + DONUT_GAP_DEG;
   }
   const h =
-    svgFullscreen && plotHeight != null && Number.isFinite(plotHeight)
-      ? Math.round(plotHeight)
-      : null;
-  const svgStyle = h != null ? tickerSvgPlotStyle(h, { fullscreen: true }) : undefined;
-
+    plotHeight != null ? Math.min(svgFullscreen ? plotHeight : 320, plotHeight) : null;
   return (
     <svg
-      className="ticker-annual-donut__svg ticker-annual-figma__donut-svg"
+      className="ticker-annual-donut__svg"
       viewBox="-110 -110 220 220"
-      preserveAspectRatio="xMidYMid meet"
       aria-hidden
-      style={svgStyle}
+      style={tickerSvgPlotStyle(h, { fullscreen: svgFullscreen })}
     >
       <g>{segs}</g>
     </svg>
@@ -237,7 +230,7 @@ export function TickerAnnualReturnsPosNeg({
         period: r.period,
         startDate: r.startDate,
         endDate: r.endDate,
-        totalReturn: parseReturnPct(r.totalReturn),
+        totalReturn: Number(r.totalReturn),
         year: parseYear(r.period)
       }))
       .filter((r) => Number.isFinite(r.year) && Number.isFinite(r.totalReturn))
@@ -424,7 +417,7 @@ export function TickerAnnualReturnsPosNeg({
         <div className="ticker-annual-donut__stage">
           <div ref={chartFsShellRef} className="ticker-chart-fs-shell">
           <div ref={chartCardRef} className="ticker-annual-donut__split">
-            <div className="ticker-annual-donut__panel ticker-annual-figma__chart-card ticker-annual-figma__chart-card--donut">
+            <div className="ticker-annual-donut__panel ticker-annual-figma__chart-card">
               <div className="ticker-annual-donut__panel-head">
                 <span className="ticker-annual-donut__panel-spacer" aria-hidden />
                 <h3 className="ticker-annual-donut__panel-title">{panelTotalTitle}</h3>
@@ -473,7 +466,7 @@ export function TickerAnnualReturnsPosNeg({
               </div>
             </div>
 
-            <div className="ticker-annual-donut__panel ticker-annual-figma__chart-card ticker-annual-figma__chart-card--donut">
+            <div className="ticker-annual-donut__panel ticker-annual-figma__chart-card">
               <div className="ticker-annual-donut__panel-head">
                 <span className="ticker-annual-donut__panel-spacer" aria-hidden />
                 <h3 className="ticker-annual-donut__panel-title">{rightTitle}</h3>
@@ -512,7 +505,6 @@ export function TickerAnnualReturnsPosNeg({
               </div>
               <div className="ticker-annual-donut__donut-wrap">
                 <BucketDonut
-                  key={`posneg-right-${rightMode}`}
                   counts={countsRight}
                   buckets={buckets}
                   theme={chartTheme}

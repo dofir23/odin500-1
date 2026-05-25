@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { SidebarToggleGlyph } from './SidebarToggleGlyph.jsx';
 import { Odin500BrandLink } from './Odin500BrandLink.jsx';
 import { useHeaderProfile } from '../hooks/useHeaderProfile.js';
@@ -258,13 +258,9 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
         </div>
         {loggedIn ? (
           <>
-            <button
-              type="button"
-              className="header-pop__item"
-              onClick={() => runProfileAction(() => navigate('/about'))}
-            >
+            <Link to="/about" className="header-pop__item" onClick={closeProfileMenu}>
               Your Profile
-            </button>
+            </Link>
             <button type="button" className="header-pop__item" onClick={closeProfileMenu}>
               Setting
             </button>
@@ -407,11 +403,10 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
                 aria-label="Indices"
                 onMouseEnter={() => prefetchRouteChunks('/indices/dow-jones')}
               >
-                <button
-                  type="button"
+                <NavLink
+                  to="/indices/dow-jones"
                   className="app-sidebar__indices-main"
                   onClick={() => {
-                    navigate('/indices/dow-jones');
                     setIndicesOpen(true);
                     closeMobileSidebar();
                   }}
@@ -422,7 +417,7 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
                     <IconGrid />
                   </span>
                   <span className="app-sidebar__row-label">Indices</span>
-                </button>
+                </NavLink>
                 <button
                   type="button"
                   className="app-sidebar__indices-chevron-btn"

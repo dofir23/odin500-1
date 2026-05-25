@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_TITLE, SITE_ORIGIN } from './siteConfig.js';
 
 function ensureMeta(attr, key, content) {
   if (typeof document === 'undefined') return;
@@ -35,32 +36,35 @@ function ensureJsonLd(id, data) {
   el.textContent = JSON.stringify(data);
 }
 
-function siteOrigin() {
-  if (typeof window === 'undefined') return '';
-  return window.location.origin;
+/** Always https://www.odin500.com — not window.location (avoids apex/non-www drift). */
+export function absoluteSiteUrl(path) {
+  const p = path && path.startsWith('/') ? path : `/${String(path || '')}`;
+  if (p === '/') return `${SITE_ORIGIN}/`;
+  return `${SITE_ORIGIN}${p}`;
 }
 
-function absoluteUrl(path) {
-  const base = siteOrigin();
-  const p = path && path.startsWith('/') ? path : `/${String(path || '')}`;
-  return `${base}${p}`;
+/** Strip query/hash so filter URLs canonicalize to the clean path. */
+export function canonicalPathFromLocation(pathname, search = '') {
+  const path = String(pathname || '/').split('?')[0].split('#')[0] || '/';
+  return path.endsWith('/') && path.length > 1 ? path.replace(/\/+$/, '') || '/' : path;
 }
 
 export function useSitewideSeo() {
   useEffect(() => {
-    const origin = siteOrigin();
-    if (!origin) return;
+    ensureMeta('name', 'description', DEFAULT_SITE_DESCRIPTION);
+    ensureMeta('name', 'robots', 'index,follow');
+    ensureCanonical(absoluteSiteUrl('/'));
     ensureJsonLd('organization', {
       '@context': 'https://schema.org',
       '@type': 'Organization',
       name: 'Odin500',
-      url: origin
+      url: SITE_ORIGIN
     });
     ensureJsonLd('website', {
       '@context': 'https://schema.org',
       '@type': 'WebSite',
       name: 'Odin500',
-      url: origin
+      url: SITE_ORIGIN
     });
   }, []);
 }
@@ -85,7 +89,7 @@ export function usePageSeo({
 }) {
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    const canonicalUrl = absoluteUrl(canonicalPath);
+    const canonicalUrl = absoluteSiteUrl(canonicalPath);
     document.title = title;
     ensureMeta('name', 'description', description);
     ensureMeta('name', 'robots', noindex ? 'noindex,follow' : 'index,follow');
@@ -95,6 +99,7 @@ export function usePageSeo({
     ensureMeta('property', 'og:description', description);
     ensureMeta('property', 'og:type', ogType);
     ensureMeta('property', 'og:url', canonicalUrl);
+    ensureMeta('property', 'og:site_name', 'Odin500');
 
     ensureMeta('name', 'twitter:card', 'summary_large_image');
     ensureMeta('name', 'twitter:title', title);
@@ -108,10 +113,9 @@ export function usePageSeo({
           '@type': 'ListItem',
           position: idx + 1,
           name: b.name,
-          item: absoluteUrl(b.path)
+          item: absoluteSiteUrl(b.path)
         }))
       });
     }
   }, [title, description, canonicalPath, noindex, ogType, breadcrumbItems]);
 }
-

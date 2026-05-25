@@ -455,6 +455,7 @@ export default function MarketHeatmapPage() {
 
   return (
     <div className="heatmap-page">
+      <h1 className="sr-only">Market Heatmap by Index and Sector</h1>
       <div className="heatmap-page__grid">
         <aside className="heatmap-sidebar" aria-label="Filters">
           <section className="heatmap-card">

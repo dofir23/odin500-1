@@ -460,7 +460,6 @@ export default function StatisticDataPage() {
     description:
       'Table-focused return analytics with CSV downloads across daily, weekly, monthly, quarterly, and annual ranges.',
     canonicalPath: '/statistic-data',
-    noindex: Boolean(location.search)
   });
   const [symbol, setSymbol] = useState(() => {
     const qsSymbol = sanitizeTickerPageInput(new URLSearchParams(location.search).get('symbol') || '');

@@ -726,7 +726,6 @@ export default function IndexPage() {
     canonicalPath: isSectorDataRoute
       ? `/sector-data/${sectorSlugResolved || DEFAULT_SECTOR_ROUTE_SLUG}`
       : `/indices/${slug}`,
-    noindex: Boolean(location.search),
     breadcrumbItems: isSectorDataRoute
       ? [
           { name: 'Market', path: '/market' },

@@ -604,7 +604,6 @@ export default function TickerPage() {
     title: `${String(sym).toUpperCase()} Odin500 Signal, Returns & Market Statistics`,
     description: `Live Odin500 signal, returns, OHLC market data, and strategy comparison for ${String(sym).toUpperCase()}.`,
     canonicalPath: `/ticker/${canonicalSym}`,
-    noindex: Boolean(location.search),
     breadcrumbItems: [
       { name: 'Market', path: '/market' },
       { name: 'Ticker', path: `/ticker/${encodeURIComponent(DEFAULT_TICKER_ROUTE_SYMBOL)}` },
@@ -2113,7 +2112,7 @@ export default function TickerPage() {
                   </div>
                 ))}
               </div>
-              <div className="ticker-signal-foot">
+              {/* <div className="ticker-signal-foot">
                 <Link to="/odin-signals" className="ticker-signal-foot__link">
                   Learn more about Odin Signals
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -2129,7 +2128,7 @@ export default function TickerPage() {
                     </defs>
                   </svg>
                 </Link>
-              </div>
+              </div> */}
             </div>
           </section>
           

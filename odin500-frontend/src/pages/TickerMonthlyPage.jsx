@@ -109,7 +109,7 @@ function normalizeDailyPair(prev, field, rawValue) {
 }
 
 const DAILY_CHART_DATE_INPUT_CLASS =
-  'app-date-input h-7 w-[120px] shrink-0 rounded-md border border-slate-400/45 bg-white px-1 py-0 text-[11px] leading-7 text-slate-900 shadow-sm outline-none focus:border-sky-500/80 dark:border-white/12 dark:bg-transparent dark:text-slate-100 dark:focus:border-sky-400/60';
+  'app-date-input h-7 w-[100px] shrink-0 rounded-md border border-slate-400/45 bg-white px-1 py-0 text-[11px] leading-7 text-slate-900 shadow-sm outline-none focus:border-sky-500/80 dark:border-white/12 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-sky-400/60';
 
 /** Compact start/end dates for daily charts (same row as toolbar buttons; applies on change). */
 function DailyChartDateRangeToolbar({ draft, loadedRange, onChangeStart, onChangeEnd }) {
@@ -1311,6 +1311,7 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
             {tableTotalPages > 1 ? (
               <div className="statistic-data__pager">
                 <FigmaPagination page={tablePageSafe} totalPages={tableTotalPages} onPageChange={setTablePage} />
+                <span className="statistic-data__pager-meta">Page {tablePageSafe} of {tableTotalPages} ({tableRowsSorted.length} rows)</span>
               </div>
             ) : null}
           </section>

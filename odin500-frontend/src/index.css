@@ -7,6 +7,73 @@
   --app-ticker-list-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.seo-site-footer {
+  margin-top: 2rem;
+  padding: 1.5rem 1rem 2rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  color: var(--muted, #94a3b8);
+  font-size: 0.8rem;
+}
+
+.seo-site-footer__inner {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1.25rem 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto 1rem;
+}
+
+.seo-site-footer__heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #cbd5e1;
+}
+
+.seo-site-footer__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.seo-site-footer__link {
+  color: #93c5fd;
+  text-decoration: none;
+}
+
+.seo-site-footer__link:hover {
+  text-decoration: underline;
+}
+
+.seo-site-footer__copy {
+  margin: 0;
+  text-align: center;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+[data-theme='light'] .seo-site-footer__heading {
+  color: #475569;
+}
+
+[data-theme='light'] .seo-site-footer__link {
+  color: #2563eb;
+}
+
 /* Date inputs app-wide: calendar icon white (dark), black (light). Invert only — not color-scheme (that already lightens the icon). */
 input[type='date']::-webkit-calendar-picker-indicator {
   cursor: pointer;
@@ -10558,18 +10625,13 @@ a.ticker-page__metric-label--link:hover {
 }
 
 .ticker-chart-resize-scope .ticker-annual-donut__svg {
-  width: min(280px, 100%);
-  height: min(280px, var(--ticker-resize-plot-h));
-  max-width: 100%;
-  max-height: min(300px, var(--ticker-resize-plot-h));
-  aspect-ratio: 1 / 1;
-  flex-shrink: 0;
-  display: block;
+  height: min(300px, var(--ticker-resize-plot-h));
+  width: min(300px, 100%);
+  max-height: none;
 }
 
 .ticker-chart-resize-scope .ticker-annual-donut__donut-wrap {
   min-height: min(320px, var(--ticker-resize-plot-h));
-  overflow: visible;
 }
 
 .ticker-chart-legend {
@@ -11907,10 +11969,6 @@ h3.returns-chart-title-heading {
   color: #0f172a;
 }
 
-.ticker-annual-donut__panel.ticker-annual-figma__chart-card--donut {
-  overflow: visible;
-}
-
 .ticker-annual-donut__split {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -11961,16 +12019,12 @@ h3.returns-chart-title-heading {
   justify-content: center;
   min-height: 200px;
   padding: 8px 0 4px;
-  overflow: visible;
 }
 
 .ticker-annual-donut__svg {
   width: min(240px, 100%);
   height: auto;
   max-height: 260px;
-  aspect-ratio: 1 / 1;
-  flex-shrink: 0;
-  display: block;
 }
 
 .ticker-annual-donut__donut-empty {

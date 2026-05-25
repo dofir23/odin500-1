@@ -9,6 +9,7 @@ import {
   uploadAvatar
 } from '../services/authApi.js';
 import { clearApiCache, clearAuthToken } from '../store/apiStore.js';
+import { usePageSeo } from '../seo/usePageSeo.js';
 
 function initialsFor(name, email) {
   const base = String(name || '').trim() || String(email || '').trim().split('@')[0] || 'U';
@@ -22,6 +23,11 @@ function initialsFor(name, email) {
 }
 
 export default function AboutPage() {
+  usePageSeo({
+    title: 'Your Odin500 Profile & Account Settings',
+    description: 'Manage your Odin500 account profile, subscription plan, email, and security settings.',
+    canonicalPath: '/about'
+  });
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);

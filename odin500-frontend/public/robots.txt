@@ -1,11 +1,11 @@
 User-agent: *
 Allow: /
 
-# Keep non-content auth/account flows out of search
+# Non-content auth/account flows
 Disallow: /login
 Disallow: /signup
 Disallow: /forgot-password
+Disallow: /auth/
 Disallow: /accounts
 
-Sitemap: /sitemap.xml
-
+Sitemap: https://www.odin500.com/sitemap.xml

@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { injectSeoIntoTemplate } from '../server/buildSeoHead.mjs';
-import { resolveRouteMetadata } from '../server/routeMetadata.mjs';
+import { resolveRequestMetadata } from '../server/routeMetadata.mjs';
 import { PRERENDER_STATIC_PATHS } from '../src/seo/sitemapRoutes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,7 +16,7 @@ const distDir = path.join(root, 'dist', 'client');
 const indexFile = path.join(distDir, 'index.html');
 
 function injectSeo(html, routePath) {
-  const meta = resolveRouteMetadata(routePath);
+  const meta = resolveRequestMetadata(routePath);
   return injectSeoIntoTemplate(html, meta);
 }
 

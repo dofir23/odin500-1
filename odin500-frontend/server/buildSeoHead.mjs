@@ -57,6 +57,17 @@ export function buildSsrHead(meta) {
  * @param {string} html
  * @param {Parameters<typeof buildSsrHead>[0]} meta
  */
+/**
+ * @param {string} html
+ * @param {string} appHtml
+ */
+export function injectAppIntoRoot(html, appHtml) {
+  if (html.includes('<div id="root"></div>')) {
+    return html.replace('<div id="root"></div>', `<div id="root">${appHtml}</div>`);
+  }
+  return html.replace(/<div id="root">[\s\S]*?<\/div>/, `<div id="root">${appHtml}</div>`);
+}
+
 export function injectSeoIntoTemplate(html, meta) {
   const { titleTag, metaBlock } = buildSsrHead(meta);
   if (html.includes('<!--SSR:TITLE-->') && html.includes('<!--SSR:META-->')) {

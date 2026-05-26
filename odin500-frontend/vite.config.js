@@ -1,12 +1,16 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function stripTrailingSlash(u) {
   return String(u || '').replace(/\/$/, '');
 }
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, isSsrBuild }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const prod = stripTrailingSlash(
     env.VITE_API_ORIGIN_PROD || 'https://odin500-1-production.up.railway.app'
@@ -15,24 +19,19 @@ export default defineConfig(({ mode }) => {
   const apiMode = (env.VITE_API_MODE || 'prod').toLowerCase();
   const proxyTarget = apiMode === 'dev' ? dev : prod;
 
-  return {
+  const shared = {
     plugins: [react(), tailwindcss()],
-    build: {
-      outDir: 'dist/client',
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (!id.includes('node_modules')) return;
-            if (id.includes('lightweight-charts')) return 'lightweight-charts';
-            if (id.includes('d3-hierarchy')) return 'd3-hierarchy';
-            if (id.includes('@supabase')) return 'supabase';
-            if (id.includes('react-dom')) return 'react-dom';
-            if (id.includes('react-router')) return 'react-router';
-            if (id.includes('/react/') || id.includes('\\react\\')) return 'react-core';
-            return 'vendor';
+    resolve: {
+      alias: isSsrBuild
+        ? {
+            'lightweight-charts': path.resolve(__dirname, 'src/ssr-stubs/lightweight-charts.js'),
+            html2canvas: path.resolve(__dirname, 'src/ssr-stubs/html2canvas.js')
           }
-        }
-      }
+        : undefined
+    },
+    ssr: {
+      external: ['react', 'react-dom'],
+      noExternal: ['react-router-dom', 'react-router', 'lucide-react']
     },
     esbuild: {
       drop: mode === 'production' ? ['console', 'debugger'] : []
@@ -52,6 +51,44 @@ export default defineConfig(({ mode }) => {
       port: Number(process.env.PORT) || 4173,
       strictPort: true,
       allowedHosts: true
+    }
+  };
+
+  if (isSsrBuild) {
+    return {
+      ...shared,
+      build: {
+        outDir: 'dist/server',
+        emptyOutDir: true,
+        ssr: 'src/entry-server.jsx',
+        rollupOptions: {
+          output: {
+            format: 'es',
+            entryFileNames: 'entry-server.js'
+          }
+        }
+      }
+    };
+  }
+
+  return {
+    ...shared,
+    build: {
+      outDir: 'dist/client',
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return;
+            if (id.includes('lightweight-charts')) return 'lightweight-charts';
+            if (id.includes('d3-hierarchy')) return 'd3-hierarchy';
+            if (id.includes('@supabase')) return 'supabase';
+            if (id.includes('react-dom')) return 'react-dom';
+            if (id.includes('react-router')) return 'react-router';
+            if (id.includes('/react/') || id.includes('\\react\\')) return 'react-core';
+            return 'vendor';
+          }
+        }
+      }
     }
   };
 });

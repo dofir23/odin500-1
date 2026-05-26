@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/generate-sitemap.mjs && vite build && node scripts/prerender-meta.mjs",
+    "build": "node scripts/generate-sitemap.mjs && vite build --outDir dist/client && vite build --ssr src/entry-server.jsx --outDir dist/server && node scripts/prerender-meta.mjs",
     "build:app": "vite build",
     "sitemap": "node scripts/generate-sitemap.mjs",
     "preview": "vite preview",
-    "start": "node server/server.mjs"
+    "start": "node server/server.mjs",
+    "start:ssr": "npm run build && node server/server.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

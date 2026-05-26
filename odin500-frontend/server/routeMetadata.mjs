@@ -149,14 +149,14 @@ export const ROUTE_METADATA = {
   }
 };
 
-const INDEX_SLUG_LABELS = {
+export const INDEX_SLUG_LABELS = {
   sp500: 'S&P 500',
   'dow-jones': 'Dow Jones',
   'nasdaq-100': 'Nasdaq 100',
   nasdaq: 'Nasdaq 100'
 };
 
-const SECTOR_SLUG_LABELS = {
+export const SECTOR_SLUG_LABELS = {
   xlb: 'Materials',
   xlk: 'Technology',
   xlf: 'Financials',
@@ -170,7 +170,7 @@ const SECTOR_SLUG_LABELS = {
   xlc: 'Communication Services'
 };
 
-const STAT_KIND_LABELS = {
+export const STAT_KIND_LABELS = {
   'ticker-annual': 'Annual',
   'ticker-quarterly': 'Quarterly',
   'ticker-monthly': 'Monthly',
@@ -188,68 +188,97 @@ export function normalizePathname(pathname) {
 }
 
 /**
+ * Dynamic route SEO — checked before static ROUTE_METADATA lookup.
  * @param {string} pathname
- * @returns {{ title: string, description: string, canonical: string, noindex?: boolean, jsonLd?: object }}
+ * @returns {{ title: string, description: string, canonical: string, noindex?: boolean, jsonLd?: object } | null}
  */
-export function resolveRouteMetadata(pathname) {
+export function resolveDynamicRouteMetadata(pathname) {
   const path = normalizePathname(pathname);
-  const staticMeta = ROUTE_METADATA[path];
 
-  if (staticMeta) {
+  const tickerMatch = path.match(/^\/ticker\/([A-Za-z0-9.]+)$/i);
+  if (tickerMatch) {
+    const symbol = decodeURIComponent(tickerMatch[1]).toUpperCase();
     return {
-      title: staticMeta.title,
-      description: staticMeta.description,
-      canonical: staticMeta.canonical || absoluteSiteUrl(path),
-      noindex: staticMeta.noindex,
-      jsonLd: staticMeta.jsonLd
+      title: `${symbol} Stock Signals & Charts | Odin500`,
+      description: `${symbol} ticker statistics, OHLC charts, quant signals and historical data for traders and investors on Odin500.`,
+      canonical: `${SITE_ORIGIN}/ticker/${encodeURIComponent(symbol)}`
     };
   }
 
-  let match;
-
-  if ((match = path.match(/^\/ticker\/([^/]+)$/i))) {
-    const sym = decodeURIComponent(match[1]).toUpperCase();
-    return {
-      title: `${sym} Stock Signals, Returns & Charts | Odin500`,
-      description: `${sym} Odin500 trading signals, annual and periodic returns, OHLC charts, and strategy comparisons for U.S. equity analysis.`,
-      canonical: absoluteSiteUrl(path)
-    };
-  }
-
-  if ((match = path.match(/^\/indices\/([^/]+)$/i))) {
-    const slug = decodeURIComponent(match[1]).toLowerCase();
+  const indexMatch = path.match(/^\/indices\/([a-z0-9-]+)$/i);
+  if (indexMatch) {
+    const slug = decodeURIComponent(indexMatch[1]).toLowerCase();
     const label = INDEX_SLUG_LABELS[slug] || slug.replace(/-/g, ' ');
     return {
       title: `${label} Index Analytics & Signals | Odin500`,
-      description: `${label} index signals, constituent returns, OHLC charts, and sector analytics on Odin500 for active traders and investors.`,
-      canonical: absoluteSiteUrl(path)
+      description: `${label} index signals, constituent returns, OHLC charts, and sector analytics on Odin500 for traders and investors.`,
+      canonical: `${SITE_ORIGIN}/indices/${encodeURIComponent(slug)}`
     };
   }
 
-  if ((match = path.match(/^\/sector-data\/([^/]+)$/i))) {
-    const slug = decodeURIComponent(match[1]).toLowerCase();
+  const sectorMatch = path.match(/^\/sector-data\/([a-z0-9]+)$/i);
+  if (sectorMatch) {
+    const slug = decodeURIComponent(sectorMatch[1]).toLowerCase();
     const label = SECTOR_SLUG_LABELS[slug] || slug.toUpperCase();
     return {
       title: `${label} Sector ETF Analytics | Odin500`,
       description: `${label} sector ETF signals, S&P 500 sector returns, heatmaps, and constituent analytics on Odin500 for sector rotation research.`,
-      canonical: absoluteSiteUrl(path)
+      canonical: `${SITE_ORIGIN}/sector-data/${encodeURIComponent(slug)}`
     };
   }
 
-  if ((match = path.match(/^\/statistic\/(ticker-(?:annual|quarterly|monthly|weekly|daily))\/([^/]+)$/i))) {
-    const kind = match[1].toLowerCase();
-    const sym = decodeURIComponent(match[2]).toUpperCase();
+  const statMatch = path.match(/^\/statistic\/(ticker-(?:annual|quarterly|monthly|weekly|daily))\/([A-Za-z0-9.]+)$/i);
+  if (statMatch) {
+    const kind = statMatch[1].toLowerCase();
+    const symbol = decodeURIComponent(statMatch[2]).toUpperCase();
     const horizon = STAT_KIND_LABELS[kind] || 'Periodic';
     return {
-      title: `${sym} ${horizon} Returns Statistics | Odin500`,
-      description: `${sym} ${horizon.toLowerCase()} return statistics, bar charts, and downloadable tables on Odin500 for U.S. equity performance research.`,
-      canonical: absoluteSiteUrl(path)
+      title: `${symbol} ${horizon} Returns Statistics | Odin500`,
+      description: `${symbol} ${horizon.toLowerCase()} return statistics, bar charts, and downloadable tables on Odin500 for U.S. equity performance research.`,
+      canonical: `${SITE_ORIGIN}/statistic/${kind}/${encodeURIComponent(symbol)}`
     };
   }
 
+  return null;
+}
+
+/**
+ * @param {string} pathname
+ * @returns {{ title: string, description: string, canonical: string, noindex?: boolean, jsonLd?: object }}
+ */
+export function resolveRequestMetadata(pathname) {
+  const path = normalizePathname(pathname);
+  return (
+    resolveDynamicRouteMetadata(path) ||
+    resolveStaticRouteMetadata(path) || {
+      title: DEFAULT_SITE_TITLE,
+      description: DEFAULT_SITE_DESCRIPTION,
+      canonical: absoluteSiteUrl(path)
+    }
+  );
+}
+
+/**
+ * Static routes only.
+ * @param {string} pathname
+ * @returns {{ title: string, description: string, canonical: string, noindex?: boolean, jsonLd?: object } | null}
+ */
+export function resolveStaticRouteMetadata(pathname) {
+  const path = normalizePathname(pathname);
+  const staticMeta = ROUTE_METADATA[path];
+
+  if (!staticMeta) return null;
+
   return {
-    title: DEFAULT_SITE_TITLE,
-    description: DEFAULT_SITE_DESCRIPTION,
-    canonical: absoluteSiteUrl(path)
+    title: staticMeta.title,
+    description: staticMeta.description,
+    canonical: staticMeta.canonical || absoluteSiteUrl(path),
+    noindex: staticMeta.noindex,
+    jsonLd: staticMeta.jsonLd
   };
+}
+
+/** @deprecated Use resolveRequestMetadata — dynamic routes are resolved first. */
+export function resolveRouteMetadata(pathname) {
+  return resolveRequestMetadata(pathname);
 }

@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChartDateApplyRow } from './ChartDateApplyRow.jsx';
-import { DataInfoTip } from './DataInfoTip.jsx';
+import { ChartInfoTip } from './ChartInfoTip.jsx';
+import { getReturnMagnitudeSideTip, getReturnMagnitudeTotalTip } from './chartInfoTips.js';
 import { periodModeNouns } from '../utils/periodModeNouns.js';
 import { filterReturnsRows } from '../utils/returnsDateRange.js';
 import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
@@ -418,12 +419,6 @@ export function TickerAnnualReturnsPosNeg({
 
   const posNegModeToggleForSubrow = <div className="ticker-annual-donut__toggle">{posNegModeToggleButtons}</div>;
 
-  const asOfLine = asOfDate ? (
-    <p className="ticker-data-tip__p">
-      Returns as of <strong>{asOfDate}</strong> on the ticker-returns payload.
-    </p>
-  ) : null;
-
   if (!rows.length) {
     if (loading) {
       return <PosNegReturnsChartSkeleton periodMode={periodMode} />;
@@ -492,25 +487,7 @@ export function TickerAnnualReturnsPosNeg({
                 <span className="ticker-annual-donut__panel-spacer" aria-hidden />
                 <h3 className="ticker-annual-donut__panel-title">{panelTotalTitle}</h3>
                 <div className="ticker-annual-donut__panel-tip">
-                  <DataInfoTip align="end">
-                    <p className="ticker-data-tip__p">
-                        <strong>{panelTotalTitle}</strong>: every row in{' '}
-                        <code className="ticker-data-tip__code">
-                          performance.{periodMode === 'quarterly' ? 'quarterlyReturns' : periodMode === 'monthly' ? 'monthlyReturns' : periodMode === 'weekly' ? 'weeklyReturns' : periodMode === 'daily' ? 'dailyReturns' : 'annualReturns'}
-                        </code>{' '}
-                        is counted once. Each period
-                      is placed in a <strong>return magnitude</strong> band using <strong>|totalReturn|</strong> (absolute
-                      %): 0–1%, 1–2.5%, 2.5–5%, 5–10%, or &gt;10%.
-                    </p>
-                    <p className="ticker-data-tip__p">
-                      Gains and losses both contribute to the same magnitude buckets on this chart so you can see how
-                      often the name moves a little vs a lot in either direction.
-                    </p>
-                    <p className="ticker-data-tip__p">
-                      Symbol <strong>{symU}</strong>.
-                    </p>
-                    {asOfLine}
-                  </DataInfoTip>
+                  <ChartInfoTip tip={getReturnMagnitudeTotalTip(periodMode)} align="end" />
                 </div>
               </div>
               <div className="ticker-annual-donut__donut-wrap">
@@ -541,36 +518,10 @@ export function TickerAnnualReturnsPosNeg({
                 <span className="ticker-annual-donut__panel-spacer" aria-hidden />
                 <h3 className="ticker-annual-donut__panel-title">{rightTitle}</h3>
                 <div className="ticker-annual-donut__panel-tip">
-                  <DataInfoTip align="end">
-                    {rightMode === 'positive' ? (
-                      <>
-                        <p className="ticker-data-tip__p">
-                          <strong>Positive {pn.lower}</strong> only: {pn.lower} with <strong>totalReturn &gt; 0</strong>. Each is
-                          bucketed by the <strong>actual</strong> positive return into the same five bands (0–1% through
-                          &gt;10%).
-                        </p>
-                        <p className="ticker-data-tip__p">
-                          Counts sum to the number of up {pn.lower} in the series, not the total count of {pn.lower}.
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="ticker-data-tip__p">
-                          <strong>Negative {pn.lower}</strong> only: {pn.lower} with <strong>totalReturn &lt; 0</strong>. Each is
-                          bucketed by <strong>loss magnitude</strong> (absolute value of the negative return) into 0–1%,
-                          1–2.5%, 2.5–5%, 5–10%, or &gt;10%.
-                        </p>
-                        <p className="ticker-data-tip__p">
-                          Legend labels describe the size of the decline, not a positive gain.
-                        </p>
-                      </>
-                    )}
-                    <p className="ticker-data-tip__p">
-                      Use the <strong>{positiveTabLabel}</strong> / <strong>{negativeTabLabel}</strong> control above to switch
-                      this panel. Symbol <strong>{symU}</strong>.
-                    </p>
-                    {asOfLine}
-                  </DataInfoTip>
+                  <ChartInfoTip
+                    tip={getReturnMagnitudeSideTip(periodMode, rightMode === 'positive' ? 'positive' : 'negative')}
+                    align="end"
+                  />
                 </div>
               </div>
               <div className="ticker-annual-donut__donut-wrap">

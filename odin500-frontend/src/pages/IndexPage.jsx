@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { DataInfoTip } from '../components/DataInfoTip.jsx';
+import { ChartInfoTip } from '../components/ChartInfoTip.jsx';
+import {
+  CHART_INFO_TIPS,
+  getIndexConstituentsTip
+} from '../components/chartInfoTips.js';
 import { FigmaPagination as NewsSectionPagination } from '../components/FigmaPagination.jsx';
 import { TickerAnnualReturnsFigma } from '../components/TickerAnnualReturnsFigma.jsx';
 import { TickerMonthlyReturnsChart } from '../components/TickerMonthlyReturnsChart.jsx';
@@ -1900,13 +1904,7 @@ export default function IndexPage() {
               <IconFlagUs className="ticker-page__flag" />
               <span className="ticker-page__exchange">{displaySym}</span>
             </span>
-            <DataInfoTip align="start">
-              <p className="ticker-data-tip__p">
-                <strong>Header price</strong> uses the last two sessions from{' '}
-                <code className="ticker-data-tip__code">GET /api/market/ohlc</code> when an official index ticker exists; otherwise the last two
-                points from the index-returns close series.
-              </p>
-            </DataInfoTip>
+            <ChartInfoTip tip={CHART_INFO_TIPS.indexHeaderPrice} align="start" />
           </div>
           <div className="ticker-page__header-actions">
             
@@ -2210,12 +2208,7 @@ export default function IndexPage() {
                   >
                     News
                   </ReturnsChartClickableHeading>
-                  <DataInfoTip align="start">
-                    <p className="ticker-data-tip__p">
-                      Headlines for <strong>{displaySym}</strong> from the live feed. Click <strong>News</strong> to open the full
-                      news page with this ticker pre-selected.
-                    </p>
-                  </DataInfoTip>
+                  <ChartInfoTip tip={CHART_INFO_TIPS.indexNews} align="start" />
                 </div>
               </div>
             </div>
@@ -2264,9 +2257,7 @@ export default function IndexPage() {
               <h2 className="ticker-card__h ticker-card__h--inline" id="index-odin-signal-h">
                 Odin Signal
               </h2>
-              <DataInfoTip align="start">
-                <p className="ticker-data-tip__p">Index chart rows carry placeholder signal <strong>N</strong> (no signals feed on this page).</p>
-              </DataInfoTip>
+              <ChartInfoTip tip={CHART_INFO_TIPS.indexSignalPlaceholder} align="start" />
             </div>
             <p className="ticker-signal-asof">As of {lastUpdatedFmt}</p>
             <div className="ticker-signal-lanes" role="list">
@@ -2327,24 +2318,13 @@ export default function IndexPage() {
                 )}
               </span>
               <span className="mkt-mini-card__head-actions">
-                <DataInfoTip align="start">
-                  <p className="ticker-data-tip__p">
-                    {isSectorDataRoute ? (
-                      <>
-                        <strong>Sector data</strong>: constituents are <strong>S&amp;P 500</strong> names whose GICS sector matches{' '}
-                        <strong>{activeSector?.label ?? 'this sector'}</strong> (same mapping as the sector ETF heatmap). Source:{' '}
-                        <code className="ticker-data-tip__code">POST /api/market/ticker-details</code> with{' '}
-                        <code className="ticker-data-tip__code">index: sp500</code>, period <code className="ticker-data-tip__code">last-date</code>.
-                        Return % is 1D.
-                      </>
-                    ) : (
-                      <>
-                        Source: <code className="ticker-data-tip__code">POST /api/market/ticker-details</code> with period{' '}
-                        <code className="ticker-data-tip__code">last-date</code>. Return % is 1D.
-                      </>
-                    )}
-                  </p>
-                </DataInfoTip>
+                <ChartInfoTip
+                  tip={getIndexConstituentsTip({
+                    isSector: isSectorDataRoute,
+                    sectorLabel: activeSector?.label
+                  })}
+                  align="start"
+                />
               </span>
             </header>
             <div className="index-constituents-card index-constituents-card--mkt">
@@ -2467,12 +2447,7 @@ export default function IndexPage() {
                 <span className="mkt-mini-card__tf">%</span>
               </span>
               <span className="mkt-mini-card__head-actions">
-                <DataInfoTip align="start">
-                  <p className="ticker-data-tip__p">
-                    <strong>MTD / QTD</strong> use the same ~1y OHLC samples as the ticker page when an official index OHLC symbol exists; otherwise
-                    MTD/QTD for the index may be limited.
-                  </p>
-                </DataInfoTip>
+                <ChartInfoTip tip={CHART_INFO_TIPS.indexMtdQtd} align="start" />
               </span>
             </header>
             <div className="index-aside-mini__body">
@@ -2546,11 +2521,7 @@ export default function IndexPage() {
                   >
                     Relative Strength
                   </ReturnsChartClickableHeading>
-                  <DataInfoTip align="start">
-                    <p className="ticker-data-tip__p">
-                      Choose two indices; table and bars show return% difference (left minus right).
-                    </p>
-                  </DataInfoTip>
+                  <ChartInfoTip tip={CHART_INFO_TIPS.indexRelativeStrength} align="start" />
                 </div>
               </div>
               <div className="ticker-rs-selector-head__right">

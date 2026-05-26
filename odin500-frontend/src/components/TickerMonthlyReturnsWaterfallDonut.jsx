@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChartDateApplyRow } from './ChartDateApplyRow.jsx';
-import { DataInfoTip } from './DataInfoTip.jsx';
+import { ChartInfoTip } from './ChartInfoTip.jsx';
+import { CHART_INFO_TIPS } from './chartInfoTips.js';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
 import { filterReturnsRows } from '../utils/returnsDateRange.js';
 import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
@@ -498,30 +499,7 @@ export function TickerMonthlyReturnsWaterfallDonut({
             <div className="ticker-monthly-adv__panel-head">
               <div className="ticker-monthly-adv__title-block">
               <span className="ticker-monthly-adv__panel-title">{periodMode === 'weekly' ? 'Cumulative weekly' : 'Cumulative monthly'}</span>
-                <DataInfoTip align="end">
-                  <p className="ticker-data-tip__p">
-                    <strong>Waterfall</strong>: for the selected calendar year, each column is a month (1 = Jan … 12 = Dec). Each bar runs from the{' '}
-                    <strong>cumulative return</strong> at the start of the month to the cumulative after applying that month’s{' '}
-                    <strong>totalReturn</strong> from <code className="ticker-data-tip__code">performance.monthlyReturns</code>.
-                  </p>
-                  <p className="ticker-data-tip__p">
-                    <strong>Blue</strong> = month with positive <strong>totalReturn</strong>; <strong>orange</strong> = negative; <strong>grey</strong>{' '}
-                    = 0% (or no row — treated as 0 for the bridge). Dashed lines connect the running total into the next month.
-                  </p>
-                  <p className="ticker-data-tip__p">
-                    Bar labels are the <strong>single-month</strong> %, not the cumulative level. Bottom line shows cumulative % after month 12
-                    (approx. compounded path in % points, not a multiplicative compound factor).
-                  </p>
-                  {asOfDate ? (
-                    <p className="ticker-data-tip__p">
-                      Year <strong>{selectedYear}</strong>. Returns as of <strong>{asOfDate}</strong> for <strong>{symU}</strong>.
-                    </p>
-                  ) : (
-                    <p className="ticker-data-tip__p">
-                      Year <strong>{selectedYear}</strong>, symbol <strong>{symU}</strong>.
-                    </p>
-                  )}
-                </DataInfoTip>
+                <ChartInfoTip tip={CHART_INFO_TIPS.monthlyWaterfall} align="end" />
               </div>
               <div className="ticker-monthly__select-wrap">
                 <label className="ticker-monthly__select-label" htmlFor="ticker-monthly-adv-year">
@@ -635,21 +613,7 @@ export function TickerMonthlyReturnsWaterfallDonut({
               <span className="ticker-monthly-adv__panel-spacer" aria-hidden />
               <span className="ticker-monthly-adv__panel-title">{periodMode === 'weekly' ? 'Week mix' : 'Month mix'}</span>
               <div className="ticker-monthly-adv__panel-tip">
-                <DataInfoTip align="end">
-                  <p className="ticker-data-tip__p">
-                    <strong>Donut</strong>: for the <strong>same year</strong> as the waterfall, counts months with <strong>totalReturn &gt; 0</strong> (navy)
-                    vs <strong>&lt; 0</strong> (orange) from <code className="ticker-data-tip__code">performance.monthlyReturns</code>. Months at exactly 0% are
-                    excluded from both counts.
-                  </p>
-                  <p className="ticker-data-tip__p">
-                    Changing the <strong>Year</strong> dropdown or the waterfall’s <strong>Start date / End date</strong> filter updates both panels.
-                  </p>
-                  {asOfDate ? (
-                    <p className="ticker-data-tip__p">
-                      Returns as of <strong>{asOfDate}</strong>.
-                    </p>
-                  ) : null}
-                </DataInfoTip>
+                <ChartInfoTip tip={CHART_INFO_TIPS.monthlyWinLossDonut} align="end" />
               </div>
             </div>
             {monthlyFilteredEmpty ? (

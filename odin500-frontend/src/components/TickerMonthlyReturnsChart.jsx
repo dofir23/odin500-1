@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChartDateApplyRow } from './ChartDateApplyRow.jsx';
-import { DataInfoTip } from './DataInfoTip.jsx';
+import { ChartInfoTip } from './ChartInfoTip.jsx';
+import { CHART_INFO_TIPS } from './chartInfoTips.js';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
 import { formatWeekAxisDate, isoYearWeekFromIsoDate } from '../utils/isoWeek.js';
 import { filterReturnsRows } from '../utils/returnsDateRange.js';
@@ -513,19 +514,7 @@ export function TickerMonthlyReturnsChart({
               <ReturnsChartClickableTitle className="ticker-monthly__title uppercase" onClick={onViewMore}>
                 {periodMode === 'weekly' ? 'WEEKLY STATISTICS' : periodMode === 'daily' ? 'DAILY STATISTICS' : 'MONTHLY STATISTICS'}
               </ReturnsChartClickableTitle>
-              <DataInfoTip align="end">
-                <p className="ticker-data-tip__p">
-                  <strong>Monthly returns</strong> use <code className="ticker-data-tip__code">performance.monthlyReturns</code> from{' '}
-                  <code className="ticker-data-tip__code">POST /api/market/ticker-returns</code>. Each row is one calendar month (
-                  <code className="ticker-data-tip__code">YYYY-MM</code>) with <strong>totalReturn</strong> (% change from{' '}
-                  <strong>startPrice</strong> to <strong>endPrice</strong> over that month).
-                </p>
-                <p className="ticker-data-tip__p">
-                  The chart shows <strong>twelve bars</strong> (months 1–12) for the <strong>year you select</strong> in the dropdown. Missing
-                  months have no bar.
-                </p>
-                <p className="ticker-data-tip__p">No monthly rows for {symU} yet.</p>
-              </DataInfoTip>
+              <ChartInfoTip tip={CHART_INFO_TIPS.monthlyReturnsByYear} align="end" />
             </div>
             {showYearInToolbar ? renderYearDropdown('ticker-monthly-year-head') : null}
             <ChartSectionIconActions
@@ -575,33 +564,7 @@ export function TickerMonthlyReturnsChart({
             <ReturnsChartClickableTitle className="ticker-monthly__title uppercase" onClick={onViewMore}>
               {periodMode === 'weekly' ? 'WEEKLY STATISTICS' : periodMode === 'daily' ? 'DAILY STATISTICS' : 'MONTHLY STATISTICS'}
             </ReturnsChartClickableTitle>
-            <DataInfoTip align="end">
-              <p className="ticker-data-tip__p">
-                <strong>Data</strong>: <code className="ticker-data-tip__code">performance.monthlyReturns</code> from{' '}
-                <code className="ticker-data-tip__code">POST /api/market/ticker-returns</code> (same payload as annual / quarterly blocks on
-                this page). Each element is one calendar month with <strong>period</strong> <code className="ticker-data-tip__code">YYYY-MM</code>,{' '}
-                <strong>startDate</strong>, <strong>endDate</strong>, <strong>startPrice</strong>, <strong>endPrice</strong>, and{' '}
-                <strong>totalReturn</strong> (percent price change over that month, computed server-side).
-              </p>
-              <p className="ticker-data-tip__p">
-                <strong>Chart</strong>: for the <strong>selected year</strong>, month <strong>1–12</strong> on the x-axis are January–December.
-                Each bar height is that month’s <strong>totalReturn</strong>. The y-axis uses a <strong>5% grid</strong>, spanning at least{' '}
-                <strong>−15%</strong> to <strong>+25%</strong> and expanding in 5% steps if any return in that year falls outside that band.
-              </p>
-              <p className="ticker-data-tip__p">
-                <strong>Year dropdown</strong>: lists every calendar year present in the monthly series. Default is <strong>2025</strong> when
-                that year exists; otherwise the most recent year with data is selected automatically.
-              </p>
-              {asOfDate ? (
-                <p className="ticker-data-tip__p">
-                  Returns as of <strong>{asOfDate}</strong> for <strong>{symU}</strong>.
-                </p>
-              ) : (
-                <p className="ticker-data-tip__p">
-                  Symbol <strong>{symU}</strong>.
-                </p>
-              )}
-            </DataInfoTip>
+            <ChartInfoTip tip={CHART_INFO_TIPS.monthlyReturnsChart} align="end" />
           </div>
           <div className="ticker-monthly__head-right">
             <ReturnsChartToolbar

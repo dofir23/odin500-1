@@ -18,6 +18,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     build: {
+      outDir: 'dist/client',
       rollupOptions: {
         output: {
           manualChunks(id) {

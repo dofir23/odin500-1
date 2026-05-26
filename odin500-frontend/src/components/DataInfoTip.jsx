@@ -42,7 +42,7 @@ function positionTooltip(btnEl, floatEl, align) {
 }
 
 /** Info button + floating tooltip (portaled to `document.body`, clamped to viewport). */
-export function DataInfoTip({ align = 'end', children }) {
+export function DataInfoTip({ align = 'end', children, ariaLabel = 'About this chart' }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
   const btnRef = useRef(null);
@@ -97,7 +97,7 @@ export function DataInfoTip({ align = 'end', children }) {
           type="button"
           className="ticker-data-tip__btn"
           aria-expanded={open}
-          aria-label="What data is this?"
+          aria-label={ariaLabel}
           onClick={() => setOpen((v) => !v)}
         >
           <IconInfoCircle className="ticker-data-tip__ico" />

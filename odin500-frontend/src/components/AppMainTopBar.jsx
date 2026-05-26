@@ -34,7 +34,13 @@ function IconMoon() {
 
 function IconNavMenu() {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <svg
+      className="app-main-topbar__mobile-ico-svg"
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+    >
       <path
         d="M21 10H3M21 18H3M21 6H3M21 14H3"
         stroke="currentColor"
@@ -100,7 +106,7 @@ const TICKERS_TO = `/ticker/${encodeURIComponent(DEFAULT_TICKER_ROUTE_SYMBOL)}`;
 
 /**
  * Top strip inside the main column: ticker search + theme toggle.
- * On mobile: logo + search + theme + menu on top; quick nav docked to the bottom of the bar.
+ * On mobile: logo + search + theme on top; quick nav (incl. sidebar menu) docked to the bottom.
  */
 export function AppMainTopBar({
   theme = 'dark',
@@ -155,18 +161,6 @@ export function AppMainTopBar({
               <span className="app-main-topbar__theme-knob">{isLight ? <IconSun /> : <IconMoon />}</span>
             </span>
           </button>
-          {isMobile && typeof onToggleMobileNav === 'function' ? (
-            <button
-              type="button"
-              className="app-main-topbar__nav"
-              aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'}
-              aria-expanded={mobileNavOpen}
-              aria-controls="app-sidebar-main"
-              onClick={onToggleMobileNav}
-            >
-              <IconNavMenu />
-            </button>
-          ) : null}
         </div>
       </div>
       </header>
@@ -219,6 +213,21 @@ export function AppMainTopBar({
             </span>
             <span className="app-main-topbar__mobile-label">Movers</span>
           </button>
+          {typeof onToggleMobileNav === 'function' ? (
+            <button
+              type="button"
+              className={'app-main-topbar__mobile-item' + (mobileNavOpen ? ' app-main-topbar__mobile-item--active' : '')}
+              onClick={onToggleMobileNav}
+              aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={mobileNavOpen}
+              aria-controls="app-sidebar-main"
+            >
+              <span className="app-main-topbar__mobile-ico">
+                <IconNavMenu />
+              </span>
+              <span className="app-main-topbar__mobile-label">Menu</span>
+            </button>
+          ) : null}
         </nav>
       ) : null}
     </>

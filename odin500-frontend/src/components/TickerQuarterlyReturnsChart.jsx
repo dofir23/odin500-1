@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { DataInfoTip } from './DataInfoTip.jsx';
+import { ChartInfoTip } from './ChartInfoTip.jsx';
+import { CHART_INFO_TIPS } from './chartInfoTips.js';
 import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
 import { chartSvgPreserveAspectRatio, tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { getReturnsChartViewMoreHref } from '../utils/returnsViewMoreNavigation.js';
@@ -430,31 +431,7 @@ export function TickerQuarterlyReturnsChart({
               <span className="ticker-quarterly__panel-spacer" aria-hidden />
               <h3 className="ticker-quarterly__panel-title">By calendar year</h3>
               <div className="ticker-quarterly__panel-tip">
-                <DataInfoTip align="end">
-                  <p className="ticker-data-tip__p">
-                    <strong>Grouped by year</strong>: each column is one calendar year on the x-axis. The four bars are{' '}
-                    <strong>Q1–Q4</strong> (colors: cyan, orange, slate, gold), each showing <strong>totalReturn</strong> % for that quarter from{' '}
-                    <code className="ticker-data-tip__code">performance.quarterlyReturns</code>.
-                  </p>
-                  <p className="ticker-data-tip__p">
-                    <strong>Calculation</strong>: same as the API row — percent price change from <strong>startPrice</strong> to{' '}
-                    <strong>endPrice</strong> over the quarter’s <strong>startDate</strong>…<strong>endDate</strong>. Quarters with no row are omitted
-                    (no bar).
-                  </p>
-                  <p className="ticker-data-tip__p">
-                    <strong>Y-axis</strong> is shared with the right chart (at least <strong>−30%</strong> to <strong>+50%</strong>, extended if any
-                    value exceeds that).
-                  </p>
-                  {asOfDate ? (
-                    <p className="ticker-data-tip__p">
-                      Returns payload as of <strong>{asOfDate}</strong> for <strong>{symU}</strong>.
-                    </p>
-                  ) : (
-                    <p className="ticker-data-tip__p">
-                      Symbol <strong>{symU}</strong>.
-                    </p>
-                  )}
-                </DataInfoTip>
+                <ChartInfoTip tip={CHART_INFO_TIPS.quarterlyByYear} align="end" />
               </div>
             </div>
             {leftSvg}
@@ -476,28 +453,7 @@ export function TickerQuarterlyReturnsChart({
               <span className="ticker-quarterly__panel-spacer" aria-hidden />
               <h3 className="ticker-quarterly__panel-title">By quarter</h3>
               <div className="ticker-quarterly__panel-tip">
-                <DataInfoTip align="end">
-                  <p className="ticker-data-tip__p">
-                    <strong>Grouped by quarter</strong>: each column is <strong>Q1, Q2, Q3, or Q4</strong>. Within a column, each bar is one{' '}
-                    <strong>calendar year</strong> (same <strong>totalReturn</strong> as the left chart, reorganized).
-                  </p>
-                  <p className="ticker-data-tip__p">
-                    Colors map to <strong>year</strong> consistently with the legend below (oldest year first in the palette order for this
-                    ticker’s range).
-                  </p>
-                  <p className="ticker-data-tip__p">
-                    <strong>Y-axis</strong> matches the left panel so you can compare magnitudes across both views.
-                  </p>
-                  {asOfDate ? (
-                    <p className="ticker-data-tip__p">
-                      Returns payload as of <strong>{asOfDate}</strong> for <strong>{symU}</strong>.
-                    </p>
-                  ) : (
-                    <p className="ticker-data-tip__p">
-                      Symbol <strong>{symU}</strong>.
-                    </p>
-                  )}
-                </DataInfoTip>
+                <ChartInfoTip tip={CHART_INFO_TIPS.quarterlyByQuarter} align="end" />
               </div>
             </div>
             {rightSvg}

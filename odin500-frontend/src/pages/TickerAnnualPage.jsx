@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { DataInfoTip } from '../components/DataInfoTip.jsx';
+import { ChartInfoTip } from '../components/ChartInfoTip.jsx';
+import { CHART_INFO_TIPS } from '../components/chartInfoTips.js';
 import { ThemedDropdown } from '../components/ThemedDropdown.jsx';
 import { TickerSymbolCombobox } from '../components/TickerSymbolCombobox.jsx';
 import { TickerAnnualReturnsFigma } from '../components/TickerAnnualReturnsFigma.jsx';
@@ -944,9 +945,7 @@ export default function TickerAnnualPage() {
                 Key data &amp; performance
               </h2>
               <span className="mkt-mini-card__head-actions">
-                <DataInfoTip align="start">
-                  <p className="ticker-data-tip__p">52w range, avg volume, and volatility come from last ~1y OHLC rows.</p>
-                </DataInfoTip>
+                <ChartInfoTip tip={CHART_INFO_TIPS.keyData52Week} align="start" />
               </span>
             </header>
             <div className="ticker-aside-mini__body">

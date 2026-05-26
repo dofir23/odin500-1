@@ -2624,33 +2624,6 @@ backdrop-filter: blur(12px);
     max-width: none;
   }
 
-  .app-main-topbar--mobile .app-main-topbar__nav {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    margin: 0;
-    padding: 0;
-    border-radius: 10px;
-    /* border: 1px solid rgba(147, 197, 253, 0.45);
-    background: linear-gradient(155deg, #1d4ed8 0%, #2563eb 52%, #1e3a8a 100%); */
-    color: #ffffff;
-    cursor: pointer;
-    flex-shrink: 0;
-    /* box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35); */
-    background: transparent;
-  }
-
-  .app-main-topbar--mobile .app-main-topbar__nav:hover {
-    filter: brightness(1.06);
-  }
-
-  .app-main-topbar--mobile .app-main-topbar__nav:focus-visible {
-    outline: 2px solid #93c5fd;
-    outline-offset: 2px;
-  }
-
   .app-main-topbar__search .ticker-symbol-search__shell {
     min-height: 40px;
     padding: 0 12px;
@@ -9029,6 +9002,53 @@ button:disabled {
   }
 }
 
+/* Ticker header: change + last updated on one row; sector/industry stay on row 1 */
+@media (max-width: 900px) {
+  .ticker-page__header-metrics--ticker-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'price sector industry'
+      'change updated updated';
+    gap: 12px 14px;
+    align-items: start;
+  }
+
+  .ticker-page__header-metrics--ticker-head .ticker-page__header-metric--primary {
+    display: contents;
+  }
+
+  .ticker-page__header-metrics--ticker-head .ticker-page__metric-footer {
+    display: contents;
+  }
+
+  .ticker-page__header-metrics--ticker-head .ticker-page__metric-price-line {
+    grid-area: price;
+  }
+
+  .ticker-page__header-metrics--ticker-head .ticker-page__metric-change {
+    grid-area: change;
+    margin-top: 6px;
+    align-self: baseline;
+  }
+
+  .ticker-page__header-metrics--ticker-head .ticker-page__metric-label--last-updated {
+    grid-area: updated;
+    margin: 6px 0 0;
+    text-align: right;
+    align-self: baseline;
+    line-height: 1.25;
+  }
+
+  .ticker-page__header-metrics--ticker-head .ticker-page__header-metric:nth-child(2) {
+    grid-area: sector;
+  }
+
+  .ticker-page__header-metrics--ticker-head .ticker-page__header-metric:nth-child(3) {
+    grid-area: industry;
+  }
+}
+
 .ticker-page__header-metric {
   min-width: 0;
 }
@@ -9066,8 +9086,11 @@ button:disabled {
   color: var(--ticker-text);
 }
 
-.ticker-page__metric-change {
+.ticker-page__metric-footer .ticker-page__metric-change {
   margin-top: 6px;
+}
+
+.ticker-page__metric-change {
   min-height: 1.25rem;
 }
 
@@ -9550,7 +9573,7 @@ a.ticker-page__metric-label--link:hover {
   }
 
   .ticker-page__header-metrics {
-    gap: 16px 14px;
+    gap: 0px 14px;
     margin-top: 16px;
     padding-top: 16px;
   }

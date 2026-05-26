@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { DataInfoTip } from '../components/DataInfoTip.jsx';
+import { ChartInfoTip } from '../components/ChartInfoTip.jsx';
+import { CHART_INFO_TIPS } from '../components/chartInfoTips.js';
 import { FigmaPagination } from '../components/FigmaPagination.jsx';
 import { TickerAnnualReturnsFigma } from '../components/TickerAnnualReturnsFigma.jsx';
 import { TickerMonthlyReturnsChart } from '../components/TickerMonthlyReturnsChart.jsx';
@@ -1699,17 +1700,7 @@ export default function TickerPage() {
               <IconFlagUs className="ticker-page__flag" />
               <span className="ticker-page__exchange">{indexLabel || '—'}</span>
             </span>
-            <DataInfoTip align="start">
-              <p className="ticker-data-tip__p">
-                <strong>Header price</strong> prefers the last two sessions from{' '}
-                <code className="ticker-data-tip__code">GET /api/market/ohlc?symbol=…&amp;limit=8</code> (daily table:
-                Open, High, Low, <strong>Close</strong>, Volume when present).
-              </p>
-              <p className="ticker-data-tip__p">
-                Day change is the latest <strong>Close</strong> minus the previous session <strong>Close</strong>. If
-                that tail is missing, the last two rows inside the loaded chart range are used instead.
-              </p>
-            </DataInfoTip>
+            <ChartInfoTip tip={CHART_INFO_TIPS.tickerHeaderPrice} align="start" />
           </div>
           <div className="ticker-page__header-actions">
             <button type="button" className="ticker-outline-btn" onClick={onAddTickerToWatchlist}>
@@ -1718,28 +1709,32 @@ export default function TickerPage() {
           </div>
         </div>
 
-        <div className="ticker-page__header-metrics" role="presentation">
-          <div className="ticker-page__header-metric">
+        <div className="ticker-page__header-metrics ticker-page__header-metrics--ticker-head" role="presentation">
+          <div className="ticker-page__header-metric ticker-page__header-metric--primary">
             <div className="ticker-page__metric-price-line">
               <span className="ticker-page__sym">{sym}</span>
               <span className="ticker-page__px ticker-page__px--hero">{fmtPrice(headerClose)}</span>
               <span className="ticker-page__ccy">USD</span>
             </div>
-            <div className="ticker-page__metric-change">
-              {headerChgPct != null && Number.isFinite(headerChgPct) ? (
-                <span className={'ticker-num ' + pctClass(headerChgPct)}>
-                  {headerChgAbs != null && Number.isFinite(headerChgAbs) ? (
-                    <>
-                      {fmtAbsSigned(headerChgAbs)}{' '}
-                    </>
-                  ) : null}
-                  ({fmtPctSigned(headerChgPct)})
-                </span>
-              ) : (
-                <span className="ticker-page__metric-change--muted">—</span>
-              )}
+            <div className="ticker-page__metric-footer">
+              <div className="ticker-page__metric-change">
+                {headerChgPct != null && Number.isFinite(headerChgPct) ? (
+                  <span className={'ticker-num ' + pctClass(headerChgPct)}>
+                    {headerChgAbs != null && Number.isFinite(headerChgAbs) ? (
+                      <>
+                        {fmtAbsSigned(headerChgAbs)}{' '}
+                      </>
+                    ) : null}
+                    ({fmtPctSigned(headerChgPct)})
+                  </span>
+                ) : (
+                  <span className="ticker-page__metric-change--muted">—</span>
+                )}
+              </div>
+              <p className="ticker-page__metric-label ticker-page__metric-label--last-updated">
+                Last Updated • {lastUpdatedFmt}
+              </p>
             </div>
-            <p className="ticker-page__metric-label">Last Updated • {lastUpdatedFmt}</p>
           </div>
 
 
@@ -2019,12 +2014,7 @@ export default function TickerPage() {
                   >
                     News
                   </ReturnsChartClickableHeading>
-                  <DataInfoTip align="start">
-                    <p className="ticker-data-tip__p">
-                      Headlines for <strong>{sym}</strong> from the live feed. Click <strong>News</strong> to open the full
-                      news page with this ticker pre-selected.
-                    </p>
-                  </DataInfoTip>
+                  <ChartInfoTip tip={CHART_INFO_TIPS.tickerNews} align="start" />
                 </div>
               </div>
             </div>
@@ -2073,17 +2063,7 @@ export default function TickerPage() {
                 Odin Signal
               </h2>
               <span className="mkt-mini-card__head-actions">
-                <DataInfoTip align="start">
-                  <p className="ticker-data-tip__p">
-                    <strong>Highlighted ladder step</strong> is derived from the <strong>last row</strong> of the chart
-                    payload (same request as the sparkline).
-                  </p>
-                  <p className="ticker-data-tip__p">
-                    Field: <code className="ticker-data-tip__code">signal</code> on each day, normalized server-side and
-                    grouped visually into L1–L3, S1–S3, or N (e.g. L11 maps into the L1 bucket).
-                  </p>
-                  <p className="ticker-data-tip__p">As-of follows the last chart date shown below the title.</p>
-                </DataInfoTip>
+                <ChartInfoTip tip={CHART_INFO_TIPS.tickerSignalLadder} align="start" />
               </span>
             </header>
             <div className="ticker-aside-mini__body">
@@ -2138,22 +2118,7 @@ export default function TickerPage() {
                 Key data &amp; performance
               </h2>
               <span className="mkt-mini-card__head-actions">
-                <DataInfoTip align="start">
-                  <p className="ticker-data-tip__p">
-                    <strong>52-week range</strong> uses <strong>High</strong> / <strong>Low</strong> across ~1 year of
-                    daily rows from <code className="ticker-data-tip__code">GET /api/market/ohlc</code> ending on{' '}
-                    <strong>{asOfDate}</strong>.
-                  </p>
-                  <p className="ticker-data-tip__p">
-                    <strong>Avg volume</strong> averages the <strong>Volume</strong> column over those same rows.{' '}
-                    <strong>Volatility</strong> is an annualized estimate from daily <strong>Close</strong> log-returns in
-                    that window.
-                  </p>
-                  <p className="ticker-data-tip__p">
-                    <strong>Related tickers</strong> are other symbols from the same ticker-details response (same sector
-                    first), not a live correlation API.
-                  </p>
-                </DataInfoTip>
+                <ChartInfoTip tip={CHART_INFO_TIPS.tickerKeyData} align="start" />
               </span>
             </header>
             <div className="ticker-aside-mini__body">
@@ -2231,21 +2196,7 @@ export default function TickerPage() {
                 Relative performance (%)
               </span>
               <span className="mkt-mini-card__head-actions">
-                <DataInfoTip align="start">
-                  <p className="ticker-data-tip__p">
-                    For rolling windows (1D, 5D, 1M, …) values come from the same <strong>dynamicPeriods</strong> arrays
-                    as the performance table, keyed by period label (e.g. “Last Month”, “Last 1 year”).
-                  </p>
-                  <p className="ticker-data-tip__p">
-                    <strong>MTD / QTD</strong> rows are computed in the browser from the ~1y daily OHLC samples: first
-                    close on/after month or quarter start vs latest <strong>Close</strong> for {selectedIndexLabel} and for{' '}
-                    {selectedTickerKey || relativeTickerSymbol}{' '}
-                    separately.
-                  </p>
-                  <p className="ticker-data-tip__p">
-                    <strong>Diff</strong> = symbol total return minus benchmark total return for that row.
-                  </p>
-                </DataInfoTip>
+                <ChartInfoTip tip={CHART_INFO_TIPS.tickerRelativeStrength} align="start" />
               </span>
             </header>
             <div className="ticker-aside-mini__body">
@@ -2331,11 +2282,7 @@ export default function TickerPage() {
                   >
                     Relative Strength
                   </ReturnsChartClickableHeading>
-                  <DataInfoTip align="start">
-                    <p className="ticker-data-tip__p">
-                      Choose one index and one ticker; relative strength is shown as <strong>ticker return − index return</strong>.
-                    </p>
-                  </DataInfoTip>
+                  <ChartInfoTip tip={CHART_INFO_TIPS.tickerRelativeStrengthPanel} align="start" />
                 </div>
               </div>
               <div className="ticker-rs-selector-head__right">

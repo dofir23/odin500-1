@@ -22,6 +22,7 @@ import { apiUrl } from '../utils/apiOrigin.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { useTickerList } from '../hooks/useTickerList.js';
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
+import { normalizeTickerSymbolList } from '../utils/tickerMultiselectInput.js';
 import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 import {
   applyDateEndChange,
@@ -49,12 +50,24 @@ const INDEX_BENCHMARK_OPTIONS = [
   { id: 'DJI', label: 'Dow Jones' },
   { id: 'NDX', label: 'Nasdaq 100' }
 ];
+const RS_TICKER_LINE_COLORS = ['#3B6BC0', '#22c55e', '#a855f7', '#ec4899', '#06b6d4', '#f97316'];
 const COLOR_BY_SERIES = {
-  TICKER: '#3B6BC0',
   INDEX: '#E67E22',
   QQQ: '#A3A3A3',
   DIA: '#F4B400'
 };
+
+function rsTickerSeriesKey(sym) {
+  return `T:${String(sym || '').toUpperCase()}`;
+}
+
+function parseRsPageTickerSymbols(raw) {
+  const parts = String(raw || '')
+    .split(',')
+    .map((p) => sanitizeTickerPageInput(p.trim()))
+    .filter(Boolean);
+  return parts.length ? parts : ['AAPL'];
+}
 const MODE_OPTIONS = [
   { id: 'daily', label: 'Daily' },
   { id: 'weekly', label: 'Weekly' },
@@ -63,8 +76,8 @@ const MODE_OPTIONS = [
   { id: 'annually', label: 'Annually' }
 ];
 
-/** Series keys for the main relative-strength line chart (chips + axis badges). */
-const RS_CHART_SERIES_KEYS = ['TICKER', 'INDEX', 'QQQ', 'DIA'];
+/** Benchmark series keys for the main relative-strength line chart (ticker keys are dynamic). */
+const RS_BENCH_CHART_KEYS = ['INDEX', 'QQQ', 'DIA'];
 
 function textColorOnHex(hex) {
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex || ''));
@@ -349,9 +362,18 @@ function defaultStatsChartYearRange(mode, currentYear) {
   return { start: STATS_CHART_DEFAULT_YEAR_START, end: STATS_CHART_DEFAULT_YEAR_END };
 }
 
+/** Chart/table period keys: `2025-01` → `01-2025` (monthly stats comparison charts). */
+function fmtStatsPeriodLabel(period) {
+  const s = String(period ?? '').trim();
+  const ym = s.match(/^(\d{4})-(\d{2})$/);
+  if (ym) return `${ym[2]}-${ym[1]}`;
+  return s;
+}
+
 function fmtDate(iso) {
   if (!iso) return '—';
-  if (/^\d{4}-W\d{2}$/.test(iso) || /^\d{4}-Q[1-4]$/.test(iso) || /^\d{4}-\d{2}$/.test(iso) || /^\d{4}$/.test(iso)) {
+  if (/^\d{4}-\d{2}$/.test(iso)) return fmtStatsPeriodLabel(iso);
+  if (/^\d{4}-W\d{2}$/.test(iso) || /^\d{4}-Q[1-4]$/.test(iso) || /^\d{4}$/.test(iso)) {
     return iso;
   }
   const t = parseMiddayMs(iso);
@@ -524,7 +546,7 @@ function RsMainLineChartPlot({
 
 export default function RelativeStrengthTickerPage() {
   const [searchParams] = useSearchParams();
-  const tickerFromQuery = sanitizeTickerPageInput(searchParams.get('ticker') || searchParams.get('symbol') || '');
+  const tickerFromQuery = searchParams.get('ticker') || searchParams.get('symbol') || '';
   const tickerOptions = useTickerList();
   const docTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
   const isLight = docTheme === 'light';
@@ -532,17 +554,22 @@ export default function RelativeStrengthTickerPage() {
   const chartHostRef = useRef(null);
   const chartRef = useRef(null);
   const seriesMapRef = useRef(new Map());
-  const activeChartKeysRef = useRef(RS_CHART_SERIES_KEYS);
+  const activeChartKeysRef = useRef([...RS_BENCH_CHART_KEYS]);
   const lastChartValsRef = useRef({});
   const [loading, setLoading] = useState(false);
   /** Symbols currently being fetched for incremental (benchmark-only) loads — per-chart skeletons. */
   const [pendingFetchSymbols, setPendingFetchSymbols] = useState(() => new Set());
   const [error, setError] = useState('');
   const [indexSymbol, setIndexSymbol] = useState('SPX');
+  /** Single ticker driving all three stats comparison charts (annual / excess / periodic). */
+  const [statsCmpTicker, setStatsCmpTicker] = useState(
+    () => parseRsPageTickerSymbols(tickerFromQuery || 'AAPL')[0]
+  );
   const [benchCmpAnnual, setBenchCmpAnnual] = useState('SPX');
   const [benchCmpExcess, setBenchCmpExcess] = useState('SPX');
   const [benchCmpPeriodic, setBenchCmpPeriodic] = useState('SPX');
-  const [tickerSymbol, setTickerSymbol] = useState(tickerFromQuery || 'AAPL');
+  const [tickerSymbols, setTickerSymbols] = useState(() => parseRsPageTickerSymbols(tickerFromQuery || 'AAPL'));
+  const tickerSymbol = tickerSymbols[0] || 'AAPL';
   const [mode, setMode] = useState('monthly');
   const [seriesData, setSeriesData] = useState({});
   const [dailyStart, setDailyStart] = useState(() => {
@@ -554,7 +581,10 @@ export default function RelativeStrengthTickerPage() {
   const currentYear = new Date().getFullYear();
   const [startYear, setStartYear] = useState(String(currentYear - 4));
   const [endYear, setEndYear] = useState(String(currentYear));
-  const [activeChartKeys, setActiveChartKeys] = useState(() => [...RS_CHART_SERIES_KEYS]);
+  const [activeChartKeys, setActiveChartKeys] = useState(() => [
+    rsTickerSeriesKey('AAPL'),
+    ...RS_BENCH_CHART_KEYS
+  ]);
   const [axisBadgeTops, setAxisBadgeTops] = useState({});
   const [chartAnnualYearStart, setChartAnnualYearStart] = useState(STATS_CHART_DEFAULT_YEAR_START);
   const [chartAnnualYearEnd, setChartAnnualYearEnd] = useState(STATS_CHART_DEFAULT_YEAR_END);
@@ -592,10 +622,22 @@ export default function RelativeStrengthTickerPage() {
 
   useEffect(() => {
     const ids = new Set(tickerDropdownOptions.map((opt) => opt.id));
-    if (tickerSymbol && !ids.has(tickerSymbol)) {
-      setTickerSymbol(tickerDropdownOptions[0]?.id || 'AAPL');
+    if (!tickerSymbols.length) {
+      setTickerSymbols(['AAPL']);
+      return;
     }
-  }, [tickerDropdownOptions, tickerSymbol]);
+    const primary = tickerSymbols[0];
+    if (primary && !ids.has(primary)) {
+      setTickerSymbols([tickerDropdownOptions[0]?.id || 'AAPL', ...tickerSymbols.slice(1)]);
+    }
+  }, [tickerDropdownOptions, tickerSymbols]);
+
+  useEffect(() => {
+    const ids = new Set(tickerDropdownOptions.map((opt) => opt.id));
+    if (statsCmpTicker && !ids.has(statsCmpTicker)) {
+      setStatsCmpTicker(tickerDropdownOptions[0]?.id || 'AAPL');
+    }
+  }, [tickerDropdownOptions, statsCmpTicker]);
 
   useEffect(() => {
     const ids = new Set(indexDropdownOptions.map((opt) => opt.id));
@@ -605,12 +647,24 @@ export default function RelativeStrengthTickerPage() {
   }, [indexDropdownOptions, indexSymbol]);
 
   useEffect(() => {
-    if (tickerFromQuery) setTickerSymbol(tickerFromQuery);
+    if (tickerFromQuery) setTickerSymbols(parseRsPageTickerSymbols(tickerFromQuery));
   }, [tickerFromQuery]);
+
+  useEffect(() => {
+    const tickerKeys = tickerSymbols.map(rsTickerSeriesKey);
+    const desired = [...tickerKeys, ...RS_BENCH_CHART_KEYS];
+    setActiveChartKeys((prev) => {
+      const kept = prev.filter((k) => desired.includes(k));
+      const missing = desired.filter((k) => !kept.includes(k));
+      if (!kept.length) return desired;
+      return [...kept, ...missing];
+    });
+  }, [tickerSymbols]);
 
   const requestedSymbols = useMemo(() => {
     const out = [
-      tickerSymbol,
+      ...tickerSymbols,
+      statsCmpTicker,
       indexSymbol,
       benchCmpAnnual,
       benchCmpExcess,
@@ -621,7 +675,7 @@ export default function RelativeStrengthTickerPage() {
       .map((s) => String(s || '').toUpperCase())
       .filter(Boolean);
     return Array.from(new Set(out));
-  }, [tickerSymbol, indexSymbol, benchCmpAnnual, benchCmpExcess, benchCmpPeriodic]);
+  }, [tickerSymbols, statsCmpTicker, indexSymbol, benchCmpAnnual, benchCmpExcess, benchCmpPeriodic]);
 
   const seriesDataRef = useRef(seriesData);
   seriesDataRef.current = seriesData;
@@ -832,19 +886,24 @@ export default function RelativeStrengthTickerPage() {
       }
       return Array.from(uniq.values()).sort((a, b) => a.time - b.time);
     };
-    const ticker = toChartPoints(seriesDataForToolbar[tickerSymbol] || []);
+    const tickerLines = tickerSymbols.map((sym, i) => ({
+      key: rsTickerSeriesKey(sym),
+      label: sym,
+      color: RS_TICKER_LINE_COLORS[i % RS_TICKER_LINE_COLORS.length],
+      data: toChartPoints(seriesDataForToolbar[sym] || [])
+    }));
     const indexLabel =
       indexDropdownOptions.find((o) => o.id === indexSymbol)?.label || indexSymbol || 'Index';
     const selectedIndex = toChartPoints(seriesDataForToolbar[indexSymbol] || []);
     const qqq = toChartPoints(seriesDataForToolbar.QQQ || []);
     const dia = toChartPoints(seriesDataForToolbar.DIA || []);
     return [
-      { key: 'TICKER', label: tickerSymbol || 'Ticker', color: COLOR_BY_SERIES.TICKER, data: ticker },
+      ...tickerLines,
       { key: 'INDEX', label: indexLabel, color: COLOR_BY_SERIES.INDEX, data: selectedIndex },
       { key: 'QQQ', label: 'QQQ', color: COLOR_BY_SERIES.QQQ, data: qqq },
       { key: 'DIA', label: 'DIA', color: COLOR_BY_SERIES.DIA, data: dia }
     ];
-  }, [seriesDataForToolbar, tickerSymbol, indexSymbol, indexDropdownOptions, mode]);
+  }, [seriesDataForToolbar, tickerSymbols, indexSymbol, indexDropdownOptions, mode]);
 
   const filteredChartSeries = useMemo(() => {
     const byKey = new Map(chartSeries.map((s) => [s.key, s]));
@@ -867,8 +926,10 @@ export default function RelativeStrengthTickerPage() {
   }, [filteredChartSeries]);
 
   const compareSymbols = useMemo(() => {
-    return Array.from(new Set([tickerSymbol, indexSymbol, 'QQQ', 'DIA'].map((s) => String(s || '').toUpperCase()).filter(Boolean)));
-  }, [tickerSymbol, indexSymbol]);
+    return Array.from(
+      new Set([...tickerSymbols, indexSymbol, 'QQQ', 'DIA'].map((s) => String(s || '').toUpperCase()).filter(Boolean))
+    );
+  }, [tickerSymbols, indexSymbol]);
 
   const tableRows = useMemo(() => {
     const mapByIso = new Map();
@@ -887,16 +948,16 @@ export default function RelativeStrengthTickerPage() {
     [seriesDataForToolbar, tickerSymbol, indexSymbol, mode]
   );
   const comparisonRowsAnnual = useMemo(
-    () => buildComparisonRows(seriesDataAnnualChart, tickerSymbol, benchCmpAnnual, mode, 'cumulative'),
-    [seriesDataAnnualChart, tickerSymbol, benchCmpAnnual, mode]
+    () => buildComparisonRows(seriesDataAnnualChart, statsCmpTicker, benchCmpAnnual, mode, 'cumulative'),
+    [seriesDataAnnualChart, statsCmpTicker, benchCmpAnnual, mode]
   );
   const comparisonRowsExcess = useMemo(
-    () => buildComparisonRows(seriesDataExcessChart, tickerSymbol, benchCmpExcess, mode, 'cumulative'),
-    [seriesDataExcessChart, tickerSymbol, benchCmpExcess, mode]
+    () => buildComparisonRows(seriesDataExcessChart, statsCmpTicker, benchCmpExcess, mode, 'cumulative'),
+    [seriesDataExcessChart, statsCmpTicker, benchCmpExcess, mode]
   );
   const comparisonRowsPeriodic = useMemo(
-    () => buildComparisonRows(seriesDataPeriodicChart, tickerSymbol, benchCmpPeriodic, mode, 'period'),
-    [seriesDataPeriodicChart, tickerSymbol, benchCmpPeriodic, mode]
+    () => buildComparisonRows(seriesDataPeriodicChart, statsCmpTicker, benchCmpPeriodic, mode, 'period'),
+    [seriesDataPeriodicChart, statsCmpTicker, benchCmpPeriodic, mode]
   );
   const deferredComparisonRowsAnnual = useDeferredValue(comparisonRowsAnnual);
   const deferredComparisonRowsExcess = useDeferredValue(comparisonRowsExcess);
@@ -954,31 +1015,31 @@ export default function RelativeStrengthTickerPage() {
   const downloadStatsAnnualCsv = useCallback(() => {
     const rows = comparisonRowsAnnual;
     if (!rows.length) return;
-    const sym = String(tickerSymbol || '').toUpperCase();
+    const sym = String(statsCmpTicker || '').toUpperCase();
     const bench = String(benchCmpAnnual || '').toUpperCase();
     const lines = [['Period', `${sym}_pct`, `${bench}_pct`].join(',')];
     for (const r of [...rows].reverse()) {
       lines.push([csvEscapeCell(r.period), csvEscapeCell(r.tickerReturn), csvEscapeCell(r.benchmarkReturn)].join(','));
     }
     triggerCsvDownload(`${sym}-vs-${bench}-annual-returns-bar-${mode}.csv`, lines.join('\n'));
-  }, [comparisonRowsAnnual, tickerSymbol, benchCmpAnnual, mode]);
+  }, [comparisonRowsAnnual, statsCmpTicker, benchCmpAnnual, mode]);
 
   const downloadStatsExcessCsv = useCallback(() => {
     const rows = comparisonRowsExcess;
     if (!rows.length) return;
-    const sym = String(tickerSymbol || '').toUpperCase();
+    const sym = String(statsCmpTicker || '').toUpperCase();
     const bench = String(benchCmpExcess || '').toUpperCase();
     const lines = [['Period', `excess_pct_${sym}_minus_${bench}`].join(',')];
     for (const r of [...rows].reverse()) {
       lines.push([csvEscapeCell(r.period), csvEscapeCell(r.excessReturn)].join(','));
     }
     triggerCsvDownload(`${sym}-vs-${bench}-excess-return-${mode}.csv`, lines.join('\n'));
-  }, [comparisonRowsExcess, tickerSymbol, benchCmpExcess, mode]);
+  }, [comparisonRowsExcess, statsCmpTicker, benchCmpExcess, mode]);
 
   const downloadStatsPeriodicCsv = useCallback(() => {
     const rows = comparisonRowsPeriodic;
     if (!rows.length) return;
-    const sym = String(tickerSymbol || '').toUpperCase();
+    const sym = String(statsCmpTicker || '').toUpperCase();
     const bench = String(benchCmpPeriodic || '').toUpperCase();
     const lines = [['Period', `${sym}_pct`, `${bench}_pct`, 'excess_pct'].join(',')];
     for (const r of [...rows].reverse()) {
@@ -987,7 +1048,27 @@ export default function RelativeStrengthTickerPage() {
       );
     }
     triggerCsvDownload(`${sym}-vs-${bench}-period-returns-${mode}.csv`, lines.join('\n'));
-  }, [comparisonRowsPeriodic, tickerSymbol, benchCmpPeriodic, mode]);
+  }, [comparisonRowsPeriodic, statsCmpTicker, benchCmpPeriodic, mode]);
+
+  const statsCmpTickerPending = pendingFetchSymbols.has(String(statsCmpTicker).toUpperCase());
+
+  const statsCmpTickerSearchControl = useMemo(
+    () => (
+      <div className="stats-cmp-chart__ticker-search">
+        <TickerSymbolCombobox
+          symbol={statsCmpTicker}
+          onSymbolChange={(raw) => {
+            const sym = sanitizeTickerPageInput(raw);
+            if (!sym) return;
+            startTransition(() => setStatsCmpTicker(sym));
+          }}
+          inputId="relative-strength-stats-cmp-ticker"
+          placeholder="Ticker"
+        />
+      </div>
+    ),
+    [statsCmpTicker]
+  );
 
   useEffect(() => {
     activeChartKeysRef.current = activeChartKeys;
@@ -1133,7 +1214,7 @@ export default function RelativeStrengthTickerPage() {
   }, [filteredChartSeries, updateAxisBadgePositions]);
 
   const handleResetRsChartView = useCallback(() => {
-    setActiveChartKeys([...RS_CHART_SERIES_KEYS]);
+    setActiveChartKeys([...tickerSymbols.map(rsTickerSeriesKey), ...RS_BENCH_CHART_KEYS]);
     const chart = chartRef.current;
     if (chart) {
       try {
@@ -1146,7 +1227,7 @@ export default function RelativeStrengthTickerPage() {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => updateAxisBadgePositions());
     });
-  }, [updateAxisBadgePositions]);
+  }, [tickerSymbols, updateAxisBadgePositions]);
 
   const chartMetaByKey = useMemo(() => new Map(chartSeries.map((s) => [s.key, s])), [chartSeries]);
 
@@ -1514,12 +1595,14 @@ export default function RelativeStrengthTickerPage() {
           /> */}
           <div className="relative-strength-page__ticker-search">
             <TickerSymbolCombobox
-              symbol={tickerSymbol}
-              onSymbolChange={(raw) =>
-                startTransition(() => setTickerSymbol(sanitizeTickerPageInput(raw)))
-              }
+              multiple
+              symbols={tickerSymbols}
+              onSymbolsChange={(next) => {
+                const normalized = normalizeTickerSymbolList(next);
+                startTransition(() => setTickerSymbols(normalized.length ? normalized : ['AAPL']));
+              }}
               inputId="relative-strength-ticker-symbol"
-              placeholder="Search ticker (e.g. AAPL)"
+              placeholder="AAPL, MSFT, …"
             />
           </div>
           <ThemedDropdown
@@ -1663,10 +1746,12 @@ export default function RelativeStrengthTickerPage() {
             >
               <AnnualReturnBarChart
                 mode={modeForCmp}
-                ticker={tickerSymbol}
+                ticker={statsCmpTicker}
                 benchmarkIndex={benchCmpAnnual}
                 theme={docTheme}
                 rows={deferredComparisonRowsAnnual}
+                formatXAxisLabel={fmtStatsPeriodLabel}
+                tickerControl={statsCmpTickerSearchControl}
                 benchmarkOptions={benchmarkDropdownOptions}
                 onBenchmarkChange={setBenchCmpAnnual}
                 controls={statsRangeControlsAnnual}
@@ -1674,7 +1759,7 @@ export default function RelativeStrengthTickerPage() {
                 onToggleDataTable={() => setShowStatsAnnualTable((v) => !v)}
                 onDownloadCsv={downloadStatsAnnualCsv}
                 csvDisabled={!comparisonRowsAnnual.length}
-                loading={loading || pendingFetchSymbols.has(String(benchCmpAnnual).toUpperCase())}
+                loading={loading || statsCmpTickerPending || pendingFetchSymbols.has(String(benchCmpAnnual).toUpperCase())}
               />
             </TickerChartResizeScope>
             {showStatsAnnualTable && comparisonRowsAnnual.length ? (
@@ -1683,7 +1768,7 @@ export default function RelativeStrengthTickerPage() {
                   <thead>
                     <tr>
                       <th>Period</th>
-                      <th>{tickerSymbol} %</th>
+                      <th>{statsCmpTicker} %</th>
                       <th>{benchCmpAnnual} %</th>
                     </tr>
                   </thead>
@@ -1710,10 +1795,11 @@ export default function RelativeStrengthTickerPage() {
             >
               <ExcessReturnLineChart
                 mode={modeForCmp}
-                ticker={tickerSymbol}
+                ticker={statsCmpTicker}
                 benchmarkIndex={benchCmpExcess}
                 theme={docTheme}
                 rows={deferredComparisonRowsExcess}
+                formatXAxisLabel={fmtStatsPeriodLabel}
                 benchmarkOptions={benchmarkDropdownOptions}
                 onBenchmarkChange={setBenchCmpExcess}
                 controls={statsRangeControlsExcess}
@@ -1721,7 +1807,7 @@ export default function RelativeStrengthTickerPage() {
                 onToggleDataTable={() => setShowStatsExcessTable((v) => !v)}
                 onDownloadCsv={downloadStatsExcessCsv}
                 csvDisabled={!comparisonRowsExcess.length}
-                loading={loading || pendingFetchSymbols.has(String(benchCmpExcess).toUpperCase())}
+                loading={loading || statsCmpTickerPending || pendingFetchSymbols.has(String(benchCmpExcess).toUpperCase())}
               />
             </TickerChartResizeScope>
             {showStatsExcessTable && comparisonRowsExcess.length ? (
@@ -1731,7 +1817,7 @@ export default function RelativeStrengthTickerPage() {
                     <tr>
                       <th>Period</th>
                       <th>
-                        Excess ({tickerSymbol} − {benchCmpExcess})
+                        Excess ({statsCmpTicker} − {benchCmpExcess})
                       </th>
                     </tr>
                   </thead>
@@ -1757,10 +1843,11 @@ export default function RelativeStrengthTickerPage() {
             >
               <PeriodicReturnBarChart
                 mode={modeForCmp}
-                ticker={tickerSymbol}
+                ticker={statsCmpTicker}
                 benchmarkIndex={benchCmpPeriodic}
                 theme={docTheme}
                 rows={deferredComparisonRowsPeriodic}
+                formatXAxisLabel={fmtStatsPeriodLabel}
                 benchmarkOptions={benchmarkDropdownOptions}
                 onBenchmarkChange={setBenchCmpPeriodic}
                 controls={statsRangeControlsPeriodic}
@@ -1768,7 +1855,7 @@ export default function RelativeStrengthTickerPage() {
                 onToggleDataTable={() => setShowStatsPeriodicTable((v) => !v)}
                 onDownloadCsv={downloadStatsPeriodicCsv}
                 csvDisabled={!comparisonRowsPeriodic.length}
-                loading={loading || pendingFetchSymbols.has(String(benchCmpPeriodic).toUpperCase())}
+                loading={loading || statsCmpTickerPending || pendingFetchSymbols.has(String(benchCmpPeriodic).toUpperCase())}
               />
             </TickerChartResizeScope>
             {showStatsPeriodicTable && comparisonRowsPeriodic.length ? (
@@ -1777,7 +1864,7 @@ export default function RelativeStrengthTickerPage() {
                   <thead>
                     <tr>
                       <th>Period</th>
-                      <th>{tickerSymbol} %</th>
+                      <th>{statsCmpTicker} %</th>
                       <th>{benchCmpPeriodic} %</th>
                       <th>Excess %</th>
                     </tr>
@@ -1809,7 +1896,13 @@ export default function RelativeStrengthTickerPage() {
             pageSymbol={tickerSymbol}
             rsPageSelectors
             selectedTicker={tickerSymbol}
-            onSelectedTickerChange={(next) => startTransition(() => setTickerSymbol(next))}
+            onSelectedTickerChange={(next) => {
+              const sym = sanitizeTickerPageInput(next);
+              if (!sym) return;
+              startTransition(() => {
+                setTickerSymbols((prev) => [sym, ...prev.filter((s) => s !== sym)]);
+              });
+            }}
             selectedBenchmarkSymbol={indexSymbol}
             onSelectedBenchmarkSymbolChange={(next) => startTransition(() => setIndexSymbol(next))}
             tickerSelectOptions={tickerDropdownOptions}

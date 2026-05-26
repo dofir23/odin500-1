@@ -21,6 +21,8 @@ export function AnnualReturnBarChart({
   rows = [],
   benchmarkOptions = [],
   onBenchmarkChange = () => {},
+  /** Optional ticker search control (Relative Strength — first stats chart only). */
+  tickerControl = null,
   controls = null,
   showDataTable = false,
   onToggleDataTable,
@@ -110,6 +112,7 @@ export function AnnualReturnBarChart({
         sectionRef={sectionRef}
         plotHostRef={plotHostRef}
         controls={controls}
+        tickerControl={tickerControl}
         benchmarkIndex={benchmarkIndex}
         benchmarkOptions={benchmarkOptions}
         onBenchmarkChange={onBenchmarkChange}

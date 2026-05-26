@@ -26,6 +26,8 @@ export function PeriodicReturnBarChart({
   onDownloadCsv,
   csvDisabled = false,
   loading = false,
+  /** Optional: format x-axis period labels (Relative Strength stats charts). */
+  formatXAxisLabel = null,
   /** When set by `TickerChartResizeScope` via cloneElement. */
   plotHeight = null
 }) {
@@ -127,6 +129,8 @@ export function PeriodicReturnBarChart({
               const cx = padL + i * groupW + groupW / 2;
               const tY = y(r.tickerReturn);
               const bY = y(r.benchmarkReturn);
+              const periodStr = String(r.period ?? '');
+              const xText = typeof formatXAxisLabel === 'function' ? formatXAxisLabel(periodStr) : periodStr;
               return (
                 <g key={r.period}>
                   <rect
@@ -160,8 +164,8 @@ export function PeriodicReturnBarChart({
                     {fmtPctSigned(r.benchmarkReturn)}
                   </text>
                   {i % Math.max(1, Math.ceil(rows.length / 12)) === 0 || i === rows.length - 1 ? (
-                    <text x={cx} y={H - 14} textAnchor="middle" className="stats-cmp-chart__x">
-                      {r.period}
+                    <text x={cx} y={H - 14} textAnchor="middle" className="stats-cmp-chart__x" title={periodStr}>
+                      {xText}
                     </text>
                   ) : null}
                 </g>

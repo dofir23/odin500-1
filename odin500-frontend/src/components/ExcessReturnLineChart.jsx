@@ -26,6 +26,8 @@ export function ExcessReturnLineChart({
   onDownloadCsv,
   csvDisabled = false,
   loading = false,
+  /** Optional: format x-axis period labels (Relative Strength stats charts). */
+  formatXAxisLabel = null,
   /** When set by `TickerChartResizeScope` via cloneElement. */
   plotHeight = null
 }) {
@@ -126,19 +128,23 @@ export function ExcessReturnLineChart({
             <line x1={padL} y1={zeroY} x2={W - padR} y2={zeroY} className="stats-cmp-chart__zero" />
             <path d={area} className="stats-cmp-chart__area" />
             <path d={path} className="stats-cmp-chart__line" />
-            {rows.map((r, i) => (
-              <g key={r.period}>
-                <circle cx={x(i)} cy={y(r.excessReturn)} r="3" className="stats-cmp-chart__dot" />
-                <text x={x(i)} y={y(r.excessReturn) - 8} textAnchor="middle" className="stats-cmp-chart__line-label">
-                  {fmtPctSigned(r.excessReturn)}
-                </text>
-                {i % Math.max(1, Math.ceil(rows.length / 12)) === 0 || i === rows.length - 1 ? (
-                  <text x={x(i)} y={H - 14} textAnchor="middle" className="stats-cmp-chart__x">
-                    {r.period}
+            {rows.map((r, i) => {
+              const periodStr = String(r.period ?? '');
+              const xText = typeof formatXAxisLabel === 'function' ? formatXAxisLabel(periodStr) : periodStr;
+              return (
+                <g key={r.period}>
+                  <circle cx={x(i)} cy={y(r.excessReturn)} r="3" className="stats-cmp-chart__dot" />
+                  <text x={x(i)} y={y(r.excessReturn) - 8} textAnchor="middle" className="stats-cmp-chart__line-label">
+                    {fmtPctSigned(r.excessReturn)}
                   </text>
-                ) : null}
-              </g>
-            ))}
+                  {i % Math.max(1, Math.ceil(rows.length / 12)) === 0 || i === rows.length - 1 ? (
+                    <text x={x(i)} y={H - 14} textAnchor="middle" className="stats-cmp-chart__x" title={periodStr}>
+                      {xText}
+                    </text>
+                  ) : null}
+                </g>
+              );
+            })}
           </svg>
         </div>
       )}

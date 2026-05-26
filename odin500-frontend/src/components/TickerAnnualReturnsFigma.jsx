@@ -130,6 +130,13 @@ function formatQuarterLabel(period) {
   return `Q${q.q}-${q.year}`;
 }
 
+/** Display label for monthly periods (e.g. `2025-07` → `07-2025`). */
+function formatMonthLabel(period) {
+  const m = parseMonth(period);
+  if (!m) return String(period || '');
+  return `${String(m.month).padStart(2, '0')}-${m.year}`;
+}
+
 function parseMonth(period) {
   const m = String(period || '').match(/^(\d{4})-(\d{2})$/);
   if (!m) return null;
@@ -280,7 +287,7 @@ export function TickerAnnualReturnsFigma({
             quarter: null,
             month: m.month,
             rowKey: period,
-            xLabel: period
+            xLabel: formatMonthLabel(period)
           };
         }
         if (periodMode === 'weekly') {

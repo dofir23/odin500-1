@@ -1,7 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TICKER_SEARCH_DEBOUNCE_MS } from '../config/tickerSearch.js';
 import { fetchJsonCached } from '../store/apiStore.js';
 import { sanitizeTickerPageInput, sanitizeTickerSearchInput } from '../utils/tickerUrlSync.js';
+import {
+  activeTokenFromMultiselectQuery,
+  formatMultiselectTickerInput,
+  normalizeTickerSymbolList,
+  parseMultiselectTickerInput,
+  sanitizeTickerMultiselectInput
+} from '../utils/tickerMultiselectInput.js';
 
 function IconSearchLeading() {
   return (
@@ -21,19 +28,38 @@ function IconClear() {
 }
 
 /** Normalize input for API query (symbol-only vs name/symbol search). */
-function queryForSearch(variant, input) {
+function queryForSearch(variant, input, multiple) {
+  if (multiple && variant !== 'header') {
+    return activeTokenFromMultiselectQuery(input);
+  }
   if (variant === 'header') return sanitizeTickerSearchInput(input).trim();
   return sanitizeTickerPageInput(input);
+}
+
+function symbolsEqual(a, b) {
+  const left = normalizeTickerSymbolList(a);
+  const right = normalizeTickerSymbolList(b);
+  if (left.length !== right.length) return false;
+  return left.every((s, i) => s === right[i]);
 }
 
 export function TickerSymbolCombobox({
   symbol,
   onSymbolChange,
+  /** When true, `symbols` / `onSymbolsChange` drive comma-separated multi pick (checkbox dropdown). */
+  multiple = false,
+  symbols = [],
+  onSymbolsChange,
   inputId = 'ticker-page-symbol-input',
   placeholder = 'Search ticker (e.g. NVDA)',
   variant = 'default'
 }) {
-  const [input, setInput] = useState(symbol);
+  const selectedSymbols = useMemo(() => normalizeTickerSymbolList(symbols), [symbols]);
+  const selectedSet = useMemo(() => new Set(selectedSymbols), [selectedSymbols]);
+
+  const [input, setInput] = useState(() =>
+    multiple ? formatMultiselectTickerInput(selectedSymbols) : symbol
+  );
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -41,18 +67,28 @@ export function TickerSymbolCombobox({
   const wrapRef = useRef(null);
   const listId = useRef('ticker-search-listbox-' + Math.random().toString(36).slice(2)).current;
 
+  const syncInputFromProps = useCallback(() => {
+    if (multiple) {
+      setInput(formatMultiselectTickerInput(selectedSymbols));
+    } else {
+      setInput(symbol);
+    }
+  }, [multiple, selectedSymbols, symbol]);
+
   useEffect(() => {
-    setInput(symbol);
-  }, [symbol]);
+    if (open) return;
+    syncInputFromProps();
+  }, [open, syncInputFromProps]);
 
   useEffect(() => {
     setHighlight((h) => (items.length === 0 ? -1 : h >= 0 && h < items.length ? h : 0));
   }, [items]);
 
+  const qActive = queryForSearch(variant, input, multiple);
+
   useEffect(() => {
     if (!open) return;
-    const q = queryForSearch(variant, input);
-    if (!q) {
+    if (!qActive) {
       setItems([]);
       setLoading(false);
       return;
@@ -62,7 +98,7 @@ export function TickerSymbolCombobox({
       setLoading(true);
       try {
         const { data } = await fetchJsonCached({
-          path: '/api/tickers/search?q=' + encodeURIComponent(q),
+          path: '/api/tickers/search?q=' + encodeURIComponent(qActive),
           method: 'GET',
           ttlMs: 15 * 60 * 1000
         });
@@ -78,7 +114,24 @@ export function TickerSymbolCombobox({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [input, open, variant]);
+  }, [qActive, open, variant, multiple, input]);
+
+  const commitMultiselectInput = useCallback(
+    (raw) => {
+      if (!onSymbolsChange) return;
+      const { committed, active } = parseMultiselectTickerInput(raw);
+      let next = normalizeTickerSymbolList(committed);
+      const activeSym = sanitizeTickerPageInput(active);
+      if (activeSym && !next.includes(activeSym)) {
+        next = [...next, activeSym];
+      }
+      if (!symbolsEqual(next, selectedSymbols)) {
+        onSymbolsChange(next);
+      }
+      setInput(formatMultiselectTickerInput(next));
+    },
+    [onSymbolsChange, selectedSymbols]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -86,18 +139,26 @@ export function TickerSymbolCombobox({
       if (wrapRef.current && !wrapRef.current.contains(e.target)) {
         setOpen(false);
         setHighlight(-1);
-        setInput(symbol);
+        if (multiple) {
+          commitMultiselectInput(input);
+        } else {
+          setInput(symbol);
+        }
       }
     }
     document.addEventListener('mousedown', onDocMouseDown);
     return () => document.removeEventListener('mousedown', onDocMouseDown);
-  }, [open, symbol]);
+  }, [open, symbol, multiple, input, commitMultiselectInput]);
 
   function pick(row) {
     const sym = String(row.symbol || '')
       .toUpperCase()
       .trim();
     if (!sym) return;
+    if (multiple) {
+      toggleSymbol(sym);
+      return;
+    }
     onSymbolChange(sym);
     setInput(sym);
     setOpen(false);
@@ -105,18 +166,33 @@ export function TickerSymbolCombobox({
     setItems([]);
   }
 
+  function toggleSymbol(sym) {
+    if (!onSymbolsChange) return;
+    const upper = sanitizeTickerPageInput(sym);
+    if (!upper) return;
+    let next;
+    if (selectedSet.has(upper)) {
+      next = selectedSymbols.filter((s) => s !== upper);
+    } else {
+      next = [...selectedSymbols, upper];
+    }
+    next = normalizeTickerSymbolList(next);
+    onSymbolsChange(next);
+    setInput(formatMultiselectTickerInput(next));
+    setOpen(true);
+  }
+
   function onKeyDown(e) {
     if (!open) {
       if (e.key === 'ArrowDown') {
-        const q = queryForSearch(variant, input);
-        if (q) setOpen(true);
+        if (multiple || qActive) setOpen(true);
       }
       return;
     }
     if (e.key === 'Escape') {
       e.preventDefault();
       setOpen(false);
-      setInput(symbol);
+      syncInputFromProps();
       setHighlight(-1);
       return;
     }
@@ -138,7 +214,16 @@ export function TickerSymbolCombobox({
         pick(items[highlight]);
         return;
       }
-      const q = queryForSearch(variant, input);
+      if (multiple) {
+        const activeSym = activeTokenFromMultiselectQuery(input);
+        if (!activeSym) return;
+        const exact = items.find((it) => String(it.symbol || '').toUpperCase() === activeSym);
+        if (exact) pick(exact);
+        else if (items.length === 1) pick(items[0]);
+        else toggleSymbol(activeSym);
+        return;
+      }
+      const q = queryForSearch(variant, input, false);
       if (!q) return;
       const symToken = sanitizeTickerPageInput(q);
       if (!symToken) return;
@@ -154,13 +239,26 @@ export function TickerSymbolCombobox({
     }
   }
 
-  const qActive = queryForSearch(variant, input);
   const isHeader = variant === 'header';
-  /* Header: only --header class so base .ticker-symbol-search__input (28px / padding) never applies. */
   const inputClass = isHeader ? 'ticker-symbol-search__input--header' : 'ticker-symbol-search__input';
-  const inputAria = isHeader ? 'Search tickers by symbol or company name' : 'Ticker symbol';
+  const inputAria = multiple
+    ? 'Ticker symbols (comma-separated)'
+    : isHeader
+      ? 'Search tickers by symbol or company name'
+      : 'Ticker symbol';
 
   const onInputChange = (e) => {
+    if (multiple && !isHeader) {
+      const v = sanitizeTickerMultiselectInput(e.target.value);
+      setInput(v);
+      setOpen(true);
+      const { committed } = parseMultiselectTickerInput(v);
+      const next = normalizeTickerSymbolList(committed);
+      if (onSymbolsChange && !symbolsEqual(next, selectedSymbols)) {
+        onSymbolsChange(next);
+      }
+      return;
+    }
     const v = isHeader ? sanitizeTickerSearchInput(e.target.value) : sanitizeTickerPageInput(e.target.value);
     setInput(v);
     setOpen(true);
@@ -171,35 +269,47 @@ export function TickerSymbolCombobox({
     setItems([]);
     setOpen(false);
     setHighlight(-1);
-    onSymbolChange('');
+    if (multiple) {
+      onSymbolsChange?.([]);
+    } else {
+      onSymbolChange('');
+    }
   };
 
+  const showDropdown = open && (multiple ? true : Boolean(qActive));
+
+  const rootClass =
+    'ticker-symbol-search' +
+    (isHeader ? ' ticker-symbol-search--header' : '') +
+    (multiple ? ' ticker-symbol-search--multiselect' : '');
+
+  const inputEl = (
+    <input
+      id={inputId}
+      className={inputClass}
+      type="text"
+      autoComplete="off"
+      spellCheck={false}
+      aria-label={inputAria}
+      aria-autocomplete="list"
+      aria-expanded={open}
+      aria-controls={open ? listId : undefined}
+      value={input}
+      onChange={onInputChange}
+      onFocus={() => setOpen(true)}
+      onKeyDown={onKeyDown}
+      placeholder={placeholder}
+    />
+  );
+
   return (
-    <div
-      className={'ticker-symbol-search' + (isHeader ? ' ticker-symbol-search--header' : '')}
-      ref={wrapRef}
-    >
+    <div className={rootClass} ref={wrapRef}>
       {isHeader ? (
         <div className="ticker-symbol-search__shell">
           <span className="ticker-symbol-search__leading" aria-hidden>
             <IconSearchLeading />
           </span>
-          <input
-            id={inputId}
-            className={inputClass}
-            type="text"
-            autoComplete="off"
-            spellCheck={false}
-            aria-label={inputAria}
-            aria-autocomplete="list"
-            aria-expanded={open}
-            aria-controls={open ? listId : undefined}
-            value={input}
-            onChange={onInputChange}
-            onFocus={() => setOpen(true)}
-            onKeyDown={onKeyDown}
-            placeholder={placeholder}
-          />
+          {inputEl}
           {input ? (
             <button
               type="button"
@@ -215,22 +325,7 @@ export function TickerSymbolCombobox({
         </div>
       ) : (
         <div className="ticker-symbol-search__field-wrap">
-          <input
-            id={inputId}
-            className={inputClass}
-            type="text"
-            autoComplete="off"
-            spellCheck={false}
-            aria-label={inputAria}
-            aria-autocomplete="list"
-            aria-expanded={open}
-            aria-controls={open ? listId : undefined}
-            value={input}
-            onChange={onInputChange}
-            onFocus={() => setOpen(true)}
-            onKeyDown={onKeyDown}
-            placeholder={placeholder}
-          />
+          {inputEl}
           {input ? (
             <button
               type="button"
@@ -245,20 +340,54 @@ export function TickerSymbolCombobox({
           ) : null}
         </div>
       )}
-      {open && qActive ? (
+      {showDropdown ? (
         <div
           id={listId}
           className={
             'ticker-symbol-search__dropdown' +
-            (isHeader ? ' ticker-symbol-search__dropdown--header' : '')
+            (isHeader ? ' ticker-symbol-search__dropdown--header' : '') +
+            (multiple ? ' ticker-symbol-search__dropdown--multiselect' : '')
           }
           role="listbox"
           aria-label="Ticker matches"
+          aria-multiselectable={multiple || undefined}
         >
-          {loading ? (
+          {multiple && !qActive ? (
+            <div className="ticker-symbol-search__status">Type a symbol after the comma to search</div>
+          ) : loading ? (
             <div className="ticker-symbol-search__status">Searching…</div>
           ) : items.length === 0 ? (
-            <div className="ticker-symbol-search__status">No matches</div>
+            <div className="ticker-symbol-search__status">{qActive ? 'No matches' : 'Type to search'}</div>
+          ) : multiple ? (
+            <ul className="ticker-symbol-search__checklist">
+              {items.map((row, idx) => {
+                const sym = String(row.symbol || '').toUpperCase();
+                const co = row.company_name ? String(row.company_name) : '';
+                const checked = selectedSet.has(sym);
+                return (
+                  <li key={sym ? sym + '-' + idx : 'row-' + idx}>
+                    <label
+                      className={
+                        'ticker-symbol-search__check-row' +
+                        (idx === highlight ? ' ticker-symbol-search__check-row--active' : '')
+                      }
+                      onMouseEnter={() => setHighlight(idx)}
+                      onMouseDown={(e) => e.preventDefault()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSymbol(sym)}
+                      />
+                      <span className="ticker-symbol-search__check-text">
+                        <span className="ticker-symbol-search__sym">{sym}</span>
+                        {co ? <span className="ticker-symbol-search__co">{co}</span> : null}
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
           ) : (
             items.map((row, idx) => {
               const sym = String(row.symbol || '').toUpperCase();

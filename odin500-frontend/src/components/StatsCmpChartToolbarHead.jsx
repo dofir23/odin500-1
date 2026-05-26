@@ -12,6 +12,8 @@ export function StatsCmpChartToolbarHead({
   sectionRef,
   plotHostRef,
   controls = null,
+  /** Optional ticker search/select (left of benchmark dropdown). */
+  tickerControl = null,
   benchmarkIndex,
   benchmarkOptions = [],
   onBenchmarkChange = () => {},
@@ -40,6 +42,14 @@ export function StatsCmpChartToolbarHead({
     />
   );
 
+  const selectorGroup =
+    tickerControl || benchmarkOptions.length ? (
+      <div className="stats-cmp-chart__toolbar-selectors">
+        {tickerControl}
+        {benchmarkDd}
+      </div>
+    ) : null;
+
   const buildFilename = () => buildTickerChartExportFilename(exportChartSlug, exportSymbol);
 
   return (
@@ -47,7 +57,7 @@ export function StatsCmpChartToolbarHead({
       <ReturnsChartToolbar
         className="stats-cmp-chart__returns-toolbar"
         rangeControls={controls}
-        extraActions={benchmarkDd}
+        extraActions={selectorGroup}
         showViewMore={false}
         onToggleTable={onToggleDataTable}
         showTable={showDataTable}

@@ -7,8 +7,11 @@ import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
 
 const FINNHUB_BASE = 'https://finnhub.io/api/v1/company-news';
-const FINNHUB_TOKEN =
-  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_FINNHUB_TOKEN) || '';
+const FINNHUB_TOKEN = String(
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_FINNHUB_TOKEN) || ''
+).trim();
+const FINNHUB_TOKEN_MISSING_MSG =
+  'Finnhub token is missing. Add VITE_FINNHUB_TOKEN to odin500-frontend/.env and restart the dev server (or set it at build time for production).';
 const INDEX_SYMBOLS = [
   { key: 'sp500', label: 'S&P 500', symbol: 'SPY' },
   { key: 'dow', label: 'Dow Jones', symbol: 'DIA' },
@@ -98,7 +101,9 @@ function mapNews(row, prefix) {
 }
 
 async function fetchCompanyNews(symbol, days = 7) {
-  if (!FINNHUB_TOKEN) return [];
+  if (!FINNHUB_TOKEN) {
+    throw new Error(FINNHUB_TOKEN_MISSING_MSG);
+  }
   const sym = String(symbol || '').trim().toUpperCase();
   if (!sym) return [];
   const { from, to } = recentRange(days);
@@ -188,7 +193,8 @@ export default function NewsPage() {
       try {
         const rows = await fetchCompanyNews(active.symbol, 10);
         if (cancelled) return;
-        setIndexItems(rows.length ? rows : FALLBACK_INDEX);
+        setIndexItems(rows.length ? rows : []);
+        if (!rows.length) setIndexError('No headlines returned for this index proxy.');
       } catch (e) {
         if (!cancelled) {
           setIndexError(e?.message || 'Failed to load index-specific headlines.');
@@ -212,7 +218,8 @@ export default function NewsPage() {
       try {
         const rows = await fetchCompanyNews(symbol, 10);
         if (cancelled) return;
-        setTickerItems(rows.length ? rows : FALLBACK_TICKER);
+        setTickerItems(rows.length ? rows : []);
+        if (!rows.length) setTickerError('No headlines returned for this ticker.');
       } catch (e) {
         if (!cancelled) {
           setTickerError(e?.message || 'Failed to load ticker headlines.');
@@ -228,58 +235,61 @@ export default function NewsPage() {
   }, [ticker]);
 
   return (
-    <div className="news-page">
+    <div className="news-page odin-content-page">
       <div className="news-page__columns">
-        <div className="news-page__col news-page__col--left">
-          <header className="news-page__hero">
+        <div className="news-page__col news-page__col--primary">
+          <header className="news-page__hero news-page__slot news-page__slot--hero">
             <h1>News Center</h1>
             <p>General market headlines, index-focused and ticker-focused streams in one place.</p>
           </header>
-        <NewsList
-          title="General Market News"
-          subtitle="Live general trading feed (updates every 30s)."
-          busy={generalBusy}
-          error={generalError}
-          items={generalItems}
-        />
 
-          <section className="news-page__card">
-          <div className="news-page__head">
-            <h2 className="news-page__title">Index-Specific News</h2>
-            <p className="news-page__subtitle">Choose an index proxy to focus headlines.</p>
+          <div className="news-page__slot news-page__slot--general">
+            <NewsList
+              title="General Market News"
+              subtitle="Live general trading feed (updates every 30s)."
+              busy={generalBusy}
+              error={generalError}
+              items={generalItems}
+            />
           </div>
-          <div className="news-page__controls">
-            <label>
-              Index
-              <ThemedDropdown
-                wideLabel
-                className="news-page__index-dropdown"
-                size="sm"
-                style={{ minWidth: 200, maxWidth: '100%' }}
-                value={indexKey}
-                options={INDEX_NEWS_DROPDOWN_OPTIONS}
-                onChange={setIndexKey}
-                title="Index proxy"
-                ariaLabelPrefix="Index news"
-                labelFallback={(() => {
-                  const o = INDEX_SYMBOLS.find((x) => x.key === indexKey);
-                  return o ? `${o.label} (${o.symbol})` : '';
-                })()}
-              />
-            </label>
-          </div>
-          <NewsList
-            title=""
-            subtitle=""
-            busy={indexBusy}
-            error={indexError}
-            items={indexItems}
-          />
+
+          <section className="news-page__card news-page__slot news-page__slot--index">
+            <div className="news-page__head">
+              <h2 className="news-page__title">Index-Specific News</h2>
+              <p className="news-page__subtitle">Choose an index proxy to focus headlines.</p>
+            </div>
+            <div className="news-page__controls">
+              <label>
+                Index
+                <ThemedDropdown
+                  wideLabel
+                  className="news-page__index-dropdown"
+                  size="sm"
+                  style={{ minWidth: 200, maxWidth: '100%' }}
+                  value={indexKey}
+                  options={INDEX_NEWS_DROPDOWN_OPTIONS}
+                  onChange={setIndexKey}
+                  title="Index proxy"
+                  ariaLabelPrefix="Index news"
+                  labelFallback={(() => {
+                    const o = INDEX_SYMBOLS.find((x) => x.key === indexKey);
+                    return o ? `${o.label} (${o.symbol})` : '';
+                  })()}
+                />
+              </label>
+            </div>
+            <NewsList
+              title=""
+              subtitle=""
+              busy={indexBusy}
+              error={indexError}
+              items={indexItems}
+            />
           </section>
         </div>
 
-        <div className="news-page__col news-page__col--right">
-          <header className="news-page__hero">
+        <div className="news-page__col news-page__col--ticker">
+          <header className="news-page__hero news-page__slot news-page__slot--ticker-head">
             <div className="news-page__hero-top">
               <h2 className="news-page__title">Ticker-Specific News</h2>
               <div className="news-page__hero-actions">
@@ -293,13 +303,15 @@ export default function NewsPage() {
             </div>
             <p>Type any symbol and load company-focused headlines.</p>
           </header>
-          <NewsList
-            title=""
-            subtitle=""
-            busy={tickerBusy}
-            error={tickerError}
-            items={tickerItems}
-          />
+          <div className="news-page__slot news-page__slot--ticker-list">
+            <NewsList
+              title=""
+              subtitle=""
+              busy={tickerBusy}
+              error={tickerError}
+              items={tickerItems}
+            />
+          </div>
         </div>
       </div>
     </div>

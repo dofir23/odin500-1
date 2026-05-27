@@ -13,9 +13,10 @@ import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
 import { ChartSectionIconActions } from './ChartSectionIconActions.jsx';
 import { buildRelativeStrengthTickerHref } from '../utils/relativeStrengthNavigation.js';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
-import { formatRelativePerfPct } from '../utils/marketCalculations.js';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { fmtPctSigned } from '../utils/formatDisplayNumber.js';
+import { BenchmarkBarsChart } from './BenchmarkBarsChart.jsx';
+import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
 
 const GROUPS = [
   { id: 'sp500', apiIndex: 'SP500', label: 'S&P 500', benchmark: 'SPX', benchLabel: 'S&P 500' },
@@ -39,9 +40,7 @@ const TF_ROWS = [
   { key: '20Y', period: 'Last 20 years' }
 ];
 const TABLE_ONLY_START_DATE = '2005-01-01';
-const S24_TWENTY_Y_KEY = '20Y';
-/** Minimum visible bar height (%) for non-zero returns so 1D/5D/1M stay readable. */
-const S24_MIN_BAR_HEIGHT_PCT = 2.5;
+const S24_CHART_PLOT_HEIGHT = 280;
 
 /** Stable empty default — `= []` in params is a new array every render when the prop is omitted. */
 const DEFAULT_INITIAL_SP500_ROWS = Object.freeze([]);
@@ -81,64 +80,6 @@ function pickTickerReturnsFromPayload(payload, tickerSym) {
   }
   if (!payload.batch && String(payload.ticker || '').toUpperCase() === u) return payload;
   return null;
-}
-
-function niceAxisBounds(rows) {
-  const vals = rows.flatMap((r) => [r.bench, r.tick]).filter((v) => Number.isFinite(v));
-  if (!vals.length) return { min: -5, max: 25, ticks: [-5, 0, 5, 10, 15, 20, 25] };
-  const minV = Math.min(...vals);
-  const maxV = Math.max(...vals);
-  const spanRaw = Math.max(10, maxV - minV);
-  const rough = spanRaw / 6;
-  const base = 10 ** Math.floor(Math.log10(Math.max(rough, 1)));
-  const ratio = rough / base;
-  const niceMult = ratio <= 1 ? 1 : ratio <= 2 ? 2 : ratio <= 5 ? 5 : 10;
-  const step = niceMult * base;
-  const min = Math.floor((Math.min(-1, minV) - 0.5) / step) * step;
-  const max = Math.ceil((Math.max(10, maxV) + 0.5) / step) * step;
-  const ticks = [];
-  for (let t = min; t <= max + 1e-9; t += step) {
-    ticks.push(Math.round(t * 1000) / 1000);
-  }
-  return { min, max, ticks };
-}
-
-/** @param {number} axisMax @param {number} axisMin @param {number} value */
-function chartYPct(axisMax, axisMin, value) {
-  const range = axisMax - axisMin;
-  if (!Number.isFinite(range) || range <= 0) return 50;
-  return ((axisMax - value) / range) * 100;
-}
-
-/**
- * Bar geometry with a shared zero line (main axis) and per-column positive scale.
- * Non-20Y columns use `valueMax` = main axis max; 20Y uses its own max so long horizons stay visible.
- */
-function s24BarGeomScaled(axisMin, axisMainMax, valueMax, v) {
-  const z = chartYPct(axisMainMax, axisMin, 0);
-  if (v == null || !Number.isFinite(Number(v))) {
-    return { topPct: z, heightPct: 0, empty: true, dir: 'flat' };
-  }
-  const num = Number(v);
-  const posCap = Math.max(axisMainMax, valueMax, 1e-9);
-  if (num > 0) {
-    let heightPct = (num / posCap) * z;
-    if (heightPct > 0 && heightPct < S24_MIN_BAR_HEIGHT_PCT) heightPct = S24_MIN_BAR_HEIGHT_PCT;
-    const topPct = z - heightPct;
-    return { topPct, heightPct, empty: false, dir: 'up' };
-  }
-  if (num < 0) {
-    const yv = chartYPct(axisMainMax, axisMin, num);
-    let heightPct = Math.max(0, yv - z);
-    if (heightPct > 0 && heightPct < S24_MIN_BAR_HEIGHT_PCT) heightPct = S24_MIN_BAR_HEIGHT_PCT;
-    return { topPct: z, heightPct, empty: false, dir: 'down' };
-  }
-  return { topPct: z, heightPct: 0, empty: false, dir: 'flat' };
-}
-
-function s24BarValTopPct(geom) {
-  if (geom.empty) return null;
-  return geom.dir === 'down' ? geom.topPct + geom.heightPct : geom.topPct;
 }
 
 export function TickerSection23Section24({
@@ -422,65 +363,19 @@ export function TickerSection23Section24({
     rows
   ]);
 
-  const rowsMain = useMemo(() => rows.filter((r) => r.tf !== S24_TWENTY_Y_KEY), [rows]);
-  const row20Y = useMemo(() => rows.find((r) => r.tf === S24_TWENTY_Y_KEY) ?? null, [rows]);
-
-  const axisMain = useMemo(() => niceAxisBounds(rowsMain), [rowsMain]);
-  const axis20Y = useMemo(() => {
-    if (!row20Y) return axisMain;
-    const b = niceAxisBounds([row20Y]);
-    return {
-      min: axisMain.min,
-      max: Math.max(b.max, axisMain.max),
-      ticks: b.ticks
-    };
-  }, [row20Y, axisMain]);
-
-  const s24Ticks = useMemo(() => {
-    const ticks = axisMain.ticks.map((t) => ({
-      key: `s24y-${t}`,
-      value: t,
-      topPct: chartYPct(axisMain.max, axisMain.min, t),
-      is20YCap: false
-    }));
-    // if (
-    //   row20Y &&
-    //   Number.isFinite(axis20Y.max) &&
-    //   axis20Y.max > axisMain.max + 1e-6
-    // ) {
-    //   ticks.push({
-    //     key: 's24y-20y-cap',
-    //     value: axis20Y.max,
-    //     topPct: 0,
-    //     is20YCap: true
-    //   });
-    // }
-    return ticks;
-  }, [axisMain, axis20Y, row20Y]);
-
-  const s24ZeroTopPct = useMemo(() => chartYPct(axisMain.max, axisMain.min, 0), [axisMain]);
-
-  const s24Cols = useMemo(
-    () =>
-      rows.map((r) => {
-        const valueMax = r.tf === S24_TWENTY_Y_KEY ? axis20Y.max : axisMain.max;
-        return {
-          tf: r.tf,
-          benchV: r.bench,
-          tickV: r.tick,
-          bench: s24BarGeomScaled(axisMain.min, axisMain.max, valueMax, r.bench),
-          tick: s24BarGeomScaled(axisMain.min, axisMain.max, valueMax, r.tick)
-        };
-      }),
-    [rows, axisMain, axis20Y]
+  const chartRows = useMemo(
+    () => rows.map(({ tf, bench, tick }) => ({ tf, bench, tick })),
+    [rows]
   );
-  const s24NCols = Math.max(1, rows.length);
-  const s24GapPx = s24NCols > 12 ? 4 : s24NCols > 8 ? 6 : 8;
-  const s24BarMaxPx = s24NCols > 12 ? 9 : s24NCols > 8 ? 11 : 13;
 
   const s24CardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const s24FsRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const s24PlotRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const fsPlotSize = useChartFullscreenPlotSize(s24FsRef);
+  const chartFullscreen = fsPlotSize != null;
+  const s24PlotHeight = chartFullscreen
+    ? Math.max(200, Math.round((fsPlotSize?.height ?? 400) - 56))
+    : S24_CHART_PLOT_HEIGHT;
 
   const exportSymbol = String(pageSymbol || ticker || '').trim().toUpperCase() || 'chart';
   const benchSlug = String(benchSymbol || activeGroup.benchmark || activeGroup.id || 'benchmark').toLowerCase();
@@ -686,104 +581,17 @@ export function TickerSection23Section24({
             </div>
           ) : (
             <>
-              <div
-                ref={s24PlotRef}
-                className="ticker-s24__chart ticker-s17__chart"
-                style={{
-                  '--ticker-s17-cols': String(s24NCols),
-                  '--ticker-s17-gap': `${s24GapPx}px`,
-                  '--ticker-s17-bar-max': `${s24BarMaxPx}px`
-                }}
-              >
-                <div className="ticker-s17__yaxis">
-                  <div className="ticker-s17__yaxis-area">
-                    {s24Ticks.map((t) => (
-                      <span key={t.key} className="ticker-s17__yval" style={{ top: `${t.topPct}%` }}>
-                        {fmtPctSigned(t.value)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div className="ticker-s17__plot">
-                  <div className="ticker-s17__plot-area">
-                    <div className="ticker-s17__viz">
-                      {s24Ticks.map((t) => (
-                        <span key={`g-${t.key}`} className="ticker-s17__grid" style={{ top: `${t.topPct}%` }} />
-                      ))}
-                      <span className="ticker-s17__zero" style={{ top: `${s24ZeroTopPct}%` }} />
-                      <div className="ticker-s17__bars">
-                        {s24Cols.map((c) => (
-                          <div key={c.tf} className="ticker-s17__col">
-                            <div className="ticker-s24__pair-zones">
-                              <div className="ticker-s17__bar-zone ticker-s24__bar-zone--twin">
-                                <div
-                                  className={
-                                    'ticker-s24__pillar ticker-s24__pillar--bench ticker-s24__pillar--' +
-                                    c.bench.dir +
-                                    (c.bench.empty ? ' ticker-s24__pillar--empty' : '')
-                                  }
-                                  style={{ top: `${c.bench.topPct}%`, height: `${c.bench.heightPct}%` }}
-                                  title={
-                                    c.bench.empty
-                                      ? `${benchLabel}: —`
-                                      : `${benchLabel}: ${formatRelativePerfPct(c.benchV)}`
-                                  }
-                                />
-                                {!c.bench.empty && s24BarValTopPct(c.bench) != null ? (
-                                  <span
-                                    className={
-                                      'ticker-s17__bar-val ticker-s17__bar-val--' +
-                                      c.bench.dir +
-                                      ' ticker-s24__bar-val'
-                                    }
-                                    style={{ top: `${s24BarValTopPct(c.bench)}%` }}
-                                  >
-                                    {formatRelativePerfPct(c.benchV)}
-                                  </span>
-                                ) : null}
-                              </div>
-                              <div className="ticker-s17__bar-zone ticker-s24__bar-zone--twin">
-                                <div
-                                  className={
-                                    'ticker-s24__pillar ticker-s24__pillar--tick ticker-s24__pillar--' +
-                                    c.tick.dir +
-                                    (c.tick.empty ? ' ticker-s24__pillar--empty' : '')
-                                  }
-                                  style={{ top: `${c.tick.topPct}%`, height: `${c.tick.heightPct}%` }}
-                                  title={
-                                    c.tick.empty ? `${ticker || 'Ticker'}: —` : `${ticker || 'Ticker'}: ${formatRelativePerfPct(c.tickV)}`
-                                  }
-                                />
-                                {!c.tick.empty && s24BarValTopPct(c.tick) != null ? (
-                                  <span
-                                    className={
-                                      'ticker-s17__bar-val ticker-s17__bar-val--' +
-                                      c.tick.dir +
-                                      ' ticker-s24__bar-val'
-                                    }
-                                    style={{ top: `${s24BarValTopPct(c.tick)}%` }}
-                                  >
-                                    {formatRelativePerfPct(c.tickV)}
-                                  </span>
-                                ) : null}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="ticker-s17__xlabels">
-                      {s24Cols.map((c) => (
-                        <span key={`lab-${c.tf}`} className="ticker-s17__lab">
-                          {c.tf}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+              <div ref={s24PlotRef} className="ticker-s24__chart-wrap">
+                <BenchmarkBarsChart
+                  rows={chartRows}
+                  tickerLabel={ticker || 'Ticker'}
+                  benchLabel={benchLabel}
+                  plotHeight={s24PlotHeight}
+                  chartFullscreen={chartFullscreen}
+                />
               </div>
               <div className="ticker-s24__legend">
-              <span>
+                <span>
                   <i className="ticker-s24__dot ticker-s24__dot--tick" />
                   {ticker || 'Ticker'}
                 </span>
@@ -791,7 +599,6 @@ export function TickerSection23Section24({
                   <i className="ticker-s24__dot ticker-s24__dot--bench" />
                   {benchSymbol || activeGroup.benchmark}
                 </span>
-                
               </div>
             </>
           )}

@@ -76,8 +76,17 @@ function IconWatchlist() {
 
 function IconTickers() {
   return (
-    <svg className="app-main-topbar__mobile-ico-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-      <path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    <svg className="app-main-topbar__mobile-ico-svg" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M7 4v16M12 6v12M17 5v14"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+      <rect x="5.25" y="9" width="3.5" height="6" rx="0.75" fill="currentColor" />
+      <rect x="10.25" y="11" width="3.5" height="4" rx="0.75" fill="currentColor" />
+      <rect x="15.25" y="8" width="3.5" height="7" rx="0.75" fill="currentColor" />
+      <path d="M4 20h16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
     </svg>
   );
 }

@@ -1,25 +1,29 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChartInfoTip } from './ChartInfoTip.jsx';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
-import { useChartPlotWidth } from '../hooks/useChartPlotWidth.js';
 import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
 import { useTickerPlotResize } from '../hooks/useTickerPlotResize.js';
 import { CHART_INFO_TIPS } from './chartInfoTips.js';
 import { formatWeekAxisDate, isoYearWeekFromIsoDate } from '../utils/isoWeek.js';
 import { periodModeNouns } from '../utils/periodModeNouns.js';
-import { chartSvgPreserveAspectRatio, tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { getReturnsChartViewMoreHref } from '../utils/returnsViewMoreNavigation.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL } from '../utils/tickerUrlSync.js';
-import { fmtPct, fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
+import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 import { AnnualReturnsFigmaChartSkeleton, badgeLabelForPeriodMode } from './ChartSkeletons.jsx';
 import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
 import { ReturnsChartClickableTitle } from './ReturnsChartClickableTitle.jsx';
 import { ChartSectionIconActions, useChartFullscreen } from './ChartSectionIconActions.jsx';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
 import { ReturnsChartPieIcon } from './returnsChartToolbarIcons.jsx';
-import { chartAxisLabelColors } from '../utils/chartAxisLabelColors.js';
-import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
+import { buildReturnNarrative } from '../utils/seoChartNarratives.js';
+import {
+  StatsTickerReturnsBarChart,
+  TICKER_RETURNS_COL_NEG,
+  TICKER_RETURNS_YEAR_PALETTE
+} from './StatsTickerReturnsBarChart.jsx';
+import { StatsTickerReturnsSummaryBarChart } from './StatsTickerReturnsSummaryBarChart.jsx';
+import { StatsTickerReturnsPosNegDonut } from './StatsTickerReturnsPosNegDonut.jsx';
 import {
   applyYearEndChange,
   applyYearStartChange,
@@ -173,25 +177,6 @@ function median(nums) {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-function donutSegPath(r0, r1, deg0, deg1) {
-  const rad = Math.PI / 180;
-  const x1 = r1 * Math.cos(deg0 * rad);
-  const y1 = r1 * Math.sin(deg0 * rad);
-  const x2 = r1 * Math.cos(deg1 * rad);
-  const y2 = r1 * Math.sin(deg1 * rad);
-  const x3 = r0 * Math.cos(deg1 * rad);
-  const y3 = r0 * Math.sin(deg1 * rad);
-  const x4 = r0 * Math.cos(deg0 * rad);
-  const y4 = r0 * Math.sin(deg0 * rad);
-  const large = Math.abs(deg1 - deg0) > 180 ? 1 : 0;
-  return `M ${x1} ${y1} A ${r1} ${r1} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${r0} ${r0} 0 ${large} 0 ${x4} ${y4} Z`;
-}
-
-function labelOnDonut(r, degMid) {
-  const rad = Math.PI / 180;
-  return { x: r * Math.cos(degMid * rad), y: r * Math.sin(degMid * rad) };
-}
-
 function csvEscape(s) {
   const t = String(s ?? '');
   if (/[",\n]/.test(t)) return '"' + t.replace(/"/g, '""') + '"';
@@ -224,29 +209,15 @@ export function TickerAnnualReturnsFigma({
   const location = useLocation();
   const resize = useTickerPlotResize(resizeStorageKey ?? null, resizeDefaultHeight, undefined, undefined, persistPlotResize);
   const plotPx = resize.plotHeight ?? plotHeight;
-  const clipComboId = useId().replace(/:/g, '');
-  const clipSummaryId = useId().replace(/:/g, '');
   const sectionRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartFsShellRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartCardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
-  const { plotWidth: chartPlotWidth, setPlotHostRef } = useChartPlotWidth(880);
-  const assignChartCardRef = useCallback(
-    (el) => {
-      chartCardRef.current = el;
-      setPlotHostRef(el);
-    },
-    [setPlotHostRef]
-  );
+  const assignChartCardRef = useCallback((el) => {
+    chartCardRef.current = el;
+  }, []);
   const { isFullscreen: chartFs } = useChartFullscreen(chartFsShellRef);
   const fsPlotSize = useChartFullscreenPlotSize(chartFsShellRef);
   const plotPxEffective = fsPlotSize?.height ?? plotPx;
-  const plotWidthEffective = fsPlotSize?.width ?? chartPlotWidth;
-  const svgFs = Boolean(fsPlotSize);
-  const chartTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
-  const { axis: colAxis, label: colLabel } = useMemo(
-    () => chartAxisLabelColors(chartTheme),
-    [chartTheme]
-  );
 
   const [showTable, setShowTable] = useState(false);
 
@@ -445,6 +416,16 @@ export function TickerAnnualReturnsFigma({
                   : 'Periods';
     return { count, unit };
   }, [displayRows, periodMode]);
+  const seoNarrative = useMemo(
+    () =>
+      buildReturnNarrative({
+        rows: displayRows,
+        symbol,
+        mode: periodMode,
+        valueField: 'totalReturn'
+      }),
+    [displayRows, symbol, periodMode]
+  );
 
   const pn = useMemo(() => periodModeNouns(periodMode), [periodMode]);
   const dropdownYearOptions = useMemo(
@@ -621,385 +602,14 @@ export function TickerAnnualReturnsFigma({
     </div>
   );
 
-  const comboSvg = useMemo(() => {
-    if (!displayRows.length || !stats) return null;
-    const plotH = Math.max(140, plotPxEffective ?? resizeDefaultHeight);
-    const W = Math.max(280, plotWidthEffective);
-    const H = plotH;
-    const padL = 52;
-    const padR = 20;
-    const padT = 16;
-    const padB = 56;
-    const iw = W - padL - padR;
-    const ih = H - padT - padB;
-    const n = displayRows.length;
-    const gap = 0.15;
-    const bw = (iw / n) * (1 - gap);
-    const step = iw / n;
-
-    const returns = displayRows.map((r) => r.totalReturn);
-    const { yMin, yMax, ticks: yTicks } = computePercentAxis(returns, stats.avg, plotPxEffective, H, ih);
-    const yearColors = new Map();
-    if (periodMode === 'monthly') {
-      const years = [...new Set(displayRows.map((r) => r.year))].sort((a, b) => a - b);
-      years.forEach((y, i) => yearColors.set(y, YEAR_PALETTE[i % YEAR_PALETTE.length]));
-    }
-
-    const gridLines = yTicks.map((t) => {
-      const y = yForValueAxis(t, padT, ih, yMin, yMax);
-      return (
-        <g key={t}>
-          <line
-            x1={padL}
-            y1={y}
-            x2={W - padR}
-            y2={y}
-            stroke={Math.abs(t) < 1e-6 ? COL_GRID_ZERO : COL_GRID}
-            strokeWidth={Math.abs(t) < 1e-6 ? 1.35 : 1}
-          />
-          <text x={padL - 8} y={y + 4} textAnchor="end" fill={colAxis} fontSize="11" fontWeight="600">
-            {(v) => fmtPct(v, { plainPositive: true })(t)}
-          </text>
-        </g>
-      );
-    });
-
-    const barRects = displayRows.map((r, i) => {
-      const x = padL + i * step + (step - bw) / 2;
-      const y0 = yForValueAxis(0, padT, ih, yMin, yMax);
-      const y1 = yForValueAxis(r.totalReturn, padT, ih, yMin, yMax);
-      const top = Math.min(y0, y1);
-      const h = Math.abs(y1 - y0);
-      return (
-        <rect
-          key={`r-${r.rowKey}`}
-          x={x}
-          y={top}
-          width={bw}
-          height={Math.max(h, 1)}
-          rx={2}
-          fill={periodMode === 'monthly' ? yearColors.get(r.year) || COL_BAR : r.totalReturn < 0 ? COL_NEG : COL_BAR}
-        >
-          <title>
-            {r.year}: {fmtPctSigned(r.totalReturn)} (Y {fmtPct(yMin, { plainPositive: true })}–{fmtPct(yMax, { plainPositive: true })})
-          </title>
-        </rect>
-      );
-    });
-
-    const shouldLabelBar = (r, i) => {
-      if (chartFs) return true;
-      if (periodMode === 'monthly') {
-        if (n <= 24) return true;
-        if (Math.abs(Number(r.totalReturn)) >= 12) return true; // keep only strong moves on dense monthly view
-        return false;
-      }
-      if (periodMode === 'weekly') {
-        // Weekly series is very dense; only annotate extreme moves.
-        if (n <= 24) return true;
-        if (Math.abs(Number(r.totalReturn)) >= 20) return true;
-        return false;
-      }
-      if (periodMode === 'daily') {
-        if (n <= 18) return true;
-        if (Math.abs(Number(r.totalReturn)) >= 4) return true;
-        return false;
-      }
-      if (periodMode === 'quarterly') {
-        if (n <= 32) return true;
-        return Math.abs(Number(r.totalReturn)) >= 15;
-      }
-      return true;
-    };
-
-    const barLabels = displayRows.map((r, i) => {
-      if (!shouldLabelBar(r, i)) return null;
-      const x = padL + i * step + (step - bw) / 2;
-      const y0 = yForValueAxis(0, padT, ih, yMin, yMax);
-      const y1 = yForValueAxis(r.totalReturn, padT, ih, yMin, yMax);
-      const top = Math.min(y0, y1);
-      const h = Math.abs(y1 - y0);
-      const labY = r.totalReturn >= 0 ? top - 6 : top + h + 14;
-      return (
-        <text key={`t-${r.rowKey}`} x={x + bw / 2} y={labY} textAnchor="middle" fill={colLabel} fontSize="11" fontWeight="700">
-          {r.totalReturn >= 0 ? '+' : ''}
-          {fmtPct(r.totalReturn, { plainPositive: true })}
-        </text>
-      );
-    });
-
-    const avgY = yForValueAxis(stats.avg, padT, ih, yMin, yMax);
-    const avgLabelY = avgY < padT + 16 ? avgY + 14 : avgY - 5;
-
-    const labelEvery =
-      periodMode === 'monthly'
-        ? n > 72
-          ? 12
-          : n > 48
-            ? 6
-            : n > 24
-              ? 3
-              : 1
-        : n > 28
-          ? 4
-          : n > 14
-            ? 2
-            : 1;
-    const xLabels = displayRows.map((r, i) => {
-      if (periodMode === 'monthly') {
-        const isJanuary = r.month === 1;
-        if (!(isJanuary || i === 0 || i === n - 1 || i % labelEvery === 0)) return null;
-      } else if (periodMode === 'weekly') {
-        const isYearStart = r.week === 1;
-        // Keep weekly axis clean: year markers only + final point.
-        if (!(isYearStart || i === n - 1)) return null;
-      } else if (periodMode === 'daily') {
-        const isMonthStart = r.day === 1;
-        if (!(isMonthStart || i === 0 || i === n - 1 || i % 5 === 0)) return null;
-      } else if (i % labelEvery !== 0 && i !== n - 1) {
-        return null;
-      }
-      const cx = padL + i * step + step / 2;
-      const txt =
-        periodMode === 'monthly'
-          ? r.month === 1
-            ? String(r.year)
-            : r.xLabel
-          : periodMode === 'weekly'
-            ? r.week === 1
-              ? String(r.year)
-              : i === n - 1
-                ? formatWeekAxisDate(String(r.endDate || r.period || '').slice(0, 10)) || String(r.year)
-                : ''
-            : periodMode === 'daily'
-              ? r.day === 1
-                ? `${String(r.month).padStart(2, '0')}/${String(r.day).padStart(2, '0')}`
-                : String(r.day)
-            : r.xLabel;
-      return (
-        <text key={`xl-${r.rowKey}`} x={cx} y={H - 28} textAnchor="middle" fill={colAxis} fontSize="11" fontWeight="600">
-          {txt}
-        </text>
-      );
-    });
-
-    return (
-      <svg
-        className="ticker-annual-figma__svg"
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio={chartSvgPreserveAspectRatio(svgFs)}
-        style={tickerSvgPlotStyle(plotPxEffective, { fullscreen: svgFs })}
-        aria-label={`${periodMode === 'quarterly' ? 'Quarterly' : periodMode === 'monthly' ? 'Monthly' : periodMode === 'weekly' ? 'Weekly' : periodMode === 'daily' ? 'Daily' : 'Annual'} returns bar chart, Y-axis ${(v) => fmtPct(v, { plainPositive: true })(yMin)} to ${(v) => fmtPct(v, { plainPositive: true })(yMax)} from data range; resize to show finer grid labels.`}
-      >
-        <defs>
-          <clipPath id={clipComboId}>
-            <rect x={padL} y={padT} width={iw} height={ih} />
-          </clipPath>
-        </defs>
-        {gridLines}
-        <g clipPath={`url(#${clipComboId})`}>{barRects}</g>
-        <g pointerEvents="none">
-          <title>
-            Average {stats.avg >= 0 ? '+' : ''}
-            {fmtPct(stats.avg, { plainPositive: true })}
-          </title>
-          <line x1={padL} y1={avgY} x2={W - padR} y2={avgY} stroke={COL_ORANGE} strokeWidth={2.5} />
-        </g>
-        <text
-          x={W - padR - 4}
-          y={avgLabelY}
-          textAnchor="end"
-          fill={COL_ORANGE}
-          fontSize="10"
-          fontWeight="700"
-          pointerEvents="none"
-        >
-          Av. {stats.avg >= 0 ? '+' : ''}
-          {fmtPct(stats.avg, { plainPositive: true })}
-        </text>
-        {barLabels}
-        {xLabels}
-      </svg>
-    );
-  }, [chartFs, chartPlotWidth, clipComboId, colAxis, colLabel, displayRows, plotPxEffective, plotWidthEffective, periodMode, resizeDefaultHeight, stats, svgFs]);
-
   const monthlyYearLegend = useMemo(() => {
     if (periodMode !== 'monthly' || !displayRows.length) return [];
     const years = [...new Set(displayRows.map((r) => r.year))].sort((a, b) => a - b);
-    return years.map((y, i) => ({ year: y, color: YEAR_PALETTE[i % YEAR_PALETTE.length] }));
+    return years.map((y, i) => ({ year: y, color: TICKER_RETURNS_YEAR_PALETTE[i % TICKER_RETURNS_YEAR_PALETTE.length] }));
   }, [displayRows, periodMode]);
 
-  const summaryBars = useMemo(() => {
-    if (!stats) return null;
-    const items = [
-      { key: 'max', label: 'Max', v: stats.max },
-      { key: 'min', label: 'Min', v: stats.min },
-      { key: 'avg', label: 'Average', v: stats.avg },
-      { key: 'med', label: 'Median', v: stats.med }
-    ];
-    const W = 420;
-    const H = 240;
-    const padL = 48;
-    const padR = 16;
-    const padT = 12;
-    const padB = 48;
-    const iw = W - padL - padR;
-    const ih = H - padT - padB;
-    const n = 4;
-    const gap = 0.2;
-    const bw = (iw / n) * (1 - gap);
-    const step = iw / n;
-
-    const sumVals = items.map((it) => it.v).filter((v) => Number.isFinite(v));
-    const summaryPlotPx = plotPxEffective != null ? Math.min(plotPxEffective, fsPlotSize ? plotPxEffective : 320) : 240;
-    const { yMin: syMin, yMax: syMax, ticks: syTicks } = computePercentAxis(sumVals, null, summaryPlotPx, H, ih);
-
-    const gridLines = syTicks.map((t) => {
-      const y = yForValueAxis(t, padT, ih, syMin, syMax);
-      return (
-        <g key={t}>
-          <line
-            x1={padL}
-            y1={y}
-            x2={W - padR}
-            y2={y}
-            stroke={Math.abs(t) < 1e-6 ? COL_GRID_ZERO : COL_GRID}
-            strokeWidth={Math.abs(t) < 1e-6 ? 1.35 : 1}
-          />
-          <text x={padL - 8} y={y + 4} textAnchor="end" fill={colAxis} fontSize="11" fontWeight="600">
-            {(v) => fmtPct(v, { plainPositive: true })(t)}
-          </text>
-        </g>
-      );
-    });
-
-    const barRects = items.map((it, i) => {
-      const x = padL + i * step + (step - bw) / 2;
-      const y0 = yForValueAxis(0, padT, ih, syMin, syMax);
-      const y1 = yForValueAxis(it.v, padT, ih, syMin, syMax);
-      const top = Math.min(y0, y1);
-      const h = Math.abs(y1 - y0);
-      return (
-        <rect key={`sr-${it.key}`} x={x} y={top} width={bw} height={Math.max(h, 1)} rx={2} fill={it.v < 0 ? COL_NEG : COL_BAR} />
-      );
-    });
-
-    const barTexts = items.map((it, i) => {
-      const x = padL + i * step + (step - bw) / 2;
-      const y0 = yForValueAxis(0, padT, ih, syMin, syMax);
-      const y1 = yForValueAxis(it.v, padT, ih, syMin, syMax);
-      const top = Math.min(y0, y1);
-      const h = Math.abs(y1 - y0);
-      const labY = !Number.isFinite(it.v) ? H / 2 : it.v >= 0 ? top - 5 : top + h + 14;
-      return (
-        <g key={`st-${it.key}`}>
-          <text x={x + bw / 2} y={labY} textAnchor="middle" fill={colLabel} fontSize="11" fontWeight="700">
-            {!Number.isFinite(it.v)
-              ? '—'
-              : fmtPctSigned(it.v)}
-          </text>
-          <text x={x + bw / 2} y={H - 18} textAnchor="middle" fill={colAxis} fontSize="11" fontWeight="700">
-            {it.label}
-          </text>
-        </g>
-      );
-    });
-
-    return (
-      <svg
-        className="ticker-annual-figma__svg"
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio={chartSvgPreserveAspectRatio(svgFs)}
-        style={tickerSvgPlotStyle(summaryPlotPx, { fullscreen: svgFs })}
-      >
-        <defs>
-          <clipPath id={clipSummaryId}>
-            <rect x={padL} y={padT} width={iw} height={ih} />
-          </clipPath>
-        </defs>
-        {gridLines}
-        <g clipPath={`url(#${clipSummaryId})`}>{barRects}</g>
-        {barTexts}
-      </svg>
-    );
-  }, [clipSummaryId, colAxis, colLabel, stats, plotPxEffective, svgFs, fsPlotSize]);
-
-  const donut = useMemo(() => {
-    if (!stats) return null;
-    const total = stats.pos + stats.neg;
-    const cx = 100;
-    const cy = 100;
-    const r0 = 52;
-    const r1 = 82;
-    const donutPx = plotPxEffective != null ? Math.min(plotPxEffective, fsPlotSize ? plotPxEffective : 220) : null;
-    const donutStyle = tickerSvgPlotStyle(donutPx, { fullscreen: svgFs });
-
-    if (total === 0) {
-      return (
-        <svg className="ticker-annual-figma__donut-svg" viewBox="0 0 200 200" style={donutStyle}>
-          <text x="100" y="104" textAnchor="middle" fill={colAxis} fontSize="12" fontWeight="600">
-            No data
-          </text>
-        </svg>
-      );
-    }
-    const start = -90;
-    const endFull = start + 360;
-    let paths;
-    let labels;
-    if (stats.neg === 0) {
-      const d = donutSegPath(r0, r1, start, endFull);
-      const lp = labelOnDonut((r0 + r1) / 2, start + 180);
-      paths = <path d={d} fill={COL_BAR} />;
-      labels = (
-        <text x={lp.x} y={lp.y + 5} textAnchor="middle" fill="#fff" fontSize="16" fontWeight="800">
-          {stats.pos}
-        </text>
-      );
-    } else if (stats.pos === 0) {
-      const d = donutSegPath(r0, r1, start, endFull);
-      const lp = labelOnDonut((r0 + r1) / 2, start + 180);
-      paths = <path d={d} fill={COL_NEG} />;
-      labels = (
-        <text x={lp.x} y={lp.y + 5} textAnchor="middle" fill="#fff" fontSize="16" fontWeight="800">
-          {stats.neg}
-        </text>
-      );
-    } else {
-      const spanPos = (stats.pos / total) * 360;
-      const endPos = start + spanPos;
-      const pPos = donutSegPath(r0, r1, start, endPos);
-      const pNeg = donutSegPath(r0, r1, endPos, endFull);
-      const midPos = start + spanPos / 2;
-      const midNeg = endPos + (endFull - endPos) / 2;
-      const lp = labelOnDonut((r0 + r1) / 2, midPos);
-      const ln = labelOnDonut((r0 + r1) / 2, midNeg);
-      paths = (
-        <>
-          <path d={pPos} fill={COL_BAR} />
-          <path d={pNeg} fill={COL_NEG} />
-        </>
-      );
-      labels = (
-        <>
-          <text x={lp.x} y={lp.y + 5} textAnchor="middle" fill="#fff" fontSize="16" fontWeight="800">
-            {stats.pos}
-          </text>
-          <text x={ln.x} y={ln.y + 5} textAnchor="middle" fill="#fff" fontSize="16" fontWeight="800">
-            {stats.neg}
-          </text>
-        </>
-      );
-    }
-    return (
-      <svg className="ticker-annual-figma__donut-svg" viewBox="0 0 200 200" style={donutStyle}>
-        <g transform={`translate(${cx},${cy})`}>
-          {paths}
-          {labels}
-        </g>
-      </svg>
-    );
-  }, [colAxis, stats, plotPxEffective, svgFs, fsPlotSize]);
+  const summaryPlotHeight = plotPxEffective != null ? Math.min(plotPxEffective, fsPlotSize ? plotPxEffective : 320) : 240;
+  const donutPlotHeight = plotPxEffective != null ? Math.min(plotPxEffective, fsPlotSize ? plotPxEffective : 220) : 220;
 
   if (!rows.length) {
     if (loading) {
@@ -1015,6 +625,7 @@ export function TickerAnnualReturnsFigma({
     }
     return (
       <div className="ticker-annual-figma">
+        {seoNarrative ? <p className="sr-only">{seoNarrative}</p> : null}
         <div ref={sectionRef} className="ticker-annual-figma__section">
           <div className="ticker-annual-figma__toolbar ticker-annual-figma__toolbar--split">
             <div className="ticker-annual-figma__toolbar-head">
@@ -1046,10 +657,17 @@ export function TickerAnnualReturnsFigma({
 
   return (
     <div className="ticker-annual-figma">
+      {seoNarrative ? <p className="sr-only">{seoNarrative}</p> : null}
       <div
         ref={sectionRef}
         className={
-          'ticker-annual-figma__section' + (resize.enabled ? ' ticker-annual-figma__section--resize' : '')
+          'ticker-annual-figma__section ticker-annual-figma__section--chartjs' +
+          (resize.enabled ? ' ticker-annual-figma__section--resize' : '')
+        }
+        style={
+          resize.enabled && plotPx != null
+            ? { '--ticker-resize-plot-h': `${Math.round(plotPx)}px` }
+            : undefined
         }
       >
         <div className="ticker-annual-figma__toolbar ticker-annual-figma__toolbar--split">
@@ -1062,9 +680,15 @@ export function TickerAnnualReturnsFigma({
           ) : null}
         </div>
         <div ref={chartFsShellRef} className="ticker-chart-fs-shell">
-          <div ref={assignChartCardRef} className="ticker-annual-figma__chart-card">
-            {comboSvg ? (
-              comboSvg
+          <div ref={assignChartCardRef} className="ticker-annual-figma__chart-card ticker-annual-figma__chart-card--chartjs">
+            {displayRows.length && stats ? (
+              <StatsTickerReturnsBarChart
+                rows={displayRows}
+                periodMode={periodMode}
+                avgReturn={stats.avg}
+                plotHeight={Math.max(140, plotPxEffective ?? resizeDefaultHeight)}
+                chartFullscreen={chartFs}
+              />
             ) : (
               <p className="ticker-annual-figma__empty" style={{ padding: '24px 16px' }}>
                 No annual rows overlap the selected start/end dates. Clear the filter or widen the range.
@@ -1162,8 +786,15 @@ export function TickerAnnualReturnsFigma({
           </div>
 
           <div className="ticker-annual-figma__split">
-            <div className="ticker-annual-figma__chart-card ticker-annual-figma__chart-card--donut">
-              {donut}
+            <div className="ticker-annual-figma__chart-card ticker-annual-figma__chart-card--donut ticker-annual-figma__chart-card--chartjs">
+              {stats ? (
+                <StatsTickerReturnsPosNegDonut
+                  pos={stats.pos}
+                  neg={stats.neg}
+                  plotHeight={donutPlotHeight}
+                  chartFullscreen={chartFs}
+                />
+              ) : null}
               <p className="ticker-annual-figma__total-years-caption">
                 Total : <strong>{selectionTotal.count}</strong> {selectionTotal.unit}
               </p>
@@ -1173,14 +804,20 @@ export function TickerAnnualReturnsFigma({
                   # positive {pn.lower}
                 </span>
                 <span className="ticker-annual-figma__legend-item">
-                <span className="ticker-annual-figma__swatch" aria-hidden style={{ background: COL_NEG }} />
+                <span className="ticker-annual-figma__swatch" aria-hidden style={{ background: TICKER_RETURNS_COL_NEG }} />
                   # negative {pn.lower}
                 </span>
               </div>
             </div>
-            <div className="ticker-annual-figma__chart-card ticker-annual-figma__chart-card--summary">
-              {summaryBars}
-              {summaryBars ? (
+            <div className="ticker-annual-figma__chart-card ticker-annual-figma__chart-card--summary ticker-annual-figma__chart-card--chartjs">
+              {stats ? (
+                <StatsTickerReturnsSummaryBarChart
+                  stats={stats}
+                  plotHeight={summaryPlotHeight}
+                  chartFullscreen={chartFs}
+                />
+              ) : null}
+              {stats ? (
                 <div className="ticker-annual-figma__summary-total-years">
                   Total : <strong>{selectionTotal.count}</strong> {selectionTotal.unit}
                 </div>

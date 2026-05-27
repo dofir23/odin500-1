@@ -15,6 +15,7 @@ import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js'
 import { getRelativeStrengthExportBackground } from '../utils/relativeStrengthChartExport.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { fmtAbsSigned, fmtNumber, fmtPct, fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
+import { buildMoversNarrative } from '../utils/seoChartNarratives.js';
 
 /** `apiIndex` matches POST /api/market/ticker-details `index` field (Supabase / BigQuery). */
 const INDEX_MENU = [
@@ -1322,6 +1323,15 @@ export default function MarketMoversPage() {
     if (sectorFilter === '__all__') return points;
     return points.filter((p) => normSector(p.sector) === sectorFilter);
   }, [points, sectorFilter]);
+  const seoMoversNarrative = useMemo(
+    () =>
+      buildMoversNarrative({
+        indexLabel: activeMenu.label,
+        intervalLabel: activeMoverInterval.label,
+        pointCount: filteredPoints.length
+      }),
+    [activeMenu.label, activeMoverInterval.label, filteredPoints.length]
+  );
 
   const exportCsv = useCallback(() => {
     const rows = filteredPoints;
@@ -1384,6 +1394,7 @@ export default function MarketMoversPage() {
       </header>
 
       <section ref={moversSectionRef} className="market-movers-page__card">
+        {seoMoversNarrative ? <p className="sr-only">{seoMoversNarrative}</p> : null}
         <div className="market-movers-page__card-toolbar">
           <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-start sm:gap-x-6 sm:gap-y-2">
             <div className="market-movers-page__index-dd min-w-0 w-full sm:w-auto sm:shrink-0">

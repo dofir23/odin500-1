@@ -1,7 +1,8 @@
-import { Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams, useSearchParams } from 'react-router-dom';
 import { ProtectedLayout } from './components/ProtectedLayout.jsx';
 import { isAuthDisabled } from './store/apiStore.js';
-import { DEFAULT_INDEX_ROUTE_SLUG, DEFAULT_TICKER_ROUTE_SYMBOL } from './utils/tickerUrlSync.js';
+import { buildRelativePerformanceTickerHref } from './utils/relativeStrengthNavigation.js';
+import { DEFAULT_INDEX_ROUTE_SLUG, DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput } from './utils/tickerUrlSync.js';
 
 const AUTH_DISABLED = isAuthDisabled();
 
@@ -10,6 +11,17 @@ function LegacyTickerStatRedirect({ kind }) {
   const { symbol } = useParams();
   const sym = symbol || DEFAULT_TICKER_ROUTE_SYMBOL;
   return <Navigate to={`/statistic/${kind}/${encodeURIComponent(sym)}`} replace />;
+}
+
+/** `/relative-strength/ticker` (+ optional `?ticker=` or `:symbol`) → `/relative-performance/ticker/SYM`. */
+function LegacyRelativeStrengthRedirect() {
+  const { symbol } = useParams();
+  const [searchParams] = useSearchParams();
+  const fromQuery =
+    searchParams.get('tickers') || searchParams.get('ticker') || searchParams.get('symbol') || '';
+  const fromPath = symbol ? decodeURIComponent(symbol) : '';
+  const combined = fromPath || fromQuery || DEFAULT_TICKER_ROUTE_SYMBOL;
+  return <Navigate to={buildRelativePerformanceTickerHref(combined)} replace />;
 }
 
 function ProtectedRoute({ children }) {
@@ -37,6 +49,7 @@ function ProtectedRoute({ children }) {
  *   IndexPage: React.ComponentType,
  *   MarketMoversPage: React.ComponentType,
  *   StatisticDataPage: React.ComponentType,
+ *   ReturnTablePage: React.ComponentType,
  *   TickerAnnualPage: React.ComponentType,
  *   TickerQuarterlyPage: React.ComponentType,
  *   TickerMonthlyPage: React.ComponentType,
@@ -66,6 +79,7 @@ export function createAppRoutes(pages) {
     IndexPage,
     MarketMoversPage,
     StatisticDataPage,
+    ReturnTablePage,
     TickerAnnualPage,
     TickerQuarterlyPage,
     TickerMonthlyPage,
@@ -108,6 +122,7 @@ export function createAppRoutes(pages) {
         <Route path="/news" element={<NewsPage />} />
         <Route path="/odin-signals" element={<OdinSignalsPage />} />
         <Route path="/statistic-data" element={<StatisticDataPage />} />
+        <Route path="/return-table" element={<ReturnTablePage />} />
         <Route
           path="/ticker-annual"
           element={<Navigate to={`/statistic/ticker-annual/${DEFAULT_TICKER_ROUTE_SYMBOL}`} replace />}
@@ -158,7 +173,10 @@ export function createAppRoutes(pages) {
           element={<Navigate to={`/statistic/ticker-daily/${DEFAULT_TICKER_ROUTE_SYMBOL}`} replace />}
         />
         <Route path="/statistic/ticker-daily/:symbol" element={<TickerDailyPage />} />
-        <Route path="/relative-strength/ticker" element={<RelativeStrengthTickerPage />} />
+        <Route path="/relative-performance/ticker" element={<RelativeStrengthTickerPage />} />
+        <Route path="/relative-performance/ticker/:symbol" element={<RelativeStrengthTickerPage />} />
+        <Route path="/relative-strength/ticker" element={<LegacyRelativeStrengthRedirect />} />
+        <Route path="/relative-strength/ticker/:symbol" element={<LegacyRelativeStrengthRedirect />} />
         <Route path="/historical-data" element={<HistoricalDataPage />} />
         <Route path="/accounts" element={<AccountsPage />} />
         <Route path="/premium" element={<Pricing />} />

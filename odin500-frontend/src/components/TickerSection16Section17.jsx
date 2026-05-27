@@ -31,6 +31,7 @@ function niceChartStep(span, maxTicks = 7) {
 
 /** Swatch colors for the two RS comparison tickers (left / right dropdown). */
 const S17_COMPARISON_LEGEND_COLORS = ['#2563eb', '#64748b'];
+const S17_DIFF_BAR_GRADIENT = 'linear-gradient(180deg, #fb923c 0%, #ea580c 100%)';
 
 /** Y-axis / tick labels for relative-strength bar chart. */
 function formatAxisPct(v) {
@@ -165,8 +166,13 @@ export function TickerSection16Section17({
   /** When true, bar chart x-axis runs oldest→newest (table row order unchanged). */
   chartBarsAscending = false,
   /** Selected comparison tickers for the chart legend (e.g. `['XLK', 'SPX']`). */
-  comparisonLegendLabels = null
+  comparisonLegendLabels = null,
+  /** Single legend for diff bars (e.g. `Nasdaq 100-S&P 500`). */
+  comparisonLegendDiffLabel = null,
+  /** When `'diff'`, bars use one orange gradient (left − right), not blue/orange by sign. */
+  barChartVariant = 'comparison'
 }) {
+  const diffBarChart = barChartVariant === 'diff';
   const navigate = useNavigate();
   const onViewMore = useCallback(() => {
     if (typeof onViewMoreProp === 'function') {
@@ -199,7 +205,21 @@ export function TickerSection16Section17({
 
   const chart = useMemo(() => buildRelativeStrengthChart(chartRows), [chartRows]);
 
+  const diffLegendLabel = useMemo(() => {
+    const explicit = String(comparisonLegendDiffLabel || '').trim();
+    if (explicit) return explicit;
+    if (!diffBarChart) return '';
+    const m = String(relativeStrengthHeader || '').match(/\(([^)]+)\)/);
+    if (!m) return '';
+    return m[1]
+      .split(/\s*-\s*/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join('-');
+  }, [comparisonLegendDiffLabel, diffBarChart, relativeStrengthHeader]);
+
   const legendLabels = useMemo(() => {
+    if (diffBarChart && diffLegendLabel) return [];
     if (Array.isArray(comparisonLegendLabels) && comparisonLegendLabels.length) {
       return comparisonLegendLabels.map((l) => String(l || '').trim()).filter(Boolean);
     }
@@ -209,7 +229,7 @@ export function TickerSection16Section17({
       .split(/\s*-\s*/)
       .map((s) => s.trim())
       .filter(Boolean);
-  }, [comparisonLegendLabels, relativeStrengthHeader]);
+  }, [comparisonLegendLabels, relativeStrengthHeader, diffBarChart, diffLegendLabel]);
 
   const s17CardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const s17ChartFsRef = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -322,7 +342,10 @@ export function TickerSection16Section17({
         <div ref={s17ChartFsRef} className="ticker-chart-fs-shell ticker-s17__chart-shell">
         <div
           ref={s17PlotRef}
-          className="ticker-s17__chart ticker-s17__chart--no-yaxis"
+          className={
+            'ticker-s17__chart ticker-s17__chart--no-yaxis' +
+            (diffBarChart ? ' ticker-s17__chart--diff-bars' : '')
+          }
           style={{
             '--ticker-s17-cols': String(nCols),
             '--ticker-s17-gap': `${chartGapPx}px`,
@@ -380,7 +403,20 @@ export function TickerSection16Section17({
           </div>
         </div>
         </div>
-        {legendLabels.length ? (
+        {diffBarChart && diffLegendLabel ? (
+          <div className="ticker-annual-figma__legend ticker-s17__legend" aria-label="Relative strength difference">
+            <div className="ticker-annual-figma__legend-row">
+              <span className="ticker-annual-figma__legend-item">
+                <span
+                  className="ticker-annual-figma__swatch ticker-s17__legend-swatch--diff"
+                  aria-hidden
+                  style={{ background: S17_DIFF_BAR_GRADIENT }}
+                />
+                {diffLegendLabel}
+              </span>
+            </div>
+          </div>
+        ) : legendLabels.length ? (
           <div className="ticker-annual-figma__legend ticker-s17__legend" aria-label="Comparison tickers">
             <div className="ticker-annual-figma__legend-row">
               {legendLabels.map((label, i) => (

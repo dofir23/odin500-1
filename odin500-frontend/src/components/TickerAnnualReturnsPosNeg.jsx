@@ -16,6 +16,7 @@ import { fmtPctSigned } from '../utils/formatDisplayNumber.js';
 import { ChartSectionIconActions } from './ChartSectionIconActions.jsx';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
 import { ReturnsChartPieIcon } from './returnsChartToolbarIcons.jsx';
+import { buildReturnNarrative } from '../utils/seoChartNarratives.js';
 
 const BUCKETS_DARK = [
   { key: 'b01', legend: '0-1%', color: '#38bdf8' },
@@ -296,6 +297,16 @@ export function TickerAnnualReturnsPosNeg({
   );
 
   const pn = useMemo(() => periodModeNouns(periodMode), [periodMode]);
+  const seoNarrative = useMemo(
+    () =>
+      buildReturnNarrative({
+        rows: filteredRows,
+        symbol,
+        mode: periodMode,
+        valueField: 'totalReturn'
+      }),
+    [filteredRows, symbol, periodMode]
+  );
   const panelTotalTitle = `${pn.title}, total`;
   const positiveTabLabel = `Positive ${pn.title}`;
   const negativeTabLabel = `Negative ${pn.title}`;
@@ -390,6 +401,7 @@ export function TickerAnnualReturnsPosNeg({
     }
     return (
       <div className="ticker-annual-donut">
+        {seoNarrative ? <p className="sr-only">{seoNarrative}</p> : null}
         <div ref={sectionRef} className="ticker-annual-figma__section">
           <div className="ticker-annual-figma__toolbar">
             <PosNegToolbarBadgeWithIcon periodMode={periodMode} pn={pn} onClick={onViewMore} />
@@ -416,6 +428,7 @@ export function TickerAnnualReturnsPosNeg({
 
   return (
     <div className="ticker-annual-donut">
+      {seoNarrative ? <p className="sr-only">{seoNarrative}</p> : null}
       <div ref={sectionRef} className="ticker-annual-figma__section ticker-annual-donut__section">
         <div className="ticker-annual-figma__toolbar">
           <PosNegToolbarBadgeWithIcon periodMode={periodMode} pn={pn} onClick={onViewMore} />

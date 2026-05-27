@@ -9,10 +9,10 @@ export const SITEMAP_STATIC_PATHS = [
   '/heatmap',
   '/market-movers',
   '/statistic-data',
+  '/return-table',
   '/historical-data',
   '/about',
-  '/premium',
-  '/relative-strength/ticker'
+  '/premium'
 ];
 
 export const SITEMAP_INDEX_SLUGS = ['sp500', 'dow-jones', 'nasdaq-100'];
@@ -79,6 +79,7 @@ export const PRERENDER_STATIC_PATHS = [
   '/heatmap',
   '/market-movers',
   '/statistic-data',
+  '/return-table',
   '/historical-data',
   '/about',
   '/premium',
@@ -132,6 +133,7 @@ export function buildDynamicSitemapPaths(tickers) {
   for (const sym of syms) {
     const enc = encodeURIComponent(sym.toLowerCase());
     paths.push(`/ticker/${enc}`);
+    paths.push(`/relative-performance/ticker/${enc}`);
     for (const kind of SITEMAP_STAT_KINDS) {
       paths.push(`/statistic/${kind}/${enc}`);
     }

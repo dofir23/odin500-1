@@ -19,6 +19,7 @@ import { ChartSnapshotExportModal } from './ChartSnapshotExportModal.jsx';
 import { useChartSnapshotExport } from '../hooks/useChartSnapshotExport.js';
 import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
 import { fmtPctSigned } from '../utils/formatDisplayNumber.js';
+import { buildNormalizedPerformanceNarrative } from '../utils/seoChartNarratives.js';
 
 /** App shell background (opaque) — lightweight-charts canvas is black if bg is transparent. */
 function getAppShellBgColor(isLight) {
@@ -336,6 +337,20 @@ export function NormalizedPerformanceCard({
     }
     return out;
   }, [activeKeys, series]);
+
+  const seoNarrative = useMemo(() => {
+    const labels = activeKeys
+      .map((k) => META_BY_KEY[k])
+      .filter(Boolean)
+      .map((m) => String(m.key || '').toUpperCase());
+    const lastByLabel = {};
+    for (const k of activeKeys) {
+      const meta = META_BY_KEY[k];
+      if (!meta) continue;
+      lastByLabel[String(meta.key || '').toUpperCase()] = last[k];
+    }
+    return buildNormalizedPerformanceNarrative({ timeframe: tf, seriesLabels: labels, lastByLabel });
+  }, [activeKeys, last, tf]);
 
   const lastRef = useRef(last);
   lastRef.current = last;
@@ -740,6 +755,7 @@ export function NormalizedPerformanceCard({
         className={'np-card' + (isFullscreen ? ' np-card--fullscreen-active' : '')}
         aria-label="Normalized performance"
       >
+      {seoNarrative ? <p className="sr-only">{seoNarrative}</p> : null}
       <header className="np-card__head">
         <h2 className="np-card__title">
           Performance <ChartInfoTip tip={CHART_INFO_TIPS.normalizedPerformance} align="start" />

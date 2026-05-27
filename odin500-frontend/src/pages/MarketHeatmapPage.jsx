@@ -16,6 +16,7 @@ import { useChartSnapshotExport } from '../hooks/useChartSnapshotExport.js';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
+import { buildHeatmapNarrative, buildTableNarrative } from '../utils/seoChartNarratives.js';
 
 /** `apiIndex` must match `market_groups.name` from Supabase (see GET /api/market/indices). */
 const INDEX_MENU = [
@@ -329,6 +330,50 @@ export default function MarketHeatmapPage() {
     const start = (tablePageSafe - 1) * HEATMAP_TABLE_PAGE_SIZE;
     return bottomSortedRows.slice(start, start + HEATMAP_TABLE_PAGE_SIZE);
   }, [bottomSortedRows, tablePageSafe]);
+  const gainsLosses = useMemo(() => {
+    let up = 0;
+    let down = 0;
+    for (const r of rows) {
+      const v = parsePct(r?.totalReturnPercentage);
+      if (!Number.isFinite(v)) continue;
+      if (v > 0) up += 1;
+      else if (v < 0) down += 1;
+    }
+    return { up, down };
+  }, [rows]);
+  const activePeriodLabel = useMemo(() => {
+    const hit = periodSelectOptions.find((p) => p?.value === periodValue);
+    return hit?.label || periodValue;
+  }, [periodSelectOptions, periodValue]);
+  const heatmapSeoNarrative = useMemo(
+    () =>
+      buildHeatmapNarrative({
+        indexLabel: activeMenu.label,
+        periodLabel: activePeriodLabel,
+        rowCount: rows.length,
+        gainers: gainsLosses.up,
+        losers: gainsLosses.down
+      }),
+    [activeMenu.label, activePeriodLabel, rows.length, gainsLosses.up, gainsLosses.down]
+  );
+  const leftTableSeoNarrative = useMemo(
+    () =>
+      buildTableNarrative({
+        title: `${activeMenu.label} heatmap ticker table`,
+        rowCount: leftTableRows.length,
+        columns: ['Ticker', 'Price', 'Change %']
+      }),
+    [activeMenu.label, leftTableRows.length]
+  );
+  const bottomTableSeoNarrative = useMemo(
+    () =>
+      buildTableNarrative({
+        title: `${activeMenu.label} heatmap detailed table`,
+        rowCount: bottomSortedRows.length,
+        columns: ['Ticker', 'Company', 'Sector', 'Industry', 'Price', 'Change %', 'Signal', 'Weight']
+      }),
+    [activeMenu.label, bottomSortedRows.length]
+  );
   const tablePageButtons = useMemo(() => {
     if (tableTotalPages <= 1) return [1];
     if (tableTotalPages <= 5) return Array.from({ length: tableTotalPages }, (_, i) => i + 1);
@@ -540,6 +585,7 @@ export default function MarketHeatmapPage() {
           </section>
 
           <section className="heatmap-card heatmap-card--table">
+            {leftTableSeoNarrative ? <p className="sr-only">{leftTableSeoNarrative}</p> : null}
             <h2 className="heatmap-card__title">Tickers</h2>
             <div className="heatmap-search">
               <span className="heatmap-search__icon" aria-hidden>
@@ -606,6 +652,7 @@ export default function MarketHeatmapPage() {
         </aside>
 
         <main className="heatmap-main">
+          {heatmapSeoNarrative ? <p className="sr-only">{heatmapSeoNarrative}</p> : null}
           <div
             className={'heatmap-main__viz' + (isFullscreen ? ' heatmap-main__viz--fullscreen-active' : '')}
             ref={heatmapVizRef}
@@ -797,6 +844,7 @@ export default function MarketHeatmapPage() {
           </div>
 
           <section className="heatmap-bottom-table" aria-labelledby="heatmap-bottom-table-title">
+            {bottomTableSeoNarrative ? <p className="sr-only">{bottomTableSeoNarrative}</p> : null}
             <div className="heatmap-bottom-table__head">
               <h2 className="heatmap-card__title" id="heatmap-bottom-table-title">
                 {activeMenu.label} Tickers

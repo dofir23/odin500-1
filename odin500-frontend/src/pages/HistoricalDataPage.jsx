@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FigmaDataTable } from '../components/FigmaDataTable.jsx';
 import { FigmaPagination } from '../components/FigmaPagination.jsx';
+import { ReturnsChartToolbarIconButton } from '../components/ReturnsChartToolbar.jsx';
+import { ReturnsChartIcoDownload } from '../components/returnsChartToolbarIcons.jsx';
 import { ThemedDropdown } from '../components/ThemedDropdown.jsx';
 import { TickerSymbolCombobox } from '../components/TickerSymbolCombobox.jsx';
 import {fetchJsonCached, getAuthToken, canFetchProtectedApi} from '../store/apiStore.js';
@@ -9,6 +11,7 @@ import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
+import { buildTableNarrative } from '../utils/seoChartNarratives.js';
 import {
   applyDateEndChange,
   applyDateStartChange,
@@ -89,34 +92,6 @@ function computeReturnPct(openValue, closeValue) {
 function signedToneClass(v) {
   if (!Number.isFinite(Number(v))) return '';
   return Number(v) > 0 ? 'app-num--up' : Number(v) < 0 ? 'app-num--down' : '';
-}
-
-function IcoDownload() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <path
-        d="M7.00049 2.48828V9.05078"
-        stroke="white"
-        strokeWidth="0.875"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M4.53955 6.58984L7.00049 9.05078L9.46143 6.58984"
-        stroke="white"
-        strokeWidth="0.875"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M13.1528 9.05078V9.87109C13.1528 10.3062 12.98 10.7235 12.6723 11.0312C12.3646 11.3389 11.9473 11.5117 11.5122 11.5117H2.48877C2.05365 11.5117 1.63635 11.3389 1.32867 11.0312C1.021 10.7235 0.848145 10.3062 0.848145 9.87109V9.05078"
-        stroke="white"
-        strokeWidth="0.875"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 function sortNormalizedDesc(rows) {
@@ -501,6 +476,15 @@ export default function HistoricalDataPage() {
   }, []);
 
   const periodColumnLabel = frequency === 'daily' ? 'Date' : 'Period';
+  const seoTableNarrative = useMemo(
+    () =>
+      buildTableNarrative({
+        title: `${sanitizeTickerPageInput(ticker) || DEFAULT_TICKER} historical data table`,
+        rowCount: sortedRows.length,
+        columns: [periodColumnLabel, 'Open', 'High', 'Low', 'Close', 'Return %']
+      }),
+    [ticker, sortedRows.length, periodColumnLabel]
+  );
 
   const loadingLabel = useMemo(() => {
     switch (frequency) {
@@ -559,18 +543,16 @@ export default function HistoricalDataPage() {
       </header>
 
       <section className="historical-data__controls">
-        <div className="historical-data__ticker">
-          <label htmlFor="historical-data-ticker">Ticker</label>
-          <TickerSymbolCombobox
-            symbol={ticker}
-            onSymbolChange={(next) => setTicker(sanitizeTickerPageInput(next) || DEFAULT_TICKER)}
-            inputId="historical-data-ticker"
-            placeholder="Search ticker (e.g. NVDA)"
-          />
-        </div>
-        <div className="historical-data__controls-right" aria-label="Filters and export">
+        <div className="historical-data__controls-row historical-data__controls-row--selects">
+          <div className="historical-data__ticker">
+            <TickerSymbolCombobox
+              symbol={ticker}
+              onSymbolChange={(next) => setTicker(sanitizeTickerPageInput(next) || DEFAULT_TICKER)}
+              inputId="historical-data-ticker"
+              placeholder="Search ticker (e.g. NVDA)"
+            />
+          </div>
           <div className="historical-data__frequency">
-            <label htmlFor="historical-data-frequency">Frequency</label>
             <ThemedDropdown
               buttonId="historical-data-frequency"
               className="historical-data__select-dd"
@@ -583,7 +565,9 @@ export default function HistoricalDataPage() {
               wideLabel
             />
           </div>
-          <div className="historical-data__dates">
+        </div>
+        <div className="historical-data__controls-row historical-data__controls-row--dates" aria-label="Date range and export">
+          <div className="historical-data__field historical-data__dates">
             <label htmlFor="historical-data-start">Start date</label>
             <input
               id="historical-data-start"
@@ -601,7 +585,7 @@ export default function HistoricalDataPage() {
               max={histDateBounds.startMax}
             />
           </div>
-          <div className="historical-data__dates">
+          <div className="historical-data__field historical-data__dates">
             <label htmlFor="historical-data-end">End date</label>
             <input
               id="historical-data-end"
@@ -620,15 +604,13 @@ export default function HistoricalDataPage() {
             />
           </div>
           <div className="historical-data__actions">
-            <button
-              type="button"
-              className="ticker-annual-figma__btn ticker-annual-figma__btn--outline"
+            <ReturnsChartToolbarIconButton
+              label="Download CSV"
               onClick={onDownloadCsvClick}
               disabled={!sortedRows.length}
-              title="Download CSV"
             >
-              <IcoDownload /> Download CSV
-            </button>
+              <ReturnsChartIcoDownload />
+            </ReturnsChartToolbarIconButton>
           </div>
         </div>
       </section>
@@ -636,6 +618,7 @@ export default function HistoricalDataPage() {
       {error ? <p className="historical-data__status historical-data__status--err">{error}</p> : null}
 
       <section className="historical-data__table-card">
+        {seoTableNarrative ? <p className="sr-only">{seoTableNarrative}</p> : null}
         <FigmaDataTable
           headers={[
             { key: 'period', label: periodColumnLabel },

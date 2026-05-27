@@ -63,11 +63,11 @@ export const ROUTE_METADATA = {
       'Query and export historical open-high-low-close prices and related signals for U.S. equities and ETFs covered on Odin500.',
     canonical: `${SITE_ORIGIN}/historical-data`
   },
-  '/relative-strength/ticker': {
-    title: 'Relative Strength Comparison | Odin500',
+  '/relative-performance/ticker/aapl': {
+    title: 'Relative Performance Comparison | Odin500',
     description:
-      'Compare relative strength and excess returns across tickers, indices, and sectors with Odin500 charts, tables, and benchmark overlays.',
-    canonical: `${SITE_ORIGIN}/relative-strength/ticker`
+      'Compare relative performance and excess returns across tickers, indices, and sectors with Odin500 charts, tables, and benchmark overlays.',
+    canonical: `${SITE_ORIGIN}/relative-performance/ticker/aapl`
   },
   '/about': {
     title: 'Your Odin500 Profile & Account Settings',

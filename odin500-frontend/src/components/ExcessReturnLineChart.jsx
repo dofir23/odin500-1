@@ -1,11 +1,11 @@
 import { useMemo, useRef, useSyncExternalStore } from 'react';
 import { StatsCmpChartSkeleton } from './ChartSkeletons.jsx';
 import { StatsCmpChartToolbarHead } from './StatsCmpChartToolbarHead.jsx';
+import { StatsExcessReturnLineChart } from './StatsExcessReturnLineChart.jsx';
 import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
-import { chartSvgPreserveAspectRatio, tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { applyRelativeStrengthSnapshotCloneFixes } from '../utils/relativeStrengthChartExport.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
-import { fmtPct, fmtPctSigned } from '../utils/formatDisplayNumber.js';
+import { buildExcessNarrative } from '../utils/seoChartNarratives.js';
 
 export function ExcessReturnLineChart({
   mode,
@@ -26,59 +26,58 @@ export function ExcessReturnLineChart({
   onDownloadCsv,
   csvDisabled = false,
   loading = false,
-  /** Optional: format x-axis period labels (Relative Strength stats charts). */
   formatXAxisLabel = null,
-  /** When set by `TickerChartResizeScope` via cloneElement. */
-  plotHeight = null
+  xAxisMaxLabels = 12,
+  plotHeight: plotHeightProp = null,
+  resizeDefaultHeight = 280
 }) {
-  const W = 1020;
-  const H = 300;
-  const padL = 58;
-  const padR = 18;
-  const padT = 16;
-  const padB = 48;
-  const iw = W - padL - padR;
-  const ih = H - padT - padB;
-  const vals = rows.map((r) => Number(r.excessReturn)).filter(Number.isFinite);
-  const minV = vals.length ? Math.min(0, ...vals) : -8;
-  const maxV = vals.length ? Math.max(0, ...vals) : 8;
-  const span = Math.max(1, maxV - minV);
-  const yMin = minV - span * 0.1;
-  const yMax = maxV + span * 0.1;
-  const y = (v) => padT + ((yMax - v) / (yMax - yMin)) * ih;
-  const x = (i) => padL + (iw * i) / Math.max(1, rows.length - 1);
-  const zeroY = y(0);
-  const path = rows
-    .map((r, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(r.excessReturn)}`)
-    .join(' ');
-  const area = rows.length
-    ? `${path} L ${x(rows.length - 1)} ${zeroY} L ${x(0)} ${zeroY} Z`
-    : '';
-
   const sectionRef = useRef(null);
   const plotHostRef = useRef(null);
-  const exportSymbol = `${ticker}-vs-${benchmarkIndex}`;
   const chartTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
   const fsPlotSize = useChartFullscreenPlotSize(sectionRef);
+
+  const externalH =
+    plotHeightProp != null && Number.isFinite(Number(plotHeightProp)) ? Math.round(Number(plotHeightProp)) : null;
+  const resizeChrome = fsPlotSize != null || externalH != null;
+  const chartFullscreen = fsPlotSize != null;
+  const chartPlotHeight = chartFullscreen
+    ? Math.max(200, Math.round(fsPlotSize.height - 80))
+    : externalH ?? resizeDefaultHeight;
+
+  const scopeStyle =
+    externalH != null && !chartFullscreen ? { '--ticker-resize-plot-h': `${externalH}px` } : undefined;
+
+  const rootClass = [
+    'stats-cmp-chart',
+    'stats-cmp-chart--chartjs',
+    resizeChrome ? 'stats-cmp-chart--plot-resize' : ''
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const seriesLabel = `Excess (${ticker} - ${benchmarkIndex})`;
+  const showPointLabels = chartFullscreen || rows.length <= 20;
+
+  const exportSymbol = `${ticker}-vs-${benchmarkIndex}`;
   const exportOnclone = useMemo(
     () => (clonedDoc, clonedRoot) =>
       applyRelativeStrengthSnapshotCloneFixes(clonedDoc, clonedRoot, chartTheme === 'light'),
     [chartTheme]
   );
-
-  const resizeChrome = fsPlotSize != null || (plotHeight != null && Number.isFinite(Number(plotHeight)));
-  const hPx =
-    fsPlotSize != null ? null : resizeChrome && plotHeight != null ? Math.round(Number(plotHeight)) : null;
-  const svgPlotStyle =
-    fsPlotSize != null
-      ? tickerSvgPlotStyle(null, { fullscreen: true })
-      : resizeChrome && hPx != null
-        ? tickerSvgPlotStyle(hPx)
-        : undefined;
-  const rootClass = ['stats-cmp-chart', resizeChrome ? 'stats-cmp-chart--plot-resize' : ''].filter(Boolean).join(' ');
+  const seoNarrative = useMemo(
+    () =>
+      buildExcessNarrative({
+        rows,
+        ticker,
+        benchmark: benchmarkIndex,
+        mode
+      }),
+    [rows, ticker, benchmarkIndex, mode]
+  );
 
   return (
-    <section ref={sectionRef} className={rootClass}>
+    <section ref={sectionRef} className={rootClass} style={scopeStyle}>
+      {seoNarrative ? <p className="sr-only">{seoNarrative}</p> : null}
       <StatsCmpChartToolbarHead
         sectionRef={sectionRef}
         plotHostRef={plotHostRef}
@@ -101,51 +100,21 @@ export function ExcessReturnLineChart({
       ) : !rows.length ? (
         <div className="stats-cmp-chart__state">No data available for selected range.</div>
       ) : (
-        <div ref={plotHostRef} className="stats-cmp-chart__plot-host">
+        <div ref={plotHostRef} className="stats-cmp-chart__plot-host stats-cmp-chart__plot-host--chartjs">
           <div className="stats-cmp-chart__legend">
             <span>
-              <i className="stats-cmp-chart__sw stats-cmp-chart__sw--line" /> Excess ({ticker} - {benchmarkIndex})
+              <i className="stats-cmp-chart__sw stats-cmp-chart__sw--line" /> {seriesLabel}
             </span>
           </div>
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            className="stats-cmp-chart__svg"
-            preserveAspectRatio={chartSvgPreserveAspectRatio(fsPlotSize != null)}
-            style={svgPlotStyle}
-          >
-            {[0, 0.25, 0.5, 0.75, 1].map((k) => {
-              const t = yMin + (yMax - yMin) * k;
-              const yy = y(t);
-              return (
-                <g key={`yg-${k}`}>
-                  <line x1={padL} y1={yy} x2={W - padR} y2={yy} className="stats-cmp-chart__grid" />
-                  <text x={padL - 8} y={yy} textAnchor="end" dominantBaseline="middle" className="stats-cmp-chart__y-axis">
-                    {fmtPctSigned(t)}
-                  </text>
-                </g>
-              );
-            })}
-            <line x1={padL} y1={zeroY} x2={W - padR} y2={zeroY} className="stats-cmp-chart__zero" />
-            <path d={area} className="stats-cmp-chart__area" />
-            <path d={path} className="stats-cmp-chart__line" />
-            {rows.map((r, i) => {
-              const periodStr = String(r.period ?? '');
-              const xText = typeof formatXAxisLabel === 'function' ? formatXAxisLabel(periodStr) : periodStr;
-              return (
-                <g key={r.period}>
-                  <circle cx={x(i)} cy={y(r.excessReturn)} r="3" className="stats-cmp-chart__dot" />
-                  <text x={x(i)} y={y(r.excessReturn) - 8} textAnchor="middle" className="stats-cmp-chart__line-label">
-                    {fmtPctSigned(r.excessReturn)}
-                  </text>
-                  {i % Math.max(1, Math.ceil(rows.length / 12)) === 0 || i === rows.length - 1 ? (
-                    <text x={x(i)} y={H - 14} textAnchor="middle" className="stats-cmp-chart__x" title={periodStr}>
-                      {xText}
-                    </text>
-                  ) : null}
-                </g>
-              );
-            })}
-          </svg>
+          <StatsExcessReturnLineChart
+            rows={rows}
+            seriesLabel={seriesLabel}
+            formatXAxisLabel={formatXAxisLabel}
+            xAxisMaxLabels={xAxisMaxLabels}
+            plotHeight={chartPlotHeight}
+            chartFullscreen={chartFullscreen}
+            showPointLabels={showPointLabels}
+          />
         </div>
       )}
     </section>

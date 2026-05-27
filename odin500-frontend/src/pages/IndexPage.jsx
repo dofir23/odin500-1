@@ -1690,9 +1690,9 @@ export default function IndexPage() {
   const relativeRightSeries =
     relativeSeriesByKey[relativeRightKey] || { dynamicPeriods: dynamicSpy, mtd: spyMtd, qtd: spyQtd };
   const relativeLeftLabel =
-    RELATIVE_STRENGTH_OPTIONS.find((o) => o.key === relativeLeftKey)?.label || displaySym;
+    RELATIVE_STRENGTH_OPTIONS.find((o) => o.key === relativeLeftKey)?.label || activeMeta.label;
   const relativeRightLabel =
-    RELATIVE_STRENGTH_OPTIONS.find((o) => o.key === relativeRightKey)?.label || BENCHMARK;
+    RELATIVE_STRENGTH_OPTIONS.find((o) => o.key === relativeRightKey)?.label || 'S&P 500';
   const onOpenRelativeStrengthPage = useCallback(() => {
     navigate(buildRelativeStrengthTickerHref());
   }, [navigate]);
@@ -1914,32 +1914,16 @@ export default function IndexPage() {
           </div>
         </div>
 
-        <div className="ticker-page__header-metrics" role="presentation">
-          <div className="ticker-page__header-metric">
+        <div className="ticker-page__header-metrics ticker-page__header-metrics--index" role="presentation">
+          <div className="ticker-page__header-metric ticker-page__header-metric--index-price">
             <div className="ticker-page__metric-price-line">
               <span className="ticker-page__sym">{displaySym}</span>
               <span className="ticker-page__px ticker-page__px--hero">{fmtPrice(headerClose)}</span>
               <span className="ticker-page__ccy">USD</span>
             </div>
-            <div className="ticker-page__metric-change">
-              {headerChgPct != null && Number.isFinite(headerChgPct) ? (
-                <span className={'ticker-num ' + pctClass(headerChgPct)}>
-                  {headerChgAbs != null && Number.isFinite(headerChgAbs) ? (
-                    <>
-                      {fmtAbsSigned(headerChgAbs)}{' '}
-                    </>
-                  ) : null}
-                  ({fmtPctSigned(headerChgPct)})
-                </span>
-              ) : (
-                <span className="ticker-page__metric-change--muted">—</span>
-              )}
-            </div>
-            <p className="ticker-page__metric-label">Last Updated • {lastUpdatedFmt}</p>
           </div>
 
-          
-          <div className="ticker-page__header-metric">
+          <div className="ticker-page__header-metric ticker-page__header-metric--index-etf">
             <div className="ticker-page__metric-value-row">
               <span className="ticker-page__metric-value">Related ETF</span>
               {/* <DataInfoTip align="start">
@@ -1964,7 +1948,25 @@ export default function IndexPage() {
             )}
           </div>
 
-          <div className="ticker-page__header-metric">
+          <div className="ticker-page__index-metric-footer">
+            <div className="ticker-page__metric-change">
+              {headerChgPct != null && Number.isFinite(headerChgPct) ? (
+                <span className={'ticker-num ' + pctClass(headerChgPct)}>
+                  {headerChgAbs != null && Number.isFinite(headerChgAbs) ? (
+                    <>{fmtAbsSigned(headerChgAbs)} </>
+                  ) : null}
+                  ({fmtPctSigned(headerChgPct)})
+                </span>
+              ) : (
+                <span className="ticker-page__metric-change--muted">—</span>
+              )}
+            </div>
+            <p className="ticker-page__metric-label ticker-page__metric-label--last-updated">
+              Last Updated • {lastUpdatedFmt}
+            </p>
+          </div>
+
+          <div className="ticker-page__header-metric ticker-page__header-metric--index-extra">
             <div className="ticker-page__metric-value-row">
               <span className="ticker-page__metric-value">{isSectorDataRoute ? 'S&P 500' : ""}</span>
             </div>
@@ -2555,11 +2557,7 @@ export default function IndexPage() {
                   showViewMore={false}
                   showTableToggle={false}
                   showDownload={false}
-                  extraActions={
-                    relativeBusy ? (
-                      <span className="ticker-page__loading-pill">Loading relative strength…</span>
-                    ) : null
-                  }
+                  
                 />
               </div>
             </div>
@@ -2568,7 +2566,8 @@ export default function IndexPage() {
               compareRows={section17CompareRows}
               relativeStrengthTitle={`Relative Strength vs ${relativeRightLabel}`}
               relativeStrengthHeader={`Relative Strength (${relativeLeftLabel} - ${relativeRightLabel})`}
-              comparisonLegendLabels={[relativeRightLabel, relativeLeftLabel]}
+              barChartVariant="diff"
+              comparisonLegendDiffLabel={`${relativeLeftLabel}-${relativeRightLabel}`}
             />
           </section>
         </div>

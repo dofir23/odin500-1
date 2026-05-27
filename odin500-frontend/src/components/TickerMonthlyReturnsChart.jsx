@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChartDateApplyRow } from './ChartDateApplyRow.jsx';
 import { ChartInfoTip } from './ChartInfoTip.jsx';
@@ -6,27 +6,20 @@ import { CHART_INFO_TIPS } from './chartInfoTips.js';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
 import { formatWeekAxisDate, isoYearWeekFromIsoDate } from '../utils/isoWeek.js';
 import { filterReturnsRows } from '../utils/returnsDateRange.js';
-import { useChartPlotWidth } from '../hooks/useChartPlotWidth.js';
 import { useTickerPlotResize } from '../hooks/useTickerPlotResize.js';
 import { useChartFullscreenPlotSize } from '../hooks/useChartFullscreenPlotSize.js';
-import { chartSvgPreserveAspectRatio, tickerSvgPlotStyle } from '../utils/tickerChartResize.js';
 import { getReturnsChartViewMoreHref } from '../utils/returnsViewMoreNavigation.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL } from '../utils/tickerUrlSync.js';
-import { fmtPct, fmtPctSigned } from '../utils/formatDisplayNumber.js';
+import { fmtPctSigned } from '../utils/formatDisplayNumber.js';
 import { MonthlyReturnsChartSkeleton } from './ChartSkeletons.jsx';
 import { ReturnsChartToolbar } from './ReturnsChartToolbar.jsx';
 import { ReturnsChartClickableTitle } from './ReturnsChartClickableTitle.jsx';
 import { ChartSectionIconActions, useChartFullscreen } from './ChartSectionIconActions.jsx';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
 import { ReturnsChartPieIcon } from './returnsChartToolbarIcons.jsx';
-import { chartAxisLabelColors } from '../utils/chartAxisLabelColors.js';
-import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
-
-const COL_BAR = '#2563eb';
-const COL_BAR_NEG = '#f59e0b';
-const COL_AVG = '#f97316';
-const COL_GRID = 'rgba(148, 163, 184, 0.14)';
-const COL_GRID_ZERO = 'rgba(148, 163, 184, 0.35)';
+import { buildReturnNarrative } from '../utils/seoChartNarratives.js';
+import { StatsPeriodSlotReturnsBarChart } from './StatsPeriodSlotReturnsBarChart.jsx';
+import { TICKER_RETURNS_COL_AVG } from './StatsTickerReturnsBarChart.jsx';
 
 const DEFAULT_YEAR = 2025;
 /** Weekly statistic chart year picker lists every calendar year in this span (descending in UI). */
@@ -83,11 +76,6 @@ function parseDailyRow(period) {
   return { year, month: day };
 }
 
-function yForValue(v, innerTop, innerH, yMin, yMax) {
-  const c = Math.min(yMax, Math.max(yMin, v));
-  return innerTop + ((yMax - c) / (yMax - yMin)) * innerH;
-}
-
 /**
  * Monthly returns for one calendar year (Figma-style), with year dropdown + info tip.
  * @param {{ symbol: string, monthlyReturns?: unknown[], asOfDate?: string, plotHeight?: number, resizeStorageKey?: string, resizeDefaultHeight?: number, persistPlotResize?: boolean, periodMode?: 'monthly' | 'weekly' | 'daily', suppressChartDateFilter?: boolean, showOpenPeriodPageButton?: boolean, useThemedYearDropdown?: boolean, defaultToLatestYear?: boolean, hideChartDateApplyRow?: boolean, chartToolbarExtras?: import('react').ReactNode, loading?: boolean }} props
@@ -118,26 +106,14 @@ export function TickerMonthlyReturnsChart({
   const sectionRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartFsShellRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const chartCardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
-  const { plotWidth: chartPlotWidth, setPlotHostRef } = useChartPlotWidth(720);
-  const assignChartCardRef = useCallback(
-    (el) => {
-      chartCardRef.current = el;
-      setPlotHostRef(el);
-    },
-    [setPlotHostRef]
-  );
+  const assignChartCardRef = useCallback((el) => {
+    chartCardRef.current = el;
+  }, []);
   const { isFullscreen: chartFs } = useChartFullscreen(chartFsShellRef);
-  const chartTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
-  const { axis: colAxis, label: colLabel } = useMemo(
-    () => chartAxisLabelColors(chartTheme),
-    [chartTheme]
-  );
   const resize = useTickerPlotResize(resizeStorageKey ?? null, resizeDefaultHeight, undefined, undefined, persistPlotResize);
   const plotPx = resize.plotHeight ?? plotHeight;
   const fsPlotSize = useChartFullscreenPlotSize(chartFsShellRef);
   const plotPxEffective = fsPlotSize?.height ?? plotPx;
-  const plotWidthEffective = fsPlotSize?.width ?? chartPlotWidth;
-  const svgFs = Boolean(fsPlotSize);
 
   const rows = useMemo(() => {
     if (!Array.isArray(monthlyReturns)) return [];
@@ -228,139 +204,6 @@ export function TickerMonthlyReturnsChart({
     return vals.reduce((sum, v) => sum + Number(v), 0) / vals.length;
   }, [monthValues]);
 
-  const chart = useMemo(() => {
-    const plotH = Math.max(140, plotPxEffective ?? resizeDefaultHeight);
-    const W = Math.max(280, plotWidthEffective);
-    const H = plotH;
-    const padL = 48;
-    const padR = 18;
-    const padT = 22;
-    const padB = 52;
-    const iw = W - padL - padR;
-    const ih = H - padT - padB;
-    const n = periodMode === 'weekly' ? 53 : periodMode === 'daily' ? 31 : 12;
-    const gap = periodMode === 'weekly' ? 0.05 : periodMode === 'daily' ? 0.1 : 0.22;
-    const bw = (iw / n) * (1 - gap);
-    const step = iw / n;
-
-    const ticks = [];
-    for (let t = yMin; t <= yMax + 1e-9; t += 5) ticks.push(t);
-
-    const gridLines = ticks.map((t, ti) => {
-      const y = yForValue(t, padT, ih, yMin, yMax);
-      return (
-        <g key={`g-${ti}-${t}`}>
-          <line
-            x1={padL}
-            y1={y}
-            x2={W - padR}
-            y2={y}
-            stroke={t === 0 ? COL_GRID_ZERO : COL_GRID}
-            strokeWidth={t === 0 ? 1.35 : 1}
-          />
-          <text x={padL - 8} y={y + 4} textAnchor="end" fill={colAxis} fontSize="10" fontWeight="600">
-            {fmtPct(t, { plainPositive: true })}
-          </text>
-        </g>
-      );
-    });
-
-    const bars = [];
-    for (let m = 1; m <= n; m++) {
-      const v = monthValues[m - 1];
-      if (!Number.isFinite(v)) continue;
-      const i = m - 1;
-      const x = padL + i * step + (step - bw) / 2;
-      const y0 = yForValue(0, padT, ih, yMin, yMax);
-      const y1 = yForValue(v, padT, ih, yMin, yMax);
-      const top = Math.min(y0, y1);
-      const h = Math.abs(y1 - y0);
-      const labY = v >= 0 ? top - 6 : top + h + 14;
-      bars.push(
-        <g key={m}>
-          <rect x={x} y={top} width={bw} height={Math.max(h, 1)} rx={2} fill={v < 0 ? COL_BAR_NEG : COL_BAR} />
-          {chartFs || (periodMode !== 'weekly' && periodMode !== 'daily') ? (
-            <text x={x + bw / 2} y={labY} textAnchor="middle" fill={colLabel} fontSize="10" fontWeight="700">
-              {fmtPct(v, { plainPositive: true })}
-            </text>
-          ) : null}
-        </g>
-      );
-    }
-
-    const every = periodMode === 'weekly' ? 4 : periodMode === 'daily' ? 5 : 1;
-    const xLabels = Array.from({ length: n }, (_, i) => {
-      if ((periodMode === 'weekly' || periodMode === 'daily') && i % every !== 0 && i !== n - 1) return null;
-      const cx = padL + i * step + step / 2;
-      if (periodMode === 'weekly') {
-        const lbl = weekAxisLabels.get(i + 1);
-        if (!lbl) return null;
-        return (
-          <text key={i} x={cx} y={H - 22} textAnchor="middle" fill={colAxis} fontSize="11" fontWeight="600">
-            {lbl}
-          </text>
-        );
-      }
-      return (
-        <text key={i} x={cx} y={H - 22} textAnchor="middle" fill={colAxis} fontSize="11" fontWeight="600">
-          {periodMode === 'daily' ? i + 1 : i + 1}
-        </text>
-      );
-    });
-
-    const avgLine =
-      avgReturn != null && Number.isFinite(avgReturn) ? (
-        <g>
-          <line
-            x1={padL}
-            y1={yForValue(avgReturn, padT, ih, yMin, yMax)}
-            x2={W - padR}
-            y2={yForValue(avgReturn, padT, ih, yMin, yMax)}
-            stroke={COL_AVG}
-            strokeWidth={1.5}
-          />
-          <text
-            x={W - padR}
-            y={yForValue(avgReturn, padT, ih, yMin, yMax) - 5}
-            textAnchor="end"
-            fill={COL_AVG}
-            fontSize="10"
-            fontWeight="700"
-          >
-            Avg {fmtPct(avgReturn, { plainPositive: true })}
-          </text>
-        </g>
-      ) : null;
-
-    return (
-      <svg
-        className="ticker-annual-figma__svg ticker-monthly__svg"
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio={chartSvgPreserveAspectRatio(svgFs)}
-        style={tickerSvgPlotStyle(plotPxEffective, { fullscreen: svgFs })}
-      >
-        {gridLines}
-        {bars}
-        {avgLine}
-        {xLabels}
-      </svg>
-    );
-  }, [
-    avgReturn,
-    chartFs,
-    plotWidthEffective,
-    colAxis,
-    colLabel,
-    monthValues,
-    periodMode,
-    plotPxEffective,
-    resizeDefaultHeight,
-    svgFs,
-    weekAxisLabels,
-    yMin,
-    yMax
-  ]);
-
   const symU = String(symbol || 'ticker').toUpperCase();
   const yearOptions = useMemo(() => {
     if (hideChartDateApplyRow && periodMode === 'weekly') {
@@ -384,6 +227,16 @@ export function TickerMonthlyReturnsChart({
   const selectedYearRows = useMemo(
     () => filteredRows.filter((r) => r.year === selectedYear).sort((a, b) => a.month - b.month),
     [filteredRows, selectedYear]
+  );
+  const seoNarrative = useMemo(
+    () =>
+      buildReturnNarrative({
+        rows: selectedYearRows,
+        symbol,
+        mode: periodMode,
+        valueField: 'totalReturn'
+      }),
+    [selectedYearRows, symbol, periodMode]
   );
   const onDownloadCsv = useCallback(() => {
     if (!selectedYearRows.length) return;
@@ -487,6 +340,54 @@ export function TickerMonthlyReturnsChart({
     </button>
   ) : null;
 
+  const monthlyTitleLabel =
+    periodMode === 'weekly' ? 'WEEKLY STATISTICS' : periodMode === 'daily' ? 'DAILY STATISTICS' : 'MONTHLY STATISTICS';
+
+  const hasMonthlyHeadRange =
+    Boolean(chartToolbarExtras) ||
+    Boolean(showYearInToolbar) ||
+    Boolean(!isMonthlyMode && !suppressChartDateFilter && !hideChartDateApplyRow);
+
+  const renderMonthlyHead = (iconsDisabled) => (
+    <div className="ticker-monthly__head ticker-monthly__head--split">
+      <div className="ticker-monthly__title-block">
+        <div className="flex align-centers">
+          <ReturnsChartPieIcon />
+        </div>
+        <ReturnsChartClickableTitle className="ticker-monthly__title uppercase" onClick={onViewMore}>
+          {monthlyTitleLabel}
+        </ReturnsChartClickableTitle>
+        <ChartInfoTip
+          tip={!rows.length && !loading ? CHART_INFO_TIPS.monthlyReturnsByYear : CHART_INFO_TIPS.monthlyReturnsChart}
+          align="end"
+        />
+      </div>
+      <div className="ticker-monthly__head-icons">
+        <ReturnsChartToolbar
+          className="ticker-monthly__toolbar-icons-bar"
+          rangeControls={null}
+          showViewMore={false}
+          onToggleTable={() => setShowTable((v) => !v)}
+          showTable={showTable}
+          onDownload={onDownloadCsv}
+          downloadDisabled={iconsDisabled || !selectedYearRows.length}
+          extraActions={monthlyExtraActions}
+        />
+        <ChartSectionIconActions
+          snapshotRootRef={sectionRef}
+          plotHostRef={chartCardRef}
+          fullscreenTargetRef={chartFsShellRef}
+          buildFilename={buildExportFilename}
+          disabled={iconsDisabled || chartExportDisabled}
+          exportPreviewAlt={`${periodMode} returns chart for ${symU}`}
+        />
+      </div>
+      {hasMonthlyHeadRange ? (
+        <div className="ticker-monthly__head-range">{monthlyRangeControls}</div>
+      ) : null}
+    </div>
+  );
+
   if (!rows.length) {
     if (loading) {
       return (
@@ -499,36 +400,21 @@ export function TickerMonthlyReturnsChart({
     }
     return (
       <div className="ticker-monthly">
+        {seoNarrative ? <p className="sr-only">{seoNarrative}</p> : null}
 
         <div
           ref={sectionRef}
           className={
-            'ticker-annual-figma__section' + (resize.enabled ? ' ticker-annual-figma__section--resize' : '')
+            'ticker-annual-figma__section ticker-annual-figma__section--chartjs' +
+            (resize.enabled ? ' ticker-annual-figma__section--resize' : '')
+          }
+          style={
+            resize.enabled && plotPx != null
+              ? { '--ticker-resize-plot-h': `${Math.round(plotPx)}px` }
+              : undefined
           }
         >
-          <div className="ticker-monthly__head">
-            <div className="ticker-monthly__title-block">
-              <div className="flex align-centers">
-                <ReturnsChartPieIcon />
-              </div>
-              <ReturnsChartClickableTitle className="ticker-monthly__title uppercase" onClick={onViewMore}>
-                {periodMode === 'weekly' ? 'WEEKLY STATISTICS' : periodMode === 'daily' ? 'DAILY STATISTICS' : 'MONTHLY STATISTICS'}
-              </ReturnsChartClickableTitle>
-              <ChartInfoTip tip={CHART_INFO_TIPS.monthlyReturnsByYear} align="end" />
-            </div>
-            {showYearInToolbar ? renderYearDropdown('ticker-monthly-year-head') : null}
-            <ChartSectionIconActions
-              snapshotRootRef={sectionRef}
-              plotHostRef={chartCardRef}
-              fullscreenTargetRef={chartFsShellRef}
-              buildFilename={buildExportFilename}
-              disabled
-              exportPreviewAlt={`${periodMode} returns for ${symU}`}
-            />
-          </div>
-          {chartToolbarExtras ? (
-            <div className="flex flex-wrap items-center gap-2 px-1 py-1">{chartToolbarExtras}</div>
-          ) : null}
+          {renderMonthlyHead(true)}
           {showDateApplyRow ? (
             <ChartDateApplyRow
               idPrefix="monthly-returns-empty"
@@ -550,43 +436,20 @@ export function TickerMonthlyReturnsChart({
 
   return (
     <div className="ticker-monthly">
+      {seoNarrative ? <p className="sr-only">{seoNarrative}</p> : null}
       <div
         ref={sectionRef}
         className={
-          'ticker-annual-figma__section' + (resize.enabled ? ' ticker-annual-figma__section--resize' : '')
+          'ticker-annual-figma__section ticker-annual-figma__section--chartjs' +
+          (resize.enabled ? ' ticker-annual-figma__section--resize' : '')
+        }
+        style={
+          resize.enabled && plotPx != null
+            ? { '--ticker-resize-plot-h': `${Math.round(plotPx)}px` }
+            : undefined
         }
       >
-        <div className="ticker-monthly__head">
-          <div className="ticker-monthly__title-block">
-            <div className="flex align-centers">
-              <ReturnsChartPieIcon />
-            </div>
-            <ReturnsChartClickableTitle className="ticker-monthly__title uppercase" onClick={onViewMore}>
-              {periodMode === 'weekly' ? 'WEEKLY STATISTICS' : periodMode === 'daily' ? 'DAILY STATISTICS' : 'MONTHLY STATISTICS'}
-            </ReturnsChartClickableTitle>
-            <ChartInfoTip tip={CHART_INFO_TIPS.monthlyReturnsChart} align="end" />
-          </div>
-          <div className="ticker-monthly__head-right">
-            <ReturnsChartToolbar
-              className="ticker-monthly__toolbar min-w-0"
-              rangeControls={monthlyRangeControls}
-              showViewMore={false}
-              onToggleTable={() => setShowTable((v) => !v)}
-              showTable={showTable}
-              onDownload={onDownloadCsv}
-              downloadDisabled={!selectedYearRows.length}
-              extraActions={monthlyExtraActions}
-            />
-            <ChartSectionIconActions
-              snapshotRootRef={sectionRef}
-              plotHostRef={chartCardRef}
-              fullscreenTargetRef={chartFsShellRef}
-              buildFilename={buildExportFilename}
-              disabled={chartExportDisabled}
-              exportPreviewAlt={`${periodMode} returns chart for ${symU}`}
-            />
-          </div>
-        </div>
+        {renderMonthlyHead(false)}
         {showDateApplyRow ? (
           <ChartDateApplyRow
             idPrefix="monthly-returns"
@@ -596,13 +459,22 @@ export function TickerMonthlyReturnsChart({
         ) : null}
 
         <div ref={chartFsShellRef} className="ticker-chart-fs-shell">
-          <div ref={assignChartCardRef} className="ticker-annual-figma__chart-card">
+          <div ref={assignChartCardRef} className="ticker-annual-figma__chart-card ticker-annual-figma__chart-card--chartjs">
             {rows.length > 0 && !filteredRows.length ? (
               <p className="ticker-annual-figma__empty" style={{ padding: '1.25rem' }}>
                 No monthly rows overlap the selected date range.
               </p>
             ) : (
-              chart
+              <StatsPeriodSlotReturnsBarChart
+                slotValues={monthValues}
+                periodMode={periodMode}
+                weekAxisLabels={weekAxisLabels}
+                avgReturn={avgReturn}
+                yMin={yMin}
+                yMax={yMax}
+                plotHeight={Math.max(140, plotPxEffective ?? resizeDefaultHeight)}
+                chartFullscreen={chartFs}
+              />
             )}
           </div>
         </div>
@@ -613,7 +485,7 @@ export function TickerMonthlyReturnsChart({
             {selectedYear}
           </span>
           <span className="ticker-annual-figma__legend-item">
-            <span className="ticker-annual-figma__swatch-line" style={{ borderTopColor: COL_AVG }} aria-hidden />
+            <span className="ticker-annual-figma__swatch-line" style={{ borderTopColor: TICKER_RETURNS_COL_AVG }} aria-hidden />
             Avg return
           </span>
         </div>

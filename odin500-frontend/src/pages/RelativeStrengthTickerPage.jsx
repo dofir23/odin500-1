@@ -9,7 +9,7 @@ import {
   useDeferredValue
 } from 'react';
 import { createChart, PriceScaleMode } from 'lightweight-charts';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ThemedDropdown } from '../components/ThemedDropdown.jsx';
 import { TickerSymbolCombobox } from '../components/TickerSymbolCombobox.jsx';
 import { AnnualReturnBarChart } from '../components/AnnualReturnBarChart.jsx';
@@ -21,8 +21,12 @@ import {fetchWithAuth, getAuthToken, canFetchProtectedApi} from '../store/apiSto
 import { apiUrl } from '../utils/apiOrigin.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { useTickerList } from '../hooks/useTickerList.js';
-import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
+import {
+  buildRelativePerformanceTickerHref,
+  parseRelativePerformanceRouteSymbols
+} from '../utils/relativeStrengthNavigation.js';
 import { normalizeTickerSymbolList } from '../utils/tickerMultiselectInput.js';
+import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 import {
   applyDateEndChange,
@@ -61,13 +65,6 @@ function rsTickerSeriesKey(sym) {
   return `T:${String(sym || '').toUpperCase()}`;
 }
 
-function parseRsPageTickerSymbols(raw) {
-  const parts = String(raw || '')
-    .split(',')
-    .map((p) => sanitizeTickerPageInput(p.trim()))
-    .filter(Boolean);
-  return parts.length ? parts : ['AAPL'];
-}
 const MODE_OPTIONS = [
   { id: 'daily', label: 'Daily' },
   { id: 'weekly', label: 'Weekly' },
@@ -545,8 +542,9 @@ function RsMainLineChartPlot({
 }
 
 export default function RelativeStrengthTickerPage() {
-  const [searchParams] = useSearchParams();
-  const tickerFromQuery = searchParams.get('ticker') || searchParams.get('symbol') || '';
+  const { symbol: symbolParam } = useParams();
+  const navigate = useNavigate();
+  const routeTickers = useMemo(() => parseRelativePerformanceRouteSymbols(symbolParam), [symbolParam]);
   const tickerOptions = useTickerList();
   const docTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
   const isLight = docTheme === 'light';
@@ -562,14 +560,12 @@ export default function RelativeStrengthTickerPage() {
   const [error, setError] = useState('');
   const [indexSymbol, setIndexSymbol] = useState('SPX');
   /** Single ticker driving all three stats comparison charts (annual / excess / periodic). */
-  const [statsCmpTicker, setStatsCmpTicker] = useState(
-    () => parseRsPageTickerSymbols(tickerFromQuery || 'AAPL')[0]
-  );
+  const [statsCmpTicker, setStatsCmpTicker] = useState(() => routeTickers[0]);
   const [benchCmpAnnual, setBenchCmpAnnual] = useState('SPX');
   const [benchCmpExcess, setBenchCmpExcess] = useState('SPX');
   const [benchCmpPeriodic, setBenchCmpPeriodic] = useState('SPX');
-  const [tickerSymbols, setTickerSymbols] = useState(() => parseRsPageTickerSymbols(tickerFromQuery || 'AAPL'));
-  const tickerSymbol = tickerSymbols[0] || 'AAPL';
+  const [tickerSymbols, setTickerSymbols] = useState(() => [...routeTickers]);
+  const tickerSymbol = tickerSymbols[0] || '';
   const [mode, setMode] = useState('monthly');
   const [seriesData, setSeriesData] = useState({});
   const [dailyStart, setDailyStart] = useState(() => {
@@ -582,7 +578,7 @@ export default function RelativeStrengthTickerPage() {
   const [startYear, setStartYear] = useState(String(currentYear - 4));
   const [endYear, setEndYear] = useState(String(currentYear));
   const [activeChartKeys, setActiveChartKeys] = useState(() => [
-    rsTickerSeriesKey('AAPL'),
+    ...routeTickers.map(rsTickerSeriesKey),
     ...RS_BENCH_CHART_KEYS
   ]);
   const [axisBadgeTops, setAxisBadgeTops] = useState({});
@@ -614,28 +610,25 @@ export default function RelativeStrengthTickerPage() {
   }, [currentYear]);
 
   const tickerDropdownOptions = useMemo(() => {
-    const items = Array.isArray(tickerOptions) && tickerOptions.length ? tickerOptions : ['AAPL', 'MSFT', 'NVDA', 'AMZN'];
+    const items = Array.isArray(tickerOptions) ? tickerOptions : [];
     return items.map((sym) => ({ id: String(sym), label: String(sym) }));
   }, [tickerOptions]);
 
   const indexDropdownOptions = useMemo(() => INDEX_BENCHMARK_OPTIONS, []);
 
   useEffect(() => {
+    if (!tickerDropdownOptions.length || !tickerSymbols.length) return;
     const ids = new Set(tickerDropdownOptions.map((opt) => opt.id));
-    if (!tickerSymbols.length) {
-      setTickerSymbols(['AAPL']);
-      return;
-    }
-    const primary = tickerSymbols[0];
-    if (primary && !ids.has(primary)) {
-      setTickerSymbols([tickerDropdownOptions[0]?.id || 'AAPL', ...tickerSymbols.slice(1)]);
+    const filtered = tickerSymbols.filter((s) => ids.has(s));
+    if (filtered.length !== tickerSymbols.length) {
+      setTickerSymbols(filtered);
     }
   }, [tickerDropdownOptions, tickerSymbols]);
 
   useEffect(() => {
     const ids = new Set(tickerDropdownOptions.map((opt) => opt.id));
     if (statsCmpTicker && !ids.has(statsCmpTicker)) {
-      setStatsCmpTicker(tickerDropdownOptions[0]?.id || 'AAPL');
+      setStatsCmpTicker(tickerDropdownOptions[0]?.id || '');
     }
   }, [tickerDropdownOptions, statsCmpTicker]);
 
@@ -647,8 +640,22 @@ export default function RelativeStrengthTickerPage() {
   }, [indexDropdownOptions, indexSymbol]);
 
   useEffect(() => {
-    if (tickerFromQuery) setTickerSymbols(parseRsPageTickerSymbols(tickerFromQuery));
-  }, [tickerFromQuery]);
+    setTickerSymbols((prev) => {
+      if (prev.join(',') === routeTickers.join(',')) return prev;
+      return [...routeTickers];
+    });
+    const primary = routeTickers[0];
+    if (primary) {
+      setStatsCmpTicker((prev) => (prev === primary ? prev : primary));
+    }
+  }, [routeTickers]);
+
+  useEffect(() => {
+    const syms = normalizeTickerSymbolList(tickerSymbols);
+    if (syms.join(',') !== routeTickers.join(',')) {
+      navigate(buildRelativePerformanceTickerHref(syms), { replace: true });
+    }
+  }, [tickerSymbols, routeTickers, navigate]);
 
   useEffect(() => {
     const tickerKeys = tickerSymbols.map(rsTickerSeriesKey);
@@ -1508,69 +1515,77 @@ export default function RelativeStrengthTickerPage() {
       const bounds = dateInputBounds(dailyStart, dailyEnd);
       return (
         <div className="relative-strength-page__date-row" aria-label="Relative strength chart date range">
-          <span className="ticker-page__label ticker-page__label--inline">Start date</span>
-          <input
-            className="relative-strength-page__date-inp"
-            type="date"
-            value={dailyStart}
-            min={bounds.startMin}
-            max={bounds.startMax}
-            onChange={(e) => {
-              const next = applyDateStartChange(dailyStart, dailyEnd, e.target.value);
-              setDailyStart(next.start);
-              setDailyEnd(next.end);
-            }}
-            aria-label="Start date"
-          />
-          <span className="ticker-page__label ticker-page__label--inline">End date</span>
-          <input
-            className="relative-strength-page__date-inp"
-            type="date"
-            value={dailyEnd}
-            min={bounds.endMin}
-            max={bounds.endMax}
-            onChange={(e) => {
-              const next = applyDateEndChange(dailyStart, dailyEnd, e.target.value);
-              setDailyStart(next.start);
-              setDailyEnd(next.end);
-            }}
-            aria-label="End date"
-          />
+          <div className="relative-strength-page__range-field">
+            <span className="relative-strength-page__range-label">Start date</span>
+            <input
+              className="relative-strength-page__date-inp"
+              type="date"
+              value={dailyStart}
+              min={bounds.startMin}
+              max={bounds.startMax}
+              onChange={(e) => {
+                const next = applyDateStartChange(dailyStart, dailyEnd, e.target.value);
+                setDailyStart(next.start);
+                setDailyEnd(next.end);
+              }}
+              aria-label="Start date"
+            />
+          </div>
+          <div className="relative-strength-page__range-field">
+            <span className="relative-strength-page__range-label">End date</span>
+            <input
+              className="relative-strength-page__date-inp"
+              type="date"
+              value={dailyEnd}
+              min={bounds.endMin}
+              max={bounds.endMax}
+              onChange={(e) => {
+                const next = applyDateEndChange(dailyStart, dailyEnd, e.target.value);
+                setDailyStart(next.start);
+                setDailyEnd(next.end);
+              }}
+              aria-label="End date"
+            />
+          </div>
         </div>
       );
     }
     return (
       <div className="relative-strength-page__year-row" aria-label="Relative strength chart year range">
-        <span className="ticker-page__label ticker-page__label--inline">Start</span>
-        <ThemedDropdown
-          className="relative-strength-page__year-dd"
-          value={startYear}
-          options={yearOptionsForStart(yearOptions, endYear)}
-          onChange={(v) => {
-            const next = applyYearStartChange(startYear, endYear, v);
-            setStartYear(next.start);
-            setEndYear(next.end);
-          }}
-          title="Start year"
-          ariaLabelPrefix="Start year"
-          size="sm"
-          wideLabel
-        />
-        <span className="ticker-page__label ticker-page__label--inline">End</span>
-        <ThemedDropdown
-          className="relative-strength-page__year-dd"
-          value={endYear}
-          options={yearOptionsForEnd(yearOptions, startYear)}
-          onChange={(v) => {
-            const next = applyYearEndChange(startYear, endYear, v);
-            setStartYear(next.start);
-            setEndYear(next.end);
-          }}
-          title="End year"
-          ariaLabelPrefix="End year"
-          size="sm"
-          wideLabel
-        />
+        <div className="relative-strength-page__range-field">
+          <span className="relative-strength-page__range-label">Start</span>
+          <ThemedDropdown
+            className="relative-strength-page__year-dd"
+            value={startYear}
+            options={yearOptionsForStart(yearOptions, endYear)}
+            onChange={(v) => {
+              const next = applyYearStartChange(startYear, endYear, v);
+              setStartYear(next.start);
+              setEndYear(next.end);
+            }}
+            title="Start year"
+            ariaLabelPrefix="Start year"
+            size="sm"
+            wideLabel
+          />
+        </div>
+        <div className="relative-strength-page__range-field">
+          <span className="relative-strength-page__range-label">End</span>
+          <ThemedDropdown
+            className="relative-strength-page__year-dd"
+            value={endYear}
+            options={yearOptionsForEnd(yearOptions, startYear)}
+            onChange={(v) => {
+              const next = applyYearEndChange(startYear, endYear, v);
+              setStartYear(next.start);
+              setEndYear(next.end);
+            }}
+            title="End year"
+            ariaLabelPrefix="End year"
+            size="sm"
+            wideLabel
+          />
+        </div>
       </div>
     );
   }, [mode, dailyStart, dailyEnd, startYear, endYear, yearOptions]);
@@ -1580,7 +1595,7 @@ export default function RelativeStrengthTickerPage() {
     <section className="relative-strength-page">
       <div className="relative-strength-page__topbar">
         <div className="relative-strength-page__head">
-          <h1 className="relative-strength-page__title">Relative Strength</h1>
+          <h1 className="relative-strength-page__title">Relative Performance</h1>
           <p className="relative-strength-page__sub">Compare normalized performance for ticker and market benchmarks.</p>
         </div>
 
@@ -1599,7 +1614,7 @@ export default function RelativeStrengthTickerPage() {
               symbols={tickerSymbols}
               onSymbolsChange={(next) => {
                 const normalized = normalizeTickerSymbolList(next);
-                startTransition(() => setTickerSymbols(normalized.length ? normalized : ['AAPL']));
+                startTransition(() => setTickerSymbols(normalized));
               }}
               inputId="relative-strength-ticker-symbol"
               placeholder="AAPL, MSFT, …"

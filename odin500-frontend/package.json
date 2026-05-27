@@ -14,17 +14,20 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
+    "chart.js": "^4.5.1",
+    "chartjs-plugin-datalabels": "^2.2.0",
     "compression": "^1.8.0",
-    "express": "^5.1.0",
-    "react-helmet-async": "^2.0.5",
-    "sirv": "^3.0.1",
     "d3-hierarchy": "^3.1.2",
+    "express": "^5.1.0",
     "html2canvas": "^1.4.1",
     "lightweight-charts": "4.2.3",
     "lucide-react": "^1.8.0",
     "react": "^18.3.1",
+    "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^7.14.0"
+    "react-helmet-async": "^2.0.5",
+    "react-router-dom": "^7.14.0",
+    "sirv": "^3.0.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",

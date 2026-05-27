@@ -13,6 +13,7 @@ import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js'
 import { chartAxisLabelColors } from '../utils/chartAxisLabelColors.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { fmtPct, fmtPctSigned } from '../utils/formatDisplayNumber.js';
+import { buildReturnNarrative } from '../utils/seoChartNarratives.js';
 
 const COL_GRID = 'rgba(148, 163, 184, 0.14)';
 const COL_GRID_ZERO = 'rgba(148, 163, 184, 0.35)';
@@ -133,6 +134,16 @@ export function TickerQuarterlyReturnsChart({
   }, [years]);
 
   const totalYearsInSelection = years.length;
+  const seoNarrative = useMemo(
+    () =>
+      buildReturnNarrative({
+        rows: filteredRows,
+        symbol,
+        mode: 'quarterly',
+        valueField: 'totalReturn'
+      }),
+    [filteredRows, symbol]
+  );
 
   const leftSvg = useMemo(() => {
     if (!years.length) return null;
@@ -370,6 +381,7 @@ export function TickerQuarterlyReturnsChart({
     }
     return (
       <div className="ticker-quarterly">
+        {seoNarrative ? <p className="sr-only">{seoNarrative}</p> : null}
         <div ref={sectionRef} className="ticker-annual-figma__section">
           <div className="ticker-annual-figma__toolbar">
             <QuarterlyReturnsToolbarBadge onClick={onViewMore} />
@@ -396,6 +408,7 @@ export function TickerQuarterlyReturnsChart({
 
   return (
     <div className="ticker-quarterly">
+      {seoNarrative ? <p className="sr-only">{seoNarrative}</p> : null}
       <div ref={sectionRef} className="ticker-annual-figma__section">
         <div className="ticker-annual-figma__toolbar">
           <QuarterlyReturnsToolbarBadge onClick={onViewMore} />

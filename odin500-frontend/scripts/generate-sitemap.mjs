@@ -68,7 +68,7 @@ async function resolveTickers() {
     const fromApi = await fetchTickersFromApi();
     if (fromApi.length) {
       console.log(`[sitemap] ${fromApi.length} tickers from API`);
-      return fromApi.slice(0, 500);
+      return fromApi.slice(0, 559);
     }
   } catch (err) {
     console.warn('[sitemap] API ticker fetch failed, using fallback list:', err.message);

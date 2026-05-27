@@ -38,6 +38,11 @@ export const PAGE_SEO_CATALOG = {
     description:
       'Downloadable return statistics across daily, weekly, monthly, quarterly, and annual horizons for Odin500-covered tickers.'
   },
+  '/return-table': {
+    title: 'Return Table — Index, Sector & ETF Period Returns | Odin500',
+    description:
+      'Multi-period return tables for US indices, S&P 500 sectors, index ETFs, and other market series across 1D through 20Y horizons.'
+  },
   '/historical-data': {
     title: 'Historical OHLC Data Export | Odin500',
     description: 'Query and export historical open-high-low-close price data and signals for U.S. equities on Odin500.'
@@ -51,10 +56,10 @@ export const PAGE_SEO_CATALOG = {
     description:
       'Compare Odin500 Basic, Premium, and Pro plans for index signals, ETF coverage, and full Odin trading signal access.'
   },
-  '/relative-strength/ticker': {
-    title: 'Relative Strength Comparison | Odin500',
+  '/relative-performance/ticker/aapl': {
+    title: 'Relative Performance Comparison | Odin500',
     description:
-      'Compare relative strength and excess returns across tickers, indices, and sectors with Odin500 charts and tables.'
+      'Compare relative performance and excess returns across tickers, indices, and sectors with Odin500 charts and tables.'
   },
   '/indices/sp500': {
     title: 'S&P 500 Index Analytics | Odin500',

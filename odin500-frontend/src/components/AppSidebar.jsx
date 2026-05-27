@@ -5,6 +5,7 @@ import { Odin500BrandLink } from './Odin500BrandLink.jsx';
 import { useHeaderProfile } from '../hooks/useHeaderProfile.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { prefetchRouteChunks } from '../utils/routePrefetch.js';
+import { buildRelativePerformanceDefaultHref } from '../utils/relativeStrengthNavigation.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL, isMainTickerRoutePath } from '../utils/tickerUrlSync.js';
 
 function IconGlobe() {
@@ -301,11 +302,20 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
   const weeklyPageActive = location.pathname.startsWith('/statistic/ticker-weekly');
   const dailyPageActive = location.pathname.startsWith('/statistic/ticker-daily');
   const isStatsRoute =
-    annualPageActive || quarterlyPageActive || monthlyPageActive || weeklyPageActive || dailyPageActive || location.pathname === '/statistic-data';
+    annualPageActive || quarterlyPageActive || monthlyPageActive || weeklyPageActive || dailyPageActive;
   const isIndicesRoute = location.pathname.startsWith('/indices');
   const isSectorDataRoute = location.pathname.startsWith('/sector-data');
+  const relativePerformanceTo = buildRelativePerformanceDefaultHref();
+  const returnTableTo = '/return-table';
+  const isRelativePerformanceRoute =
+    location.pathname.startsWith('/relative-performance') ||
+    location.pathname.startsWith('/relative-strength');
+  const isReturnTableRoute =
+    location.pathname === '/return-table' || location.pathname.startsWith('/return-table/');
+  const isRelativePerformanceGroupRoute = isRelativePerformanceRoute || isReturnTableRoute;
   const [indicesOpen, setIndicesOpen] = useState(isIndicesRoute);
   const [statsOpen, setStatsOpen] = useState(isStatsRoute);
+  const [relativePerformanceOpen, setRelativePerformanceOpen] = useState(isRelativePerformanceGroupRoute);
 
 
   useEffect(() => {
@@ -315,6 +325,10 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
   useEffect(() => {
     if (isStatsRoute) setStatsOpen(true);
   }, [isStatsRoute]);
+
+  useEffect(() => {
+    if (isRelativePerformanceGroupRoute) setRelativePerformanceOpen(true);
+  }, [isRelativePerformanceGroupRoute]);
 
   useEffect(() => {
     setTheme(getDocumentTheme());
@@ -516,7 +530,69 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
                   <NavRow to={dailyTo} icon={IconBarChart} label="Daily" active={dailyPageActive || statSection === 'daily'} />
                 </div>
               ) : null}
-              <NavRow to="/relative-strength/ticker" icon={IconLineChart} label="Relative strength" />
+              <div
+                className={
+                  'app-sidebar__row app-sidebar__row--indices app-sidebar__row--indices-split' +
+                  (isRelativePerformanceRoute ? ' app-sidebar__row--active' : '')
+                }
+                role="group"
+                aria-label="Relative performance"
+                onMouseEnter={() => {
+                  prefetchRouteChunks(relativePerformanceTo);
+                  prefetchRouteChunks(returnTableTo);
+                }}
+              >
+                <NavLink
+                  to={relativePerformanceTo}
+                  className="app-sidebar__indices-main"
+                  onClick={() => {
+                    setRelativePerformanceOpen(true);
+                    closeMobileSidebar();
+                  }}
+                  onFocus={() => {
+                    prefetchRouteChunks(relativePerformanceTo);
+                    prefetchRouteChunks(returnTableTo);
+                  }}
+                  title="Open relative performance (opens menu)"
+                >
+                  <span className="app-sidebar__row-icon">
+                    <IconLineChart />
+                  </span>
+                  <span className="app-sidebar__row-label">Relative performance</span>
+                </NavLink>
+                <button
+                  type="button"
+                  className="app-sidebar__indices-chevron-btn"
+                  aria-expanded={relativePerformanceOpen}
+                  aria-controls="app-sidebar-relative-performance-options"
+                  aria-label={
+                    relativePerformanceOpen
+                      ? 'Collapse relative performance submenu'
+                      : 'Expand relative performance submenu'
+                  }
+                  onClick={() => setRelativePerformanceOpen((v) => !v)}
+                >
+                  <span
+                    className={
+                      'app-sidebar__indices-chevron' +
+                      (relativePerformanceOpen ? ' app-sidebar__indices-chevron--open' : '')
+                    }
+                    aria-hidden
+                  >
+                    <IconChevronRight />
+                  </span>
+                </button>
+              </div>
+              {relativePerformanceOpen ? (
+                <div
+                  id="app-sidebar-relative-performance-options"
+                  className="app-sidebar__subnav"
+                  role="group"
+                  aria-label="Relative performance options"
+                >
+                  <NavRow to={returnTableTo} icon={IconDocSearch} label="Return table" active={isReturnTableRoute} />
+                </div>
+              ) : null}
               {/* <NavRow icon={IconFocus} label="Odin Index Signals" onClick={() => {}} /> */}
               {/* <NavRow to="/odin-signals" icon={IconFocus} label="Odin Signals" /> */}
               {/* <NavRow icon={IconWallet} label="Sample Odin Portfolios" onClick={() => {}} />

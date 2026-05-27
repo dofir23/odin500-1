@@ -18,6 +18,7 @@ const TickerPage = lazy(() => import('./pages/TickerPage.jsx'));
 const IndexPage = lazy(() => import('./pages/IndexPage.jsx'));
 const MarketMoversPage = lazy(() => import('./pages/MarketMoversPage.jsx'));
 const StatisticDataPage = lazy(() => import('./pages/StatisticDataPage.jsx'));
+const ReturnTablePage = lazy(() => import('./pages/ReturnTablePage.jsx'));
 const TickerAnnualPage = lazy(() => import('./pages/TickerAnnualPage.jsx'));
 const TickerQuarterlyPage = lazy(() => import('./pages/TickerQuarterlyPage.jsx'));
 const TickerMonthlyPage = lazy(() => import('./pages/TickerMonthlyPage.jsx'));
@@ -45,6 +46,7 @@ const lazyPages = {
   IndexPage,
   MarketMoversPage,
   StatisticDataPage,
+  ReturnTablePage,
   TickerAnnualPage,
   TickerQuarterlyPage,
   TickerMonthlyPage,

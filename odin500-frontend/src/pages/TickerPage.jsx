@@ -505,6 +505,7 @@ function IconChevronRight({ className }) {
 function ChartTypeToolbarDropdown({ chartType, onChartTypeChange }) {
   return (
     <ThemedDropdown
+      className="ticker-page__chart-type-dd"
       value={chartType}
       options={TICKER_CHART_TYPE_OPTIONS}
       onChange={onChartTypeChange}
@@ -1774,10 +1775,11 @@ export default function TickerPage() {
             <div className="ticker-card__head">
               
               <div className="ticker-page__search-row">
-                <TickerSymbolCombobox symbol={sym} onSymbolChange={onSymbolChange} inputId="ticker-chart-symbol" />
-                <ChartTypeToolbarDropdown chartType={mainChartType} onChartTypeChange={setMainChartType} />
-                
-              
+                <div className="ticker-page__search-row-controls">
+                  <TickerSymbolCombobox symbol={sym} onSymbolChange={onSymbolChange} inputId="ticker-chart-symbol" />
+                  <ChartTypeToolbarDropdown chartType={mainChartType} onChartTypeChange={setMainChartType} />
+                </div>
+
                 {/* <DataInfoTip align="start">
                   <p className="ticker-data-tip__p">
                     <strong>Ticker selection</strong> drives every request on this page for one symbol.
@@ -1823,12 +1825,14 @@ export default function TickerPage() {
                   />
                 </div>
               </div>
-              <div className="ticker-tf-with-tip">
-                <div className="ticker-tf-row">
+              <div className="ticker-tf-with-tip min-w-0 w-full max-w-full">
+                <div className="ticker-tf-row" role="tablist" aria-label="Chart timeframe">
                   {TIMEFRAMES.map((tf) => (
                     <button
                       key={tf}
                       type="button"
+                      role="tab"
+                      aria-selected={!appliedCustomRange && tf === timeframe}
                       className={
                         'ticker-tf' +
                         (!appliedCustomRange && tf === timeframe ? ' ticker-tf--active' : '')
@@ -1844,7 +1848,12 @@ export default function TickerPage() {
                   ))}
                   <button
                     type="button"
-                    className={'ticker-tf' + (appliedCustomRange || isCustomRangePopupOpen ? ' ticker-tf--active' : '')}
+                    role="tab"
+                    aria-selected={Boolean(appliedCustomRange || isCustomRangePopupOpen)}
+                    className={
+                      'ticker-tf ticker-tf--calendar' +
+                      (appliedCustomRange || isCustomRangePopupOpen ? ' ticker-tf--active' : '')
+                    }
                     onClick={() => {
                       if (appliedCustomRange) {
                         setDraftChartStart(appliedCustomRange.start);
@@ -2060,7 +2069,7 @@ export default function TickerPage() {
           <section className="mkt-mini-card ticker-aside-mini" aria-labelledby="odin-signal-h">
             <header className="mkt-mini-card__head">
               <h2 className="mkt-mini-card__k uppercase" id="odin-signal-h">
-                Odin Signal
+                Indicative Signal
               </h2>
               <span className="mkt-mini-card__head-actions">
                 <ChartInfoTip tip={CHART_INFO_TIPS.tickerSignalLadder} align="start" />

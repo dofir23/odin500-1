@@ -19,6 +19,8 @@ import { CHART_INFO_TIPS } from './chartInfoTips.js';
 import { fmtAbsSigned, fmtPct, fmtPctSigned, fmtPrice } from '../utils/marketCalculations.js';
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
+import { MarketReturnsSummaryTable } from './MarketReturnsSummaryTable.jsx';
+import { buildValsFromBatch, fetchMarketTickerReturnsBatch, uniqueMarketSummaryTickers } from '../utils/marketReturnsTable.js';
 
 const LEFT_GROUPS = [
   { id: 'us', title: 'Key US Indices ' },
@@ -365,66 +367,22 @@ return (
   );
 }
 
-/** Summary column → `performance.dynamicPeriods[].period` (POST /api/market/ticker-returns). */
-const SUMMARY_TF_PERIOD = {
-  '1D': 'Last date',
-  '1M': 'Last Month',
-  '6M': 'Last 6 months',
-  '1Y': 'Last 1 year',
-  '3Y': 'Last 3 years',
-  '5Y': 'Last 5 years',
-  '10Y': 'Last 10 years',
-  '20Y': 'Last 20 years'
-};
-
-function pickTickerReturnsFromBatch(payload, ticker) {
-  const u = String(ticker || '').toUpperCase().trim();
-  if (!payload || !u) return null;
-  if (payload.batch === true && payload.byTicker && payload.byTicker[u] != null) {
-    const row = payload.byTicker[u];
-    if (row && row.success === false) return null;
-    return row;
-  }
-  if (!payload.batch && String(payload.ticker || '').toUpperCase() === u) return payload;
-  return null;
-}
-
-function pickDynamicReturnPct(dynamicPeriods, periodName) {
-  if (!periodName || !Array.isArray(dynamicPeriods)) return undefined;
-  const row = dynamicPeriods.find((r) => r.period === periodName);
-  const v = row?.totalReturn;
-  return v != null && Number.isFinite(Number(v)) ? Number(v) : undefined;
-}
+const SUMMARY_RETURNS_DEFS = [
+  { key: 'SPX', label: 'S&P 500' },
+  { key: 'INDU', label: 'Dow Jones' },
+  { key: 'NDX', label: 'Nasdaq-100' },
+  { key: 'XLK', label: 'Technology' },
+  { key: 'XLE', label: 'Energy' },
+  { key: 'XLV', label: 'Healthcare' },
+  { key: 'XLI', label: 'Industrials' }
+];
 
 function SummaryReturnsCard({ refreshMs = 0 }) {
   const [vals, setVals] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const defs = useMemo(
-    () => [
-      { key: 'SPX', label: 'S&P 500' },
-      { key: 'INDU', label: 'Dow Jones' },
-      { key: 'NDX', label: 'Nasdaq-100' },
-      { key: 'XLK', label: 'Technology' },
-      { key: 'XLE', label: 'Energy' },
-      { key: 'XLV', label: 'Healthcare' },
-      { key: 'XLI', label: 'Industrials' }
-    ],
-    []
-  );
-  const tfs = useMemo(() => Object.keys(SUMMARY_TF_PERIOD).map((key) => ({ key })), []);
-
-  const summaryTickers = useMemo(() => {
-    const seen = new Set();
-    const list = [];
-    for (const d of defs) {
-      const t = String(META_BY_KEY[d.key]?.ticker || '').toUpperCase().trim();
-      if (!t || seen.has(t)) continue;
-      seen.add(t);
-      list.push(t);
-    }
-    return list;
-  }, [defs]);
+  const defs = SUMMARY_RETURNS_DEFS;
+  const summaryTickers = useMemo(() => uniqueMarketSummaryTickers(defs), []);
 
   useEffect(() => {
     let cancel = false;
@@ -434,28 +392,9 @@ function SummaryReturnsCard({ refreshMs = 0 }) {
       setLoading(true);
       setError('');
       try {
-        const { data: payload } = await fetchJsonCached({
-          path: '/api/market/ticker-returns',
-          method: 'POST',
-          body: { tickers: summaryTickers },
-          auth: true,
-          ttlMs: refreshMs > 0 ? Math.max(refreshMs, 15_000) : 5 * 60 * 1000
-        });
+        const payload = await fetchMarketTickerReturnsBatch(summaryTickers, refreshMs);
         if (cancel) return;
-        if (!payload?.success && payload?.batch !== true) {
-          throw new Error(payload?.error || 'Failed loading summary returns');
-        }
-        const out = {};
-        for (const d of defs) {
-          const sym = String(META_BY_KEY[d.key]?.ticker || '').toUpperCase().trim();
-          const rec = pickTickerReturnsFromBatch(payload, sym);
-          const periods = rec?.performance?.dynamicPeriods || [];
-          out[d.key] = {};
-          for (const tf of tfs) {
-            out[d.key][tf.key] = pickDynamicReturnPct(periods, SUMMARY_TF_PERIOD[tf.key]);
-          }
-        }
-        setVals(out);
+        setVals(buildValsFromBatch(payload, defs));
       } catch (e) {
         if (!cancel) setError(e.message || 'Failed loading summary');
       } finally {
@@ -469,78 +408,17 @@ function SummaryReturnsCard({ refreshMs = 0 }) {
       cancel = true;
       if (timer) window.clearInterval(timer);
     };
-  }, [defs, tfs, refreshMs, summaryTickers]);
+  }, [defs, refreshMs, summaryTickers]);
 
   return (
-    <section
-      className="mkt-watch-card mkt-returns-summary"
-      style={{ '--mkt-summary-tf-count': tfs.length }}
-    >
-      <header className="mkt-watch-card__head mkt-returns-summary__head">
-        <span className={`mkt-returns-summary__title-row ${MKT_ASIDE_TITLE_CLASS}`}>
-          Index & sector returns
-          <ChartInfoTip tip={CHART_INFO_TIPS.marketIndexReturns} align="start" />
-        </span>
-      </header>
-      <div className="mkt-returns-summary__scroll">
-      <div className="mkt-watch-card__table mkt-returns-summary__table">
-        <div className="mkt-watch-card__row mkt-watch-card__row--head mkt-returns-summary__row" role="row">
-          <span className="mkt-returns-summary__h" role="columnheader">
-            Market
-          </span>
-          {tfs.map((tf) => (
-            <span key={tf.key} className="mkt-returns-summary__h mkt-returns-summary__h--num" role="columnheader">
-              {tf.key}
-            </span>
-          ))}
-        </div>
-        {defs.map((d) => {
-          const meta = META_BY_KEY[d.key];
-          const ticker = meta?.ticker;
-          const routeSym = sanitizeTickerPageInput(ticker || d.key);
-          const indexTo = meta?.indexRouteSlug ? `/indices/${encodeURIComponent(meta.indexRouteSlug)}` : '';
-          const tickerTo =
-            indexTo ||
-            (routeSym && ticker
-              ? `/ticker/${encodeURIComponent(routeSym)}?ticker=${encodeURIComponent(routeSym)}`
-              : '');
-          const rowTitle = indexTo ? `Open ${d.label} index page` : routeSym ? `Open ${routeSym}` : '';
-          const cells = tfs.map((tf) => {
-            const raw = vals?.[d.key]?.[tf.key];
-            const v = Number(raw);
-            const pending = loading && raw === undefined;
-            const text = pending ? '…' : Number.isFinite(v) ? fmtPct(v, { plainPositive: true }) : '—';
-            const tone =
-              !pending && Number.isFinite(v) ? (v > 0 ? 'app-num--up' : v < 0 ? 'app-num--down' : '') : '';
-            return (
-              <span
-                key={tf.key}
-                className={'mkt-returns-summary__cell mkt-returns-summary__cell--num' + (tone ? ` ${tone}` : '')}
-              >
-                {text}
-              </span>
-            );
-          });
-          if (tickerTo) {
-            return (
-              <Link key={d.key} to={tickerTo} className="mkt-watch-card__row mkt-returns-summary__row" title={rowTitle}>
-                <span className="mkt-returns-summary__cell mkt-returns-summary__cell--label">{d.label}</span>
-                {cells}
-              </Link>
-            );
-          }
-          return (
-            <div key={d.key} className="mkt-watch-card__row mkt-returns-summary__row">
-              <span className="mkt-returns-summary__cell mkt-returns-summary__cell--label">{d.label}</span>
-              {cells}
-            </div>
-          );
-        })}
-      </div>
-      </div>
-      {loading ? <div className="mkt-panel-status">Refreshing…</div> : null}
-      {error ? <div className="mkt-panel-status mkt-panel-status--err">{error}</div> : null}
-    </section>
+    <MarketReturnsSummaryTable
+      title="Index & sector returns"
+      defs={defs}
+      vals={vals}
+      loading={loading}
+      error={error}
+      showInfoTip
+    />
   );
 }
 
@@ -858,6 +736,7 @@ function RightWatchlistCard({ refreshMs = 0 }) {
 export function MarketPageFigmaShell() {
   const { isDockOpen } = useRightRailDock();
   const dockLayoutReadyRef = useRef(false);
+  const [isMobileLayout, setIsMobileLayout] = useState(false);
 
   useEffect(() => {
     if (!dockLayoutReadyRef.current) {
@@ -867,6 +746,15 @@ export function MarketPageFigmaShell() {
     const t = window.setTimeout(() => notifyChartFullscreenLayout(), 80);
     return () => window.clearTimeout(t);
   }, [isDockOpen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(max-width: 768px)');
+    const sync = () => setIsMobileLayout(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
 
   const [selectedSeries, setSelectedSeries] = useState(() => {
     try {
@@ -958,8 +846,21 @@ export function MarketPageFigmaShell() {
     }
   }, [timeframe, axisMode, refreshMode]);
 
+  const normalizedPerformanceChart = (
+    <NormalizedPerformanceCard
+      selectedKeys={selectedSeries}
+      onSelectedKeysChange={setSelectedSeries}
+      timeframe={timeframe}
+      onTimeframeChange={setTimeframe}
+      axisMode={axisMode}
+      refreshMs={refreshMs}
+      loadSeriesRows={loadOhlcRows}
+    />
+  );
+
   return (
     <section className={'mkt-fig-shell' + (isDockOpen ? ' mkt-fig-shell--watchlist-dock-open' : '')}>
+      {isMobileLayout ? normalizedPerformanceChart : null}
       <LeftSnapshotStack
         selectedKeys={selectedSeries}
         onToggleSeries={onToggleSeries}
@@ -1008,15 +909,7 @@ export function MarketPageFigmaShell() {
             />
           </label>
         </div> */}
-        <NormalizedPerformanceCard
-          selectedKeys={selectedSeries}
-          onSelectedKeysChange={setSelectedSeries}
-          timeframe={timeframe}
-          onTimeframeChange={setTimeframe}
-          axisMode={axisMode}
-          refreshMs={refreshMs}
-          loadSeriesRows={loadOhlcRows}
-        />
+        {!isMobileLayout ? normalizedPerformanceChart : null}
         <div className="mkt-center-bottom">
           <SummaryReturnsCard refreshMs={refreshMs} />
           <MarketHeatmapThumbnail refreshMs={refreshMs} />

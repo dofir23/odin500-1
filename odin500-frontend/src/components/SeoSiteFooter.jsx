@@ -27,7 +27,7 @@ const FOOTER_SECTIONS = [
       { to: '/statistic/ticker-annual/aapl', label: 'Annual Returns' },
       { to: '/statistic-data', label: 'Statistic Tables' },
       { to: '/historical-data', label: 'Historical Data' },
-      { to: '/relative-strength/ticker', label: 'Relative Strength' }
+      { to: '/relative-performance/ticker/aapl', label: 'Relative Performance' }
     ]
   },
   {

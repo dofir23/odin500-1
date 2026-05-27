@@ -57,9 +57,10 @@ export function pickDynamicReturnPct(dynamicPeriods, periodName) {
 }
 
 export function marketSeriesToRowDef(s) {
+  const useFundName = s.group === 'other' && s.subsection === 'inverse' && s.addon;
   return {
     key: s.key,
-    label: String(s.label || s.key || '').trim()
+    label: String(useFundName ? s.addon : s.label || s.key || '').trim()
   };
 }
 

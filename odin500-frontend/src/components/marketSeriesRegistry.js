@@ -48,18 +48,18 @@ const OTHER_MARKET_ROWS = [
   ['USO', 'Oil', 'USO', 'United States Oil Fund', 'commodities'],
   ['UNG', 'Natural Gas', 'UNG', 'United States Natural Gas Fund', 'commodities'],
 
-  ['SSO', 'SP500 2X', 'SSO', 'ProShares Ultra S&P 500', 'leveraged'],
-  ['SPXL', 'SP500 3X', 'SPXL', 'Direxion Daily S&P 500 Bull 3X Shares', 'leveraged'],
-  ['QLD', 'Nasdaq-100 2X', 'QLD', 'ProShares Ultra QQQ', 'leveraged'],
-  ['TQQQ', 'Nasdaq-100 3X', 'TQQQ', 'ProShares UltraPro QQQ', 'leveraged'],
-  ['WEBL', 'Dow Jones 3X', 'WEBL', 'Direxion Daily Dow Jones Internet Bull 3X Shares', 'leveraged'],
+  ['SSO', 'ProShares Ultra S&P 500', 'SSO', 'ProShares Ultra S&P 500', 'leveraged'],
+  ['SPXL', 'Direxion Daily S&P 500 Bull 3X Shares', 'SPXL', 'Direxion Daily S&P 500 Bull 3X Shares', 'leveraged'],
+  ['QLD', 'ProShares Ultra QQQ', 'QLD', 'ProShares Ultra QQQ', 'leveraged'],
+  ['TQQQ', 'ProShares UltraPro QQQ', 'TQQQ', 'ProShares UltraPro QQQ', 'leveraged'],
+  ['WEBL', 'Direxion Daily Dow Jones Internet Bull 3X Shares', 'WEBL', 'Direxion Daily Dow Jones Internet Bull 3X Shares', 'leveraged'],
 
-  ['SH', 'S&P500 1X', 'SH', 'ProShares Short S&P500', 'inverse'],
-  ['SDS', 'S&P500 2X', 'SDS', 'ProShares UltraShort S&P500', 'inverse'],
-  ['SPXS', 'S&P500 3X', 'SPXS', 'Direxion Daily S&P 500 Bear 3X Shares', 'inverse'],
-  ['PSQ', 'Nasdaq-100 1X', 'PSQ', 'ProShares Short QQQ', 'inverse'],
-  ['QID', 'Nasdaq-100 2X', 'QID', 'ProShares UltraShort QQQ', 'inverse'],
-  ['SQQQ', 'Nasdaq-100 3X', 'SQQQ', 'ProShares UltraPro Short QQQ', 'inverse']
+  ['SH', 'ProShares Short S&P500', 'SH', 'ProShares Short S&P500', 'inverse'],
+  ['SDS', 'ProShares UltraShort S&P500', 'SDS', 'ProShares UltraShort S&P500', 'inverse'],
+  ['SPXS', 'Direxion Daily S&P 500 Bear 3X Shares', 'SPXS', 'Direxion Daily S&P 500 Bear 3X Shares', 'inverse'],
+  ['PSQ', 'ProShares Short QQQ', 'PSQ', 'ProShares Short QQQ', 'inverse'],
+  ['QID', 'ProShares UltraShort QQQ', 'QID', 'ProShares UltraShort QQQ', 'inverse'],
+  ['SQQQ', 'ProShares UltraPro Short QQQ', 'SQQQ', 'ProShares UltraPro Short QQQ', 'inverse']
 ];
 
 /** Chart/checkbox colors for Index ETF rows only (not used by US indices, sectors, or other markets). */

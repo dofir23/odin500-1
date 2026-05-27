@@ -334,13 +334,29 @@ export default function MarketHeatmapPage() {
     let up = 0;
     let down = 0;
     for (const r of rows) {
-      const v = parsePct(r?.totalReturnPercentage);
-      if (!Number.isFinite(v)) continue;
-      if (v > 0) up += 1;
-      else if (v < 0) down += 1;
+      const pct = parsePct(r?.totalReturnPercentage);
+      if (!Number.isFinite(pct)) continue;
+      if (pct > 0) up += 1;
+      else if (pct < 0) down += 1;
     }
     return { up, down };
   }, [rows]);
+
+  const periodSelectOptions = useMemo(() => {
+    if (!periodOptions.length) {
+      return Object.entries(PERIOD_LABEL_OVERRIDES).map(([value, label]) => ({ value, label }));
+    }
+    return periodOptions.map((p) => ({
+      value: p.value,
+      label: PERIOD_LABEL_OVERRIDES[p.value] || p.label || p.value
+    }));
+  }, [periodOptions]);
+
+  const periodDropdownOptions = useMemo(
+    () => periodSelectOptions.map((o) => ({ id: o.value, label: o.label })),
+    [periodSelectOptions]
+  );
+
   const activePeriodLabel = useMemo(() => {
     const hit = periodSelectOptions.find((p) => p?.value === periodValue);
     return hit?.label || periodValue;
@@ -381,21 +397,6 @@ export default function MarketHeatmapPage() {
     if (start + 4 > tableTotalPages) start = tableTotalPages - 4;
     return [start, start + 1, start + 2, start + 3, start + 4];
   }, [tablePageSafe, tableTotalPages]);
-
-  const periodSelectOptions = useMemo(() => {
-    if (!periodOptions.length) {
-      return Object.entries(PERIOD_LABEL_OVERRIDES).map(([value, label]) => ({ value, label }));
-    }
-    return periodOptions.map((p) => ({
-      value: p.value,
-      label: PERIOD_LABEL_OVERRIDES[p.value] || p.label || p.value
-    }));
-  }, [periodOptions]);
-
-  const periodDropdownOptions = useMemo(
-    () => periodSelectOptions.map((o) => ({ id: o.value, label: o.label })),
-    [periodSelectOptions]
-  );
 
   useEffect(() => {
     if (!periodSelectOptions.length) return;

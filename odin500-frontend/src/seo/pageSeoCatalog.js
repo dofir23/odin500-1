@@ -11,41 +11,44 @@ export const PAGE_SEO_CATALOG = {
     description: DEFAULT_SITE_DESCRIPTION
   },
   '/market': {
-    title: 'Odin500 Market Dashboard | Live Signals, Heatmap & Index Snapshots',
+    title: 'Stock Market Dashboard, Heatmap & Trading Signals | Odin500',
     description:
-      'U.S. market dashboard with Odin500 quant signals, performance charts, sector and index snapshots, and daily equity analytics.'
+      'Live U.S. stock market dashboard with sector heatmap, index snapshots, OHLC analytics, and trading signals for active traders.'
   },
   '/odin-signals': {
-    title: 'Odin Signals Treemap | Odin500 Quant Signal Explorer',
+    title: 'Stock Signal Screener Treemap | Trading Signals | Odin500',
     description:
-      'Explore Odin500 trading signals across the market with an interactive treemap, filters, and signal strength visualization.'
+      'Explore stock trading signals with an interactive treemap and filters to find bullish and bearish setups across U.S. equities.'
   },
   '/news': {
-    title: 'Market News Center | Odin500',
-    description: 'Curated market and ticker-specific news with Odin500 context for U.S. equities and ETFs.'
+    title: 'Stock Market News by Ticker | Odin500',
+    description:
+      'Read market news and ticker-specific headlines for U.S. stocks and ETFs with quick symbol-level context for traders.'
   },
   '/heatmap': {
-    title: 'Market Heatmap | Sector & Industry Performance | Odin500',
+    title: 'Stock Heatmap | Sector & Industry Performance | Odin500',
     description:
-      'Visual heatmap of U.S. stocks by sector and industry with price change, market cap, and drill-down ticker lists.'
+      'Interactive stock heatmap of U.S. equities by sector and industry with price change, market cap weighting, and drill-down ticker lists.'
   },
   '/market-movers': {
-    title: 'Market Movers | Top Gainers & Losers | Odin500',
-    description: 'Track top gaining and losing U.S. stocks with Odin500 market mover tables and charts.'
+    title: 'Top Gainers and Losers Today | Market Movers | Odin500',
+    description:
+      'Track top gaining and losing stocks today with sortable market-movers tables and performance charts for U.S. equities.'
   },
   '/statistic-data': {
-    title: 'Statistic Data Tables | Returns & OHLC Analytics | Odin500',
+    title: 'Stock Statistics Tables | Returns & OHLC Analytics | Odin500',
     description:
-      'Downloadable return statistics across daily, weekly, monthly, quarterly, and annual horizons for Odin500-covered tickers.'
+      'Download stock statistics and returns across daily, weekly, monthly, quarterly, and annual horizons with OHLC-based analytics.'
   },
   '/return-table': {
-    title: 'Return Table — Index, Sector & ETF Period Returns | Odin500',
+    title: 'Stock, Index & ETF Return Table | Period Performance | Odin500',
     description:
-      'Multi-period return tables for US indices, S&P 500 sectors, index ETFs, and other market series across 1D through 20Y horizons.'
+      'Compare multi-period returns for U.S. stocks, indices, sectors, and ETFs across 1D to long-term horizons in one return table.'
   },
   '/historical-data': {
-    title: 'Historical OHLC Data Export | Odin500',
-    description: 'Query and export historical open-high-low-close price data and signals for U.S. equities on Odin500.'
+    title: 'OHLC Historical Data Download for Stocks | Odin500',
+    description:
+      'Search ticker historical data and export OHLC price history for U.S. stocks and ETFs, including open, high, low, close, and date.'
   },
   '/about': {
     title: 'Your Odin500 Profile & Account Settings',
@@ -57,26 +60,29 @@ export const PAGE_SEO_CATALOG = {
       'Compare Odin500 Basic, Premium, and Pro plans for index signals, ETF coverage, and full Odin trading signal access.'
   },
   '/relative-performance/ticker/aapl': {
-    title: 'Relative Performance Comparison | Odin500',
+    title: 'Ticker Relative Performance vs Index | Odin500',
     description:
-      'Compare relative performance and excess returns across tickers, indices, and sectors with Odin500 charts and tables.'
+      'Compare ticker performance versus indices and sectors with excess return charts and period-by-period relative strength tables.'
   },
   '/indices/sp500': {
-    title: 'S&P 500 Index Analytics | Odin500',
-    description: 'S&P 500 index returns, constituents, charts, and Odin500 signal context.'
+    title: 'S&P 500 Index Data, Returns & Signals | Odin500',
+    description:
+      'Analyze S&P 500 index returns, signals, historical data, and constituent-level context for U.S. market research.'
   },
   '/indices/dow-jones': {
-    title: 'Dow Jones Index Analytics | Odin500',
-    description: 'Dow Jones index returns, constituents, charts, and Odin500 market statistics.'
+    title: 'Dow Jones Index Data, Returns & Signals | Odin500',
+    description:
+      'Track Dow Jones index returns, OHLC trends, and signal context with chart-ready analytics for traders and investors.'
   },
   '/indices/nasdaq-100': {
-    title: 'Nasdaq 100 Index Analytics | Odin500',
-    description: 'Nasdaq-100 index returns, constituents, charts, and Odin500 analytics.'
+    title: 'Nasdaq 100 Index Data, Returns & Signals | Odin500',
+    description:
+      'View Nasdaq 100 returns, trend signals, and historical index analytics with constituent-aware market context.'
   },
   '/ticker/aapl': {
-    title: 'AAPL Stock Signals, Returns & Market Statistics | Odin500',
+    title: 'AAPL Historical Data, OHLC Chart & Trading Signals | Odin500',
     description:
-      'Apple (AAPL) Odin500 signals, annual and periodic returns, OHLC charts, and strategy comparison on Odin500.'
+      'Apple (AAPL) ticker historical data, OHLC chart analytics, returns, and trading signals for short-term and long-term analysis.'
   }
 };
 

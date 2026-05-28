@@ -1,5 +1,10 @@
 import { useEffect } from 'react';
-import { DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_TITLE, SITE_ORIGIN } from './siteConfig.js';
+import {
+  DEFAULT_SITE_DESCRIPTION,
+  DEFAULT_SITE_TITLE,
+  SEO_BRAND_NAME,
+  SITE_ORIGIN
+} from './siteConfig.js';
 
 function ensureMeta(attr, key, content) {
   if (typeof document === 'undefined') return;
@@ -57,13 +62,13 @@ export function useSitewideSeo() {
     ensureJsonLd('organization', {
       '@context': 'https://schema.org',
       '@type': 'Organization',
-      name: 'Odin500',
+      name: SEO_BRAND_NAME,
       url: SITE_ORIGIN
     });
     ensureJsonLd('website', {
       '@context': 'https://schema.org',
       '@type': 'WebSite',
-      name: 'Odin500',
+      name: SEO_BRAND_NAME,
       url: SITE_ORIGIN
     });
   }, []);
@@ -99,7 +104,7 @@ export function usePageSeo({
     ensureMeta('property', 'og:description', description);
     ensureMeta('property', 'og:type', ogType);
     ensureMeta('property', 'og:url', canonicalUrl);
-    ensureMeta('property', 'og:site_name', 'Odin500');
+    ensureMeta('property', 'og:site_name', SEO_BRAND_NAME);
 
     ensureMeta('name', 'twitter:card', 'summary_large_image');
     ensureMeta('name', 'twitter:title', title);

@@ -1,3 +1,5 @@
+import { SEO_BRAND_NAME } from '../src/seo/siteConfig.js';
+
 /**
  * Build SSR placeholder fragments for index.html (<!--SSR:TITLE-->, <!--SSR:META-->).
  */
@@ -35,7 +37,7 @@ export function buildSsrHead(meta) {
     `<meta property="og:description" content="${description}" />`,
     `<meta property="og:url" content="${canonical}" />`,
     `<meta property="og:type" content="website" />`,
-    `<meta property="og:site_name" content="Odin500" />`,
+    `<meta property="og:site_name" content="${escapeHtmlAttr(SEO_BRAND_NAME)}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${title}" />`,
     `<meta name="twitter:description" content="${description}" />`

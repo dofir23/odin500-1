@@ -3,7 +3,10 @@ export const SITE_ORIGIN = 'https://www.odin500.com';
 
 export const SITE_NAME = 'Odin500';
 
-export const DEFAULT_SITE_TITLE = 'Odin500 | Quant Market Signals, Charts & Statistics';
+export const SEO_BRAND_NAME = 'Odin500 Trading Data';
+
+export const DEFAULT_SITE_TITLE =
+  'OHLC Data, Ticker Historical Data & Trading Signals | Odin500';
 
 export const DEFAULT_SITE_DESCRIPTION =
-  'Odin500 delivers U.S. equity market signals, heatmaps, index and sector analytics, ticker statistics, and historical OHLC data for traders and investors.';
+  'Find OHLC data, ticker historical data, market heatmaps, and trading signals for U.S. stocks and ETFs with Odin500.';

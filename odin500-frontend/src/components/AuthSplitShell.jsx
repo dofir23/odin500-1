@@ -130,7 +130,7 @@ export function AuthSplitShell({ title = 'Welcome Back!', children }) {
         <div
           className={`relative flex shrink-0 flex-col px-4 pb-3 pt-4 sm:px-6 sm:pt-6 lg:w-1/2 lg:max-w-[50vw] lg:justify-center lg:p-8 lg:pr-5 ${isDark ? 'lg:bg-[#051120]' : 'lg:bg-[#eef2f7]'}`}
         >
-          <div className="relative mx-auto w-full max-w-xl lg:mx-0 lg:max-w-none">
+          <div className="relative mx-auto hidden w-full max-w-xl lg:mx-0 lg:block lg:max-w-none">
             <AuthHeroVisual />
           </div>
         </div>

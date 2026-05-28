@@ -380,14 +380,16 @@ export function SectorTreemap({
           String(b.data?.symbol || b.data?.name || '')
         );
       });
+    const sectorHeaderBand = finvizStrict ? 14 : 20;
+    const industryHeaderBand = finvizStrict ? 14 : 20;
     const tm = d3treemap()
       .tile(treemapSquarify)
       .size([size.w, size.h])
       .paddingOuter(finvizStrict ? 0.5 : 1)
       .paddingInner(finvizStrict ? 0.5 : 1)
       .paddingTop((d) => {
-        if (d.depth === 1) return finvizStrict ? 14 : 20;
-        if (d.depth === 2) return finvizStrict ? 9 : 12;
+        if (d.depth === 1) return sectorHeaderBand;
+        if (d.depth === 2) return industryHeaderBand;
         return 0;
       })
       .round(true);
@@ -469,7 +471,8 @@ export function SectorTreemap({
         {sectorNodes.map((node) => {
           const sw = node.x1 - node.x0;
           const sh = node.y1 - node.y0;
-          const band = finvizStrict ? Math.min(16, Math.max(10, sh * 0.08)) : Math.min(22, Math.max(14, sh * 0.11));
+          const targetBand = finvizStrict ? 14 : 20;
+          const band = Math.max(6, Math.min(targetBand, sh - 1));
           if (sw < (finvizStrict ? 18 : 24) || sh < (finvizStrict ? 14 : 20)) return null;
           const sectorFeatured = node
             .leaves()
@@ -526,7 +529,9 @@ export function SectorTreemap({
         {industryNodes.map((node) => {
           const iw = node.x1 - node.x0;
           const ih = node.y1 - node.y0;
-          const band = finvizStrict ? Math.min(11, Math.max(7, ih * 0.07)) : Math.min(14, Math.max(10, ih * 0.09));
+          const targetBand = finvizStrict ? 14 : 20;
+          const band = Math.max(6, Math.min(targetBand, ih - 1));
+          const bandY = node.y0;
           if (iw < (finvizStrict ? 18 : 28) || ih < (finvizStrict ? 12 : 18)) return null;
           const label = formatGroupLabel(node.data.name);
           const maxChars = Math.floor(iw / (titleCaseGroupLabels ? 5.5 : 6.5));
@@ -566,15 +571,15 @@ export function SectorTreemap({
             >
               <rect
                 x={node.x0}
-                y={node.y0}
+                y={bandY}
                 width={iw}
                 height={band}
                 className="sector-treemap__band-rect--industry"
                 style={{ cursor: 'pointer' }}
               />
               <text
-                x={node.x0 + 5}
-                y={node.y0 + band * 0.72}
+                x={node.x0 + 8}
+                y={bandY + band * 0.72}
                 className={industryTitleClass}
                 pointerEvents="none"
               >
@@ -641,7 +646,7 @@ export function SectorTreemap({
               <rect
                 className="heatmap-tile"
                 x={node.x0}
-                y={node.y0}
+                y={node.y0+2}
                 width={Math.max(0, w)}
                 height={Math.max(0, h)}
                 fill={fill}

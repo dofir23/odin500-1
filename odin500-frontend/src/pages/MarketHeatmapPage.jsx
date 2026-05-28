@@ -528,6 +528,65 @@ export default function MarketHeatmapPage() {
     },
     [navigate]
   );
+  const renderTickerListCard = () => (
+    <section className="heatmap-card heatmap-card--table">
+      {leftTableSeoNarrative ? <p className="sr-only">{leftTableSeoNarrative}</p> : null}
+      <h2 className="heatmap-card__title">Tickers</h2>
+      <div className="heatmap-search">
+        <span className="heatmap-search__icon" aria-hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="2" />
+            <path d="M20 20l-4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </span>
+        <input
+          type="search"
+          className="heatmap-search__input"
+          placeholder="Search ticker"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          aria-label="Search ticker"
+        />
+      </div>
+      <div className="heatmap-table-wrap">
+        <table className="heatmap-table">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Price</th>
+              <th>Change %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {leftTableRows.map((t) => {
+              const pct = parsePct(t.totalReturnPercentage);
+              const neg = Number.isFinite(pct) && pct < 0;
+              const pos = Number.isFinite(pct) && pct > 0;
+              return (
+                <tr key={t.symbol} onMouseEnter={() => setHoverSymbol(String(t.symbol || ''))} onMouseLeave={() => setHoverSymbol('')}>
+                  <td className="heatmap-table__td-ticker">
+                    <button type="button" className="index-constituents-link" onClick={() => openTickerPage(t.symbol)}>
+                      {t.symbol}
+                    </button>
+                  </td>
+                  <td className="heatmap-table__td-num">{fmtPrice(t.price)}</td>
+                  <td
+                    className={
+                      'heatmap-table__td-num' +
+                      (pos ? ' heatmap-table__chg--up' : '') +
+                      (neg ? ' heatmap-table__chg--down' : '')
+                    }
+                  >
+                    {fmtPctSigned(t.totalReturnPercentage)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
 
   return (
     <div className="heatmap-page">
@@ -585,71 +644,7 @@ export default function MarketHeatmapPage() {
             />
           </section>
 
-          <section className="heatmap-card heatmap-card--table">
-            {leftTableSeoNarrative ? <p className="sr-only">{leftTableSeoNarrative}</p> : null}
-            <h2 className="heatmap-card__title">Tickers</h2>
-            <div className="heatmap-search">
-              <span className="heatmap-search__icon" aria-hidden>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="2" />
-                  <path d="M20 20l-4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </span>
-              <input
-                type="search"
-                className="heatmap-search__input"
-                placeholder="Search ticker"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                aria-label="Search ticker"
-              />
-            </div>
-            <div className="heatmap-table-wrap">
-              <table className="heatmap-table">
-                <thead>
-                  <tr>
-                    <th>Ticker</th>
-                    <th>Price</th>
-                    <th>Change %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leftTableRows.map((t) => {
-                    const pct = parsePct(t.totalReturnPercentage);
-                    const neg = Number.isFinite(pct) && pct < 0;
-                    const pos = Number.isFinite(pct) && pct > 0;
-                    return (
-                      <tr
-                        key={t.symbol}
-                        onMouseEnter={() => setHoverSymbol(String(t.symbol || ''))}
-                        onMouseLeave={() => setHoverSymbol('')}
-                      >
-                        <td className="heatmap-table__td-ticker">
-                          <button
-                            type="button"
-                            className="index-constituents-link"
-                            onClick={() => openTickerPage(t.symbol)}
-                          >
-                            {t.symbol}
-                          </button>
-                        </td>
-                        <td className="heatmap-table__td-num">{fmtPrice(t.price)}</td>
-                        <td
-                          className={
-                            'heatmap-table__td-num' +
-                            (pos ? ' heatmap-table__chg--up' : '') +
-                            (neg ? ' heatmap-table__chg--down' : '')
-                          }
-                        >
-                          {fmtPctSigned(t.totalReturnPercentage)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <div className="heatmap-flow-desktop-only">{renderTickerListCard()}</div>
         </aside>
 
         <main className="heatmap-main">
@@ -843,6 +838,7 @@ export default function MarketHeatmapPage() {
             </div>
           </footer>
           </div>
+          <div className="heatmap-flow-mobile-only">{renderTickerListCard()}</div>
 
           <section className="heatmap-bottom-table" aria-labelledby="heatmap-bottom-table-title">
             {bottomTableSeoNarrative ? <p className="sr-only">{bottomTableSeoNarrative}</p> : null}

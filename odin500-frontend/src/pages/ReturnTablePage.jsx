@@ -12,6 +12,7 @@ import {
 } from '../utils/marketReturnsTable.js';
 
 const REFRESH_MS = 5 * 60 * 1000;
+const PRIORITY_SECTION_IDS = new Set(['us', 'index']);
 
 export default function ReturnTablePage() {
   usePageSeo({
@@ -23,29 +24,88 @@ export default function ReturnTablePage() {
 
   const sections = useMemo(() => returnTableSections(), []);
   const allDefs = useMemo(() => allReturnTableRowDefs(), []);
-  const summaryTickers = useMemo(() => uniqueMarketSummaryTickers(allDefs), [allDefs]);
+  const prioritySections = useMemo(
+    () => sections.filter((section) => PRIORITY_SECTION_IDS.has(section.id)),
+    [sections]
+  );
+  const deferredSections = useMemo(
+    () => sections.filter((section) => !PRIORITY_SECTION_IDS.has(section.id)),
+    [sections]
+  );
+  const priorityDefs = useMemo(
+    () =>
+      prioritySections.flatMap((section) =>
+        section.subsections?.length
+          ? section.subsections.flatMap((sub) => sub.rows || [])
+          : section.rows || []
+      ),
+    [prioritySections]
+  );
+  const deferredDefs = useMemo(
+    () =>
+      deferredSections.flatMap((section) =>
+        section.subsections?.length
+          ? section.subsections.flatMap((sub) => sub.rows || [])
+          : section.rows || []
+      ),
+    [deferredSections]
+  );
+  const priorityTickers = useMemo(() => uniqueMarketSummaryTickers(priorityDefs), [priorityDefs]);
+  const deferredTickers = useMemo(() => uniqueMarketSummaryTickers(deferredDefs), [deferredDefs]);
 
   const [vals, setVals] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [loadingPriority, setLoadingPriority] = useState(false);
+  const [loadingDeferred, setLoadingDeferred] = useState(false);
   const [error, setError] = useState('');
+  const [showDeferredSections, setShowDeferredSections] = useState(false);
+  const [showIndexConstituents, setShowIndexConstituents] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShowDeferredSections(true), 120);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!showDeferredSections) return;
+    const timer = window.setTimeout(() => setShowIndexConstituents(true), 420);
+    return () => window.clearTimeout(timer);
+  }, [showDeferredSections]);
 
   useEffect(() => {
     let cancel = false;
     async function load() {
-      if (!summaryTickers.length) return;
-      setLoading(true);
+      if (!allDefs.length) return;
       setError('');
+      setLoadingPriority(true);
+      setLoadingDeferred(false);
       try {
-        const payload = await fetchMarketTickerReturnsBatch(summaryTickers, REFRESH_MS);
+        if (priorityTickers.length) {
+          const priorityPayload = await fetchMarketTickerReturnsBatch(priorityTickers, REFRESH_MS);
+          if (cancel) return;
+          setVals(buildValsFromBatch(priorityPayload, priorityDefs));
+        } else {
+          setVals({});
+        }
         if (cancel) return;
-        setVals(buildValsFromBatch(payload, allDefs));
+        setLoadingPriority(false);
+
+        if (deferredTickers.length) {
+          setLoadingDeferred(true);
+          const deferredPayload = await fetchMarketTickerReturnsBatch(deferredTickers, REFRESH_MS);
+          if (cancel) return;
+          const deferredVals = buildValsFromBatch(deferredPayload, deferredDefs);
+          setVals((prev) => ({ ...prev, ...deferredVals }));
+        }
       } catch (e) {
         if (!cancel) {
           setError(e.message || 'Failed loading return tables');
           setVals({});
         }
       } finally {
-        if (!cancel) setLoading(false);
+        if (!cancel) {
+          setLoadingPriority(false);
+          setLoadingDeferred(false);
+        }
       }
     }
     load();
@@ -54,7 +114,7 @@ export default function ReturnTablePage() {
       cancel = true;
       window.clearInterval(timer);
     };
-  }, [allDefs, summaryTickers]);
+  }, [allDefs, deferredDefs, deferredTickers, priorityDefs, priorityTickers]);
 
   return (
     <div className="return-table-page odin-content-page">
@@ -71,7 +131,7 @@ export default function ReturnTablePage() {
       </header>
 
       <div className="return-table-page__sections">
-        {sections.map((section) => {
+        {prioritySections.map((section) => {
           if (section.subsections?.length) {
             return (
               <div key={section.id} className="return-table-page__group">
@@ -82,7 +142,7 @@ export default function ReturnTablePage() {
                     title={sub.title}
                     defs={sub.rows}
                     vals={vals}
-                    loading={loading}
+                    loading={loadingPriority}
                   />
                 ))}
               </div>
@@ -94,20 +154,53 @@ export default function ReturnTablePage() {
               title={section.title}
               defs={section.rows}
               vals={vals}
-              loading={loading}
+              loading={loadingPriority}
               showInfoTip={section.id === 'us'}
             />
           );
         })}
+
+        {showDeferredSections
+          ? deferredSections.map((section) => {
+              if (section.subsections?.length) {
+                return (
+                  <div key={section.id} className="return-table-page__group">
+                    <h2 className="return-table-page__group-title">{section.title}</h2>
+                    {section.subsections.map((sub) => (
+                      <MarketReturnsSummaryTable
+                        key={sub.id}
+                        title={sub.title}
+                        defs={sub.rows}
+                        vals={vals}
+                        loading={loadingDeferred}
+                      />
+                    ))}
+                  </div>
+                );
+              }
+              return (
+                <MarketReturnsSummaryTable
+                  key={section.id}
+                  title={section.title}
+                  defs={section.rows}
+                  vals={vals}
+                  loading={loadingDeferred}
+                  showInfoTip={section.id === 'us'}
+                />
+              );
+            })
+          : null}
 
         <div className="return-table-page__group">
           <h2 className="return-table-page__group-title">Index constituents</h2>
           <p className="return-table-page__group-hint">
             Full index membership with period returns — 20 symbols per page.
           </p>
-          {RETURN_TABLE_INDEX_UNIVERSES.map((universe) => (
-            <ReturnTableIndexUniverse key={universe.id} universe={universe} />
-          ))}
+          {showIndexConstituents
+            ? RETURN_TABLE_INDEX_UNIVERSES.map((universe) => (
+                <ReturnTableIndexUniverse key={universe.id} universe={universe} />
+              ))
+            : null}
         </div>
       </div>
     </div>

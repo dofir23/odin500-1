@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChartInfoTip } from './ChartInfoTip.jsx';
 import { CHART_INFO_TIPS } from './chartInfoTips.js';
@@ -9,6 +10,29 @@ import { FigmaPagination } from './FigmaPagination.jsx';
 
 function sectionSlug(title) {
   return String(title || 'section').replace(/\s+/g, '-');
+}
+
+function SortHeaderIcon({ active, dir }) {
+  if (!active) {
+    return (
+      <svg className="mkt-returns-summary__sort-icon mkt-returns-summary__sort-icon--neutral" width="11" height="12" viewBox="0 0 11 12" fill="none" aria-hidden>
+        <path d="M5.5 1.5L8.25 4.25H2.75L5.5 1.5Z" fill="currentColor" opacity="0.45" />
+        <path d="M5.5 10.5L2.75 7.75H8.25L5.5 10.5Z" fill="currentColor" opacity="0.45" />
+      </svg>
+    );
+  }
+  if (dir === 'asc') {
+    return (
+      <svg className="mkt-returns-summary__sort-icon mkt-returns-summary__sort-icon--active" width="11" height="12" viewBox="0 0 11 12" fill="none" aria-hidden>
+        <path d="M5.5 2.5L9 7H2L5.5 2.5Z" fill="currentColor" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="mkt-returns-summary__sort-icon mkt-returns-summary__sort-icon--active" width="11" height="12" viewBox="0 0 11 12" fill="none" aria-hidden>
+      <path d="M5.5 9.5L2 5H9L5.5 9.5Z" fill="currentColor" />
+    </svg>
+  );
 }
 
 /**
@@ -44,6 +68,37 @@ export function MarketReturnsSummaryTable({
   const tfCount = tfs.length;
   const slug = sectionSlug(title);
   const showPager = totalPages > 1 && typeof onPageChange === 'function';
+  const [sortKey, setSortKey] = useState('market');
+  const [sortDir, setSortDir] = useState('asc');
+
+  const sortedDefs = useMemo(() => {
+    const list = Array.isArray(defs) ? [...defs] : [];
+    list.sort((a, b) => {
+      if (sortKey === 'market') {
+        const cmp = String(a?.label || '').localeCompare(String(b?.label || ''), undefined, { sensitivity: 'base' });
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
+      const av = Number(vals?.[a?.key]?.[sortKey]);
+      const bv = Number(vals?.[b?.key]?.[sortKey]);
+      const aOk = Number.isFinite(av);
+      const bOk = Number.isFinite(bv);
+      if (!aOk && !bOk) return String(a?.label || '').localeCompare(String(b?.label || ''), undefined, { sensitivity: 'base' });
+      if (!aOk) return 1;
+      if (!bOk) return -1;
+      const cmp = av - bv;
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return list;
+  }, [defs, vals, sortKey, sortDir]);
+
+  const onSortHeader = (nextKey) => {
+    if (nextKey === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortKey(nextKey);
+    setSortDir(nextKey === 'market' ? 'asc' : 'desc');
+  };
 
   return (
     <section
@@ -68,16 +123,37 @@ export function MarketReturnsSummaryTable({
       <div className="mkt-returns-summary__scroll">
         <div className="mkt-watch-card__table mkt-returns-summary__table" role="table">
           <div className="mkt-watch-card__row mkt-watch-card__row--head mkt-returns-summary__row" role="row">
-            <span className="mkt-returns-summary__h" role="columnheader">
-              Market
+            <span className="mkt-returns-summary__h" role="columnheader" aria-sort={sortKey === 'market' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+              <button
+                type="button"
+                className={'mkt-returns-summary__sort-btn' + (sortKey === 'market' ? ' mkt-returns-summary__sort-btn--active' : '')}
+                onClick={() => onSortHeader('market')}
+                aria-label="Sort by market"
+              >
+                <span className="mkt-returns-summary__sort-label">Market</span>
+                <SortHeaderIcon active={sortKey === 'market'} dir={sortDir} />
+              </button>
             </span>
             {tfs.map((tf) => (
-              <span key={tf.key} className="mkt-returns-summary__h mkt-returns-summary__h--num" role="columnheader">
-                {tf.key}
+              <span
+                key={tf.key}
+                className="mkt-returns-summary__h mkt-returns-summary__h--num"
+                role="columnheader"
+                aria-sort={sortKey === tf.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+              >
+                <button
+                  type="button"
+                  className={'mkt-returns-summary__sort-btn mkt-returns-summary__sort-btn--num' + (sortKey === tf.key ? ' mkt-returns-summary__sort-btn--active' : '')}
+                  onClick={() => onSortHeader(tf.key)}
+                  aria-label={`Sort by ${tf.key}`}
+                >
+                  <span className="mkt-returns-summary__sort-label">{tf.key}</span>
+                  <SortHeaderIcon active={sortKey === tf.key} dir={sortDir} />
+                </button>
               </span>
             ))}
           </div>
-          {defs.map((d) => {
+          {sortedDefs.map((d) => {
             const meta = META_BY_KEY[d.key];
             const ticker = meta?.ticker || d.ticker;
             const routeSym = sanitizeTickerPageInput(ticker || d.key);

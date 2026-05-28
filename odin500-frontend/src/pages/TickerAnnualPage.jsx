@@ -20,6 +20,13 @@ import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme
 import { alignComparisonRows, filterRowsByYearRange, normalizePeriodReturnsRows } from '../utils/statisticsComparisonSeries.js';
 import { formatRelativePerfPct } from '../utils/marketCalculations.js';
 import { fmtPctSigned, fmtPrice, fmtVolumeCompact } from '../utils/formatDisplayNumber.js';
+import {
+  alphaProfileIrlink,
+  fetchCompanyOverviewCached,
+  fmtCompact,
+  getCompanyProfileApiKeyPresent,
+  numOrNull
+} from '../utils/companyOverviewProfile.js';
 
 const RESIZE_KEY_ANNUAL_FIGMA = 'odin_ticker_annual_only_resize_annual_figma';
 const RESIZE_KEY_ANNUAL_POSNEG = 'odin_ticker_annual_only_resize_annual_posneg';
@@ -314,6 +321,9 @@ export default function TickerAnnualPage() {
   const [annualRange, setAnnualRange] = useState(DEFAULT_TABLE_RANGE_PRESET);
   const [annualTableSort, setAnnualTableSort] = useState({ column: 'period', direction: 'desc' });
   const [annualTablePage, setAnnualTablePage] = useState(1);
+  const [companyOverview, setCompanyOverview] = useState(null);
+  const [companyOverviewBusy, setCompanyOverviewBusy] = useState(false);
+  const [companyOverviewExpanded, setCompanyOverviewExpanded] = useState(false);
   const chartTheme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
 
   useEffect(() => {
@@ -483,6 +493,32 @@ export default function TickerAnnualPage() {
     };
   }, [sym, appliedRange.end, appliedRange.start, todayIso, benchmarkIndex]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setCompanyOverviewExpanded(false);
+    if (!getCompanyProfileApiKeyPresent()) {
+      setCompanyOverview(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+    (async () => {
+      setCompanyOverviewBusy(true);
+      try {
+        const payload = await fetchCompanyOverviewCached(sym);
+        if (cancelled) return;
+        setCompanyOverview(payload && typeof payload === 'object' ? payload : null);
+      } catch {
+        if (!cancelled) setCompanyOverview(null);
+      } finally {
+        if (!cancelled) setCompanyOverviewBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sym]);
+
   const titleSymbol = useMemo(() => String(sym || '').toUpperCase(), [sym]);
   const myDetail = useMemo(() => {
     const u = titleSymbol;
@@ -536,6 +572,26 @@ export default function TickerAnnualPage() {
           timeZoneName: 'short'
         }).format(new Date(lastUpdatedIso + 'T16:00:00'))
       : '—';
+  const companyOverviewDescription = String(companyOverview?.Description || '').trim();
+  const companyOverviewAddress = String(companyOverview?.Address || '').trim();
+  const companyOverviewWebsite = String(companyOverview?.OfficialSite || '').trim();
+  const companyOverviewIrWebsite = alphaProfileIrlink(companyOverviewWebsite) || companyOverviewWebsite;
+  const companyOverviewDividendYield = numOrNull(companyOverview?.DividendYield);
+  const companyOverviewBeta = numOrNull(companyOverview?.Beta);
+  const companyOverview52Low = numOrNull(companyOverview?.['52WeekLow']);
+  const companyOverview52High = numOrNull(companyOverview?.['52WeekHigh']);
+  const companyOverviewMarketCap = numOrNull(companyOverview?.MarketCapitalization);
+  const companyOverviewPe = numOrNull(companyOverview?.PERatio ?? companyOverview?.TrailingPE);
+  const companyOverviewEps = numOrNull(companyOverview?.EPS ?? companyOverview?.DilutedEPSTTM);
+  const companyOverviewSector = String(companyOverview?.Sector || '').trim();
+  const companyOverviewIndustry = String(companyOverview?.Industry || '').trim();
+  const companyOverviewExchange = String(companyOverview?.Exchange || '').trim();
+  const companyOverviewDescriptionPreview = useMemo(() => {
+    if (!companyOverviewDescription) return '';
+    if (companyOverviewExpanded) return companyOverviewDescription;
+    if (companyOverviewDescription.length <= 145) return companyOverviewDescription;
+    return `${companyOverviewDescription.slice(0, 145).trimEnd()}...`;
+  }, [companyOverviewDescription, companyOverviewExpanded]);
   const symMtd = mtdFromRows(statsRows);
   const symQtd = qtdFromRows(statsRows);
   const spyMtd = mtdFromRows(statsRowsSpy);
@@ -952,15 +1008,25 @@ export default function TickerAnnualPage() {
                 <dl className="ticker-kd-dl">
                   <div className="ticker-kd-row">
                     <dt>Dividend yield</dt>
-                    <dd>—</dd>
+                    <dd>
+                      {companyOverviewDividendYield != null
+                        ? fmtPctSigned(companyOverviewDividendYield * 100).replace('+', '')
+                        : '—'}
+                    </dd>
                   </div>
                   <div className="ticker-kd-row">
                     <dt>52-week range</dt>
-                    <dd>{hi52 != null && lo52 != null ? `${fmtPrice(lo52)} – ${fmtPrice(hi52)}` : '—'}</dd>
+                    <dd>
+                      {companyOverview52Low != null && companyOverview52High != null
+                        ? `${fmtPrice(companyOverview52Low)} – ${fmtPrice(companyOverview52High)}`
+                        : hi52 != null && lo52 != null
+                          ? `${fmtPrice(lo52)} – ${fmtPrice(hi52)}`
+                          : '—'}
+                    </dd>
                   </div>
                   <div className="ticker-kd-row">
                     <dt>Beta</dt>
-                    <dd>—</dd>
+                    <dd>{companyOverviewBeta != null ? companyOverviewBeta.toFixed(2) : '—'}</dd>
                   </div>
                   <div className="ticker-kd-row">
                     <dt>Volatility (ann.)</dt>
@@ -974,15 +1040,15 @@ export default function TickerAnnualPage() {
                   </div>
                   <div className="ticker-kd-row">
                     <dt>Market cap</dt>
-                    <dd>—</dd>
+                    <dd>{companyOverviewMarketCap != null ? fmtCompact(companyOverviewMarketCap) : '—'}</dd>
                   </div>
                   <div className="ticker-kd-row">
                     <dt>P/E (TTM)</dt>
-                    <dd>—</dd>
+                    <dd>{companyOverviewPe != null ? companyOverviewPe.toFixed(2) : '—'}</dd>
                   </div>
                   <div className="ticker-kd-row">
                     <dt>EPS (TTM)</dt>
-                    <dd>—</dd>
+                    <dd>{companyOverviewEps != null ? companyOverviewEps.toFixed(2) : '—'}</dd>
                   </div>
                 </dl>
               </div>
@@ -1056,6 +1122,92 @@ export default function TickerAnnualPage() {
                   );
                 })}
               </div>
+            </div>
+          </section>
+          <section className="mkt-mini-card ticker-aside-mini ticker-company-overview" aria-labelledby="ticker-company-overview-h-annual">
+            <header className="mkt-mini-card__head ticker-company-overview__head">
+              <span className="ticker-company-overview__title-wrap">
+                <svg
+                  className="ticker-company-overview__title-ico"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden
+                >
+                  <path d="M4 5.5a1.5 1.5 0 0 1 1.5-1.5h7A1.5 1.5 0 0 1 14 5.5v7A1.5 1.5 0 0 1 12.5 14h-7A1.5 1.5 0 0 1 4 12.5z" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M6.5 7.5h5M6.5 10h3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <circle cx="15.75" cy="15.75" r="3.25" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="m18.2 18.2 2.3 2.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                <h2 className="mkt-mini-card__k" id="ticker-company-overview-h-annual">
+                  Company overview
+                </h2>
+              </span>
+            </header>
+            <div className="ticker-aside-mini__body ticker-company-overview__body">
+              {companyOverviewBusy ? <p className="ticker-page__muted">Loading company profile…</p> : null}
+              {!companyOverviewBusy ? (
+                <>
+                  <p className="ticker-company-overview__desc">
+                    {companyOverviewDescriptionPreview ||
+                      `${titleSymbol} profile details are not available for this symbol yet.`}
+                  </p>
+                  {companyOverviewDescription ? (
+                    <button
+                      type="button"
+                      className="ticker-company-overview__toggle"
+                      onClick={() => setCompanyOverviewExpanded((v) => !v)}
+                    >
+                      {companyOverviewExpanded ? 'Show less' : 'Show more'}
+                      <span aria-hidden className={'ticker-company-overview__toggle-caret' + (companyOverviewExpanded ? ' is-open' : '')}>
+                        ▾
+                      </span>
+                    </button>
+                  ) : null}
+                  <div className="ticker-company-overview__grid">
+                    <article className="ticker-company-overview__metric">
+                      <p className="ticker-company-overview__metric-k">Sector</p>
+                      <p className="ticker-company-overview__metric-v">{companyOverviewSector || '—'}</p>
+                    </article>
+                    <article className="ticker-company-overview__metric">
+                      <p className="ticker-company-overview__metric-k">Industry</p>
+                      <p className="ticker-company-overview__metric-v">{companyOverviewIndustry || '—'}</p>
+                    </article>
+                    <article className="ticker-company-overview__metric">
+                      <p className="ticker-company-overview__metric-k">Headquarters</p>
+                      <p className="ticker-company-overview__metric-v">{companyOverviewAddress || '—'}</p>
+                    </article>
+                    <article className="ticker-company-overview__metric">
+                      <p className="ticker-company-overview__metric-k">Exchange</p>
+                      <p className="ticker-company-overview__metric-v">{companyOverviewExchange || '—'}</p>
+                    </article>
+                    <article className="ticker-company-overview__metric">
+                      <p className="ticker-company-overview__metric-k">Website</p>
+                      {companyOverviewWebsite ? (
+                        <a className="ticker-company-overview__metric-link" href={companyOverviewWebsite} target="_blank" rel="noopener noreferrer">
+                          {companyOverviewWebsite.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                          <span aria-hidden>↗</span>
+                        </a>
+                      ) : (
+                        <p className="ticker-company-overview__metric-v">—</p>
+                      )}
+                    </article>
+                    <article className="ticker-company-overview__metric">
+                      <p className="ticker-company-overview__metric-k">IR Website</p>
+                      {companyOverviewIrWebsite ? (
+                        <a className="ticker-company-overview__metric-link" href={companyOverviewIrWebsite} target="_blank" rel="noopener noreferrer">
+                          {companyOverviewIrWebsite.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                          <span aria-hidden>↗</span>
+                        </a>
+                      ) : (
+                        <p className="ticker-company-overview__metric-v">—</p>
+                      )}
+                    </article>
+                  </div>
+                </>
+              ) : null}
             </div>
           </section>
         </aside>

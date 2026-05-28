@@ -4560,6 +4560,55 @@ backdrop-filter: blur(12px);
   flex: 0 0 auto;
 }
 
+[data-theme="light"] .ticker-company-overview {
+  border-color: rgba(148, 163, 184, 0.5);
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-theme="light"] .ticker-company-overview .mkt-mini-card__k {
+  color: #0f172a;
+}
+
+[data-theme="light"] .ticker-company-overview__title-ico {
+  color: #1d4ed8;
+}
+
+[data-theme="light"] .ticker-company-overview__desc {
+  color: #0f172a;
+}
+
+[data-theme="light"] .ticker-company-overview__toggle {
+  color: #2563eb;
+}
+
+[data-theme="light"] .ticker-company-overview__toggle:hover {
+  color: #1d4ed8;
+}
+
+[data-theme="light"] .ticker-company-overview__metric {
+  border-color: rgba(148, 163, 184, 0.4);
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+[data-theme="light"] .ticker-company-overview__metric-k {
+  color: #64748b;
+}
+
+[data-theme="light"] .ticker-company-overview__metric-v {
+  color: #0f172a;
+}
+
+[data-theme="light"] .ticker-company-overview__metric-link {
+  color: #2563eb;
+}
+
+[data-theme="light"] .ticker-company-overview__metric-link:hover {
+  color: #1d4ed8;
+}
+
 .mkt-mini-card__head .ticker-data-tip {
   display: inline-flex;
   align-items: center;

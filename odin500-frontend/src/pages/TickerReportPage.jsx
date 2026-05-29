@@ -108,6 +108,11 @@ export default function TickerReportPage() {
     }
   }, [report]);
 
+  const expandedMonths = useMemo(() => {
+    if (!expandedYear || !isMonthlyReportYear(expandedYear)) return [];
+    return getMonthsForYear(expandedYear);
+  }, [expandedYear]);
+
   if (!report) {
     return (
       <div className="ticker-report-page odin-content-page">
@@ -156,61 +161,64 @@ export default function TickerReportPage() {
       <div className="ticker-report-page__layout">
         <aside className="ticker-report-page__period-nav" aria-label="Report period">
           <p className="ticker-report-page__period-nav-title">Report archive</p>
-          <ul className="ticker-report-page__years">
-            {years.map((year) => {
-              const months = getMonthsForYear(year);
-              const hasMonths = months.length > 0;
-              const isExpanded = expandedYear === year;
-              const isCurrentSelection = selectedYear === year;
-              const annualActive = isCurrentSelection && !isMonthlyReportYear(year);
-              return (
-                <li key={year} className="ticker-report-page__year-item">
-                  <button
-                    type="button"
-                    className={
-                      'ticker-report-page__year-btn' +
-                      (isExpanded ? ' is-expanded' : '') +
-                      (isCurrentSelection ? ' is-active-year' : '') +
-                      (annualActive ? ' is-active' : '')
-                    }
-                    onClick={() => {
-                      if (hasMonths) {
-                        setExpandedYear((y) => (y === year ? null : year));
-                      } else {
-                        setExpandedYear(null);
-                        setPeriod(year);
+          <div className="ticker-report-page__years-scroll">
+            <ul className="ticker-report-page__years">
+              {years.map((year) => {
+                const hasMonths = getMonthsForYear(year).length > 0;
+                const isExpanded = expandedYear === year;
+                const isCurrentSelection = selectedYear === year;
+                const annualActive = isCurrentSelection && !isMonthlyReportYear(year);
+                return (
+                  <li key={year} className="ticker-report-page__year-item">
+                    <button
+                      type="button"
+                      className={
+                        'ticker-report-page__year-btn' +
+                        (isExpanded ? ' is-expanded' : '') +
+                        (isCurrentSelection ? ' is-active-year' : '') +
+                        (annualActive ? ' is-active' : '')
                       }
-                    }}
-                    aria-expanded={hasMonths ? isExpanded : undefined}
-                  >
-                    {year}
-                    {!hasMonths ? <span className="ticker-report-page__year-tag">Annual</span> : null}
-                  </button>
-                  {hasMonths && isExpanded ? (
-                    <ul className="ticker-report-page__months">
-                      {months.map((month) => {
-                        const active = selectedYear === year && selectedMonth === month;
-                        return (
-                          <li key={`${year}-${month}`}>
-                            <button
-                              type="button"
-                              className={'ticker-report-page__month-btn' + (active ? ' is-active' : '')}
-                              onClick={() => {
-                                setExpandedYear(year);
-                                setPeriod(year, month);
-                              }}
-                            >
-                              {formatMonthShort(month)}
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
+                      onClick={() => {
+                        if (hasMonths) {
+                          setExpandedYear((y) => (y === year ? null : year));
+                        } else {
+                          setExpandedYear(null);
+                          setPeriod(year);
+                        }
+                      }}
+                      aria-expanded={hasMonths ? isExpanded : undefined}
+                    >
+                      {year}
+                      {!hasMonths ? <span className="ticker-report-page__year-tag">Annual</span> : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+          {expandedMonths.length > 0 ? (
+            <div className="ticker-report-page__months-scroll">
+              <ul className="ticker-report-page__months" aria-label={`${expandedYear} months`}>
+                {expandedMonths.map((month) => {
+                  const active = selectedYear === expandedYear && selectedMonth === month;
+                  return (
+                    <li key={`${expandedYear}-${month}`}>
+                      <button
+                        type="button"
+                        className={'ticker-report-page__month-btn' + (active ? ' is-active' : '')}
+                        onClick={() => {
+                          setExpandedYear(expandedYear);
+                          setPeriod(expandedYear, month);
+                        }}
+                      >
+                        {formatMonthShort(month)}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
         </aside>
 
         <div className="ticker-report-page__main" ref={reportRef}>

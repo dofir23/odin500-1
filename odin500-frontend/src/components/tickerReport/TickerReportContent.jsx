@@ -10,6 +10,7 @@ import { valueToneClassName } from '../../utils/tickerReportValueTone.js';
 
 function MetricTable({ rows, columns }) {
   return (
+    <div className="ticker-report__table-wrap">
     <table className="ticker-report__table">
       <thead>
         <tr>
@@ -50,6 +51,7 @@ function MetricTable({ rows, columns }) {
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 
@@ -82,6 +84,7 @@ function SeasonalityHeatmap({ seasonality }) {
     return 'ticker-report__heat--neg';
   };
   return (
+    <div className="ticker-report__heatmap-wrap">
     <table className="ticker-report__heatmap">
       <thead>
         <tr>
@@ -116,6 +119,7 @@ function SeasonalityHeatmap({ seasonality }) {
         </tr>
       </tbody>
     </table>
+    </div>
   );
 }
 

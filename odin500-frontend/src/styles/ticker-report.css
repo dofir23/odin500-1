@@ -119,11 +119,20 @@ html[data-theme='dark'] .ticker-report-page__export-btn--primary {
   grid-template-columns: 200px minmax(0, 1fr);
   gap: 20px;
   align-items: start;
+  min-width: 0;
+}
+
+@media (min-width: 1200px) {
+  .ticker-report-page__layout {
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 24px;
+  }
 }
 
 @media (max-width: 900px) {
   .ticker-report-page__layout {
     grid-template-columns: 1fr;
+    gap: 14px;
   }
 }
 
@@ -132,8 +141,19 @@ html[data-theme='dark'] .ticker-report-page__export-btn--primary {
   top: 12px;
   border: 1px solid var(--tr-border);
   border-radius: 8px;
-  /* background: var(--tr-sidebar); */
   padding: 12px 10px;
+  min-width: 0;
+}
+
+.ticker-report-page__years-scroll,
+.ticker-report-page__months-scroll {
+  min-width: 0;
+}
+
+.ticker-report-page__months-scroll {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--tr-border);
 }
 
 .ticker-report-page__period-nav-title {
@@ -190,8 +210,8 @@ html[data-theme='dark'] .ticker-report-page__year-btn.is-active-year {
 
 .ticker-report-page__months {
   list-style: none;
-  margin: 0 0 8px;
-  padding: 0 0 0 8px;
+  margin: 0;
+  padding: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
@@ -223,6 +243,8 @@ html[data-theme='dark'] .ticker-report-page__year-btn.is-active-year {
   border: 1px solid var(--tr-border);
   border-radius: 10px;
   padding: 8px 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .ticker-report-page__empty {
@@ -402,11 +424,25 @@ html[data-theme='dark'] .ticker-report-page__year-btn.is-active-year {
   font-weight: 500;
 }
 
+.ticker-report__table-wrap,
+.ticker-report__heatmap-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 16px 0;
+}
+
+.ticker-report__table-wrap .ticker-report__table,
+.ticker-report__heatmap-wrap .ticker-report__heatmap {
+  margin: 0;
+}
+
 .ticker-report__table {
   width: 100%;
+  min-width: 520px;
   border-collapse: collapse;
   font-size: 13px;
-  margin: 16px 0;
 }
 
 .ticker-report__table thead {
@@ -492,9 +528,9 @@ html[data-theme='dark'] .ticker-report__table thead {
 
 .ticker-report__heatmap {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
   font-size: 11px;
-  margin: 16px 0;
 }
 
 .ticker-report__heatmap th,
@@ -899,6 +935,272 @@ html[data-theme='dark'] .ticker-report-rs-chart__legend {
   font-size: 10.5px;
   color: var(--tr-text-muted);
   pointer-events: none;
+}
+
+/* ——— Responsive layout ——— */
+
+@media (max-width: 900px) {
+  .ticker-report-page {
+    padding: 10px 12px 28px;
+  }
+
+  .ticker-report-page__period-nav {
+    position: static;
+    padding: 10px;
+  }
+
+  .ticker-report-page__years-scroll,
+  .ticker-report-page__months-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    margin-left: -2px;
+    margin-right: -2px;
+    padding: 0 2px 2px;
+  }
+
+  .ticker-report-page__years {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .ticker-report-page__year-item {
+    margin-bottom: 0;
+    flex: 0 0 auto;
+  }
+
+  .ticker-report-page__year-btn {
+    width: auto;
+    white-space: nowrap;
+    padding: 8px 12px;
+  }
+
+  .ticker-report-page__months {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .ticker-report-page__months li {
+    flex: 0 0 auto;
+  }
+
+  .ticker-report-page__month-btn {
+    min-width: 44px;
+    padding: 8px 10px;
+  }
+
+  .ticker-report-page__main {
+    border-radius: 8px;
+  }
+
+  .ticker-report__article {
+    padding: 18px 16px 36px;
+  }
+
+  .ticker-report__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .ticker-report__header-meta {
+    text-align: left;
+  }
+
+  .ticker-report__title {
+    font-size: clamp(1.35rem, 5vw, 1.75rem);
+  }
+
+  .ticker-report__subtitle {
+    font-size: 15px;
+  }
+
+  .ticker-report__article h2 {
+    font-size: 19px;
+    margin-top: 28px;
+  }
+}
+
+@media (max-width: 640px) {
+  .ticker-report-page {
+    padding: 8px 10px 24px;
+  }
+
+  .ticker-report-page__toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .ticker-report-page__symbol-wrap {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .ticker-report-page__symbol-wrap .ticker-symbol-search {
+    width: 100%;
+  }
+
+  .ticker-report-page__symbol-wrap .ticker-symbol-search__input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .ticker-report-page__export-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .ticker-report-page__export-btn {
+    width: 100%;
+    min-height: 40px;
+    height: auto;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .ticker-report-page__demo-note {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .ticker-report__article {
+    padding: 14px 12px 28px;
+    font-size: 14px;
+  }
+
+  .ticker-report__title {
+    font-size: clamp(1.2rem, 6.2vw, 1.5rem);
+    line-height: 1.25;
+  }
+
+  .ticker-report__byline {
+    font-size: 12px;
+    line-height: 1.55;
+    word-break: break-word;
+  }
+
+  .ticker-report__stats-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .ticker-report__stat-v {
+    font-size: 18px;
+  }
+
+  .ticker-report__takeaways {
+    padding: 12px 14px;
+  }
+
+  .ticker-report__table {
+    min-width: 480px;
+    font-size: 12px;
+  }
+
+  .ticker-report__table th,
+  .ticker-report__table td {
+    padding: 7px 8px;
+  }
+
+  .ticker-report__heatmap {
+    min-width: 580px;
+    font-size: 10px;
+  }
+
+  .ticker-report__score-row {
+    flex-wrap: wrap;
+    gap: 6px 8px;
+  }
+
+  .ticker-report__score-lbl {
+    width: 100%;
+  }
+
+  .ticker-report__score-bar-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .ticker-report__score-val {
+    width: auto;
+    min-width: 48px;
+  }
+
+  .ticker-report__chart figcaption {
+    font-size: 11px;
+    line-height: 1.45;
+    padding: 0 4px;
+  }
+
+  .ticker-report-price-chart__legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    max-width: calc(100% - 80px);
+    font-size: 10px;
+  }
+
+  .ticker-report-rs-chart__legend {
+    max-width: calc(100% - 16px);
+    padding: 6px 10px;
+  }
+
+  .ticker-report-rs-chart__legend-title {
+    font-size: 10.5px;
+  }
+
+  .ticker-report-rs-chart__legend-metrics {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    font-size: 10px;
+  }
+
+  .ticker-report-rs-chart__even-label,
+  .ticker-report-price-chart__range-label,
+  .ticker-report-price-chart__last {
+    font-size: 10px;
+  }
+
+  .ticker-report-drawdown-chart__legend {
+    font-size: 10px;
+    max-width: calc(100% - 24px);
+  }
+}
+
+@media (max-width: 400px) {
+  .ticker-report-page__export-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .ticker-report__section-num {
+    display: block;
+    margin: 0 0 4px;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+  .ticker-report-page {
+    padding: 12px 16px 30px;
+  }
+
+  .ticker-report__article {
+    padding: 20px 18px 40px;
+  }
+
+  .ticker-report__stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media print {

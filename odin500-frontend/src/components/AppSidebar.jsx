@@ -597,6 +597,12 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
               {/* <NavRow to="/odin-signals" icon={IconFocus} label="Odin Signals" /> */}
               {/* <NavRow icon={IconWallet} label="Sample Odin Portfolios" onClick={() => {}} />
               <NavRow icon={IconMonitor} label="Odin Signals Performance" onClick={() => {}} /> */}
+              <NavRow
+                to={`/ticker-report/${DEFAULT_TICKER_ROUTE_SYMBOL.toLowerCase()}`}
+                icon={IconCamera}
+                label="Ticker reports"
+                active={/^\/ticker-report\//i.test(location.pathname)}
+              />
             </nav>
 
             <div className="app-sidebar__section-label">Data</div>

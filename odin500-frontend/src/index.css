@@ -15321,6 +15321,7 @@ h3.returns-chart-title-heading {
 
 [data-theme="light"] .ticker-s23__table thead th:first-child {
   background: #ffffff;
+  color: #f8fafc;
 }
 
 [data-theme="light"] .ticker-s23__table tbody th,

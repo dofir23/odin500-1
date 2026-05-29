@@ -199,6 +199,16 @@ export function normalizePathname(pathname) {
 export function resolveDynamicRouteMetadata(pathname) {
   const path = normalizePathname(pathname);
 
+  const tickerReportMatch = path.match(/^\/ticker-report\/([A-Za-z0-9.]+)$/i);
+  if (tickerReportMatch) {
+    const symbol = decodeURIComponent(tickerReportMatch[1]).toUpperCase();
+    return {
+      title: `${symbol} Monthly Stock Report | Odin500`,
+      description: `${symbol} monthly performance report with trailing returns, drawdown, relative strength, seasonality heatmap, and investor FAQs.`,
+      canonical: `${SITE_ORIGIN}/ticker-report/${encodeURIComponent(symbol.toLowerCase())}`
+    };
+  }
+
   const tickerMatch = path.match(/^\/ticker\/([A-Za-z0-9.]+)$/i);
   if (tickerMatch) {
     const symbol = decodeURIComponent(tickerMatch[1]).toUpperCase();

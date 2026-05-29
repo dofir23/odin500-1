@@ -25,6 +25,7 @@ import TickerWeeklyPage from './pages/TickerWeeklyPage.jsx';
 import TickerDailyPage from './pages/TickerDailyPage.jsx';
 import RelativeStrengthTickerPage from './pages/RelativeStrengthTickerPage.jsx';
 import HistoricalDataPage from './pages/HistoricalDataPage.jsx';
+import TickerReportPage from './pages/TickerReportPage.jsx';
 import NewsPage from './pages/NewsPage.jsx';
 import Pricing from './pages/Pricing.jsx';
 import AboutPage from './pages/AboutPage.jsx';
@@ -52,6 +53,7 @@ const eagerPages = {
   TickerDailyPage,
   RelativeStrengthTickerPage,
   HistoricalDataPage,
+  TickerReportPage,
   NewsPage,
   Pricing,
   AboutPage,

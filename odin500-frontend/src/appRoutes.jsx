@@ -57,6 +57,7 @@ function ProtectedRoute({ children }) {
  *   TickerDailyPage: React.ComponentType,
  *   RelativeStrengthTickerPage: React.ComponentType,
  *   HistoricalDataPage: React.ComponentType,
+ *   TickerReportPage: React.ComponentType,
  *   NewsPage: React.ComponentType,
  *   Pricing: React.ComponentType,
  *   AboutPage: React.ComponentType,
@@ -87,6 +88,7 @@ export function createAppRoutes(pages) {
     TickerDailyPage,
     RelativeStrengthTickerPage,
     HistoricalDataPage,
+    TickerReportPage,
     NewsPage,
     Pricing,
     AboutPage,
@@ -178,6 +180,11 @@ export function createAppRoutes(pages) {
         <Route path="/relative-strength/ticker" element={<LegacyRelativeStrengthRedirect />} />
         <Route path="/relative-strength/ticker/:symbol" element={<LegacyRelativeStrengthRedirect />} />
         <Route path="/historical-data" element={<HistoricalDataPage />} />
+        <Route
+          path="/ticker-report"
+          element={<Navigate to={`/ticker-report/${DEFAULT_TICKER_ROUTE_SYMBOL.toLowerCase()}`} replace />}
+        />
+        <Route path="/ticker-report/:symbol" element={<TickerReportPage />} />
         <Route path="/accounts" element={<AccountsPage />} />
         <Route path="/premium" element={<Pricing />} />
         <Route path="/about" element={<AboutPage />} />

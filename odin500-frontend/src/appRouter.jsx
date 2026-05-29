@@ -26,6 +26,7 @@ const TickerWeeklyPage = lazy(() => import('./pages/TickerWeeklyPage.jsx'));
 const TickerDailyPage = lazy(() => import('./pages/TickerDailyPage.jsx'));
 const RelativeStrengthTickerPage = lazy(() => import('./pages/RelativeStrengthTickerPage.jsx'));
 const HistoricalDataPage = lazy(() => import('./pages/HistoricalDataPage.jsx'));
+const TickerReportPage = lazy(() => import('./pages/TickerReportPage.jsx'));
 const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
 const Pricing = lazy(() => import('./pages/Pricing.jsx'));
 const AboutPage = lazy(() => import('./pages/AboutPage.jsx'));
@@ -54,6 +55,7 @@ const lazyPages = {
   TickerDailyPage,
   RelativeStrengthTickerPage,
   HistoricalDataPage,
+  TickerReportPage,
   NewsPage,
   Pricing,
   AboutPage,

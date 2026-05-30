@@ -298,7 +298,7 @@ export function TickerReportPriceChart({ symbol, periodEnd, fallback, chartCapti
             style={{
               top: overlay.bandTop,
               height: overlay.bandHeight,
-              background: lineColors.band
+              // background: lineColors.band
             }}
             aria-hidden
           />

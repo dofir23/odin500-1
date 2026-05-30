@@ -1,6 +1,7 @@
 /* Ticker monthly reports — light (default article) + dark via html[data-theme="dark"] */
 
-.ticker-report-page {
+.ticker-report-page,
+.ticker-report__heatmap-host {
   --tr-navy: #1c3964;
   --tr-blue: #30679c;
   --tr-light: #e6ebf3;
@@ -13,7 +14,9 @@
   --tr-negative: #c62828;
   --tr-panel: #ffffff;
   --tr-sidebar: #f8fafc;
+}
 
+.ticker-report-page {
   width: min(1600px, 100%);
   margin: 0 auto;
   padding: 12px 14px 34px;
@@ -21,7 +24,8 @@
   color: var(--tr-text);
 }
 
-html[data-theme='dark'] .ticker-report-page {
+html[data-theme='dark'] .ticker-report-page,
+html[data-theme='dark'] .ticker-report__heatmap-host {
   --tr-navy: #e2e8f0;
   --tr-blue: #93c5fd;
   --tr-light: rgba(148, 163, 184, 0.2);
@@ -213,7 +217,7 @@ html[data-theme='dark'] .ticker-report-page__year-btn.is-active-year {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
 }
 
@@ -462,7 +466,8 @@ html[data-theme='dark'] .ticker-report__table thead {
   text-transform: uppercase;
 }
 
-.ticker-report__th-num {
+.ticker-report__table th.ticker-report__th-num,
+.ticker-report__table td.ticker-report__th-num {
   text-align: right;
 }
 
@@ -497,11 +502,137 @@ html[data-theme='dark'] .ticker-report__table thead {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+  min-width: 0;
+}
+
+.ticker-report__split-cols > * {
+  min-width: 0;
 }
 
 @media (max-width: 700px) {
   .ticker-report__split-cols {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Two-column stat / win-rate tables — fit viewport on mobile (no horizontal scroll) */
+.ticker-report__table-wrap--fit {
+  overflow-x: visible;
+}
+
+.ticker-report__table--compact {
+  min-width: 0;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.ticker-report__table--compact th:first-child,
+.ticker-report__table--compact td:first-child {
+  width: 62%;
+  word-break: break-word;
+  hyphens: auto;
+  line-height: 1.35;
+}
+
+.ticker-report__table--compact th:last-child,
+.ticker-report__table--compact td:last-child {
+  width: 38%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.ticker-report__split-cols--monthly-stats .ticker-report__table-wrap {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .ticker-report__split-cols--monthly-stats {
+    gap: 12px;
+  }
+
+  .ticker-report__table--compact {
+    font-size: 11px;
+  }
+
+  .ticker-report__table--compact th,
+  .ticker-report__table--compact td {
+    padding: 6px 6px;
+  }
+
+  .ticker-report__table--compact th {
+    font-size: 9px;
+    letter-spacing: 0.04em;
+  }
+
+  .ticker-report__table--compact th:first-child,
+  .ticker-report__table--compact td:first-child {
+    width: 58%;
+  }
+
+  .ticker-report__table--compact th:last-child,
+  .ticker-report__table--compact td:last-child {
+    width: 42%;
+  }
+}
+
+@media (max-width: 400px) {
+  .ticker-report__table--compact {
+    font-size: 10.5px;
+  }
+
+  .ticker-report__table--compact th,
+  .ticker-report__table--compact td {
+    padding: 5px 4px;
+  }
+}
+
+/* Mobile-only compact tables (e.g. relative strength metrics) */
+@media (max-width: 640px) {
+  .ticker-report__table-wrap--fit-mobile {
+    overflow-x: visible;
+  }
+
+  .ticker-report__table--compact-mobile {
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+    font-size: 11px;
+  }
+
+  .ticker-report__table--compact-mobile th,
+  .ticker-report__table--compact-mobile td {
+    padding: 6px 6px;
+  }
+
+  .ticker-report__table--compact-mobile th {
+    font-size: 9px;
+    letter-spacing: 0.04em;
+  }
+
+  .ticker-report__table--compact-mobile th:first-child,
+  .ticker-report__table--compact-mobile td:first-child {
+    width: 58%;
+    word-break: break-word;
+    hyphens: auto;
+    line-height: 1.35;
+  }
+
+  .ticker-report__table--compact-mobile th:last-child,
+  .ticker-report__table--compact-mobile td:last-child {
+    width: 42%;
+    white-space: nowrap;
+    text-align: right;
+  }
+}
+
+@media (max-width: 400px) {
+  .ticker-report__table--compact-mobile {
+    font-size: 10.5px;
+  }
+
+  .ticker-report__table--compact-mobile th,
+  .ticker-report__table--compact-mobile td {
+    padding: 5px 4px;
   }
 }
 
@@ -984,6 +1115,7 @@ html[data-theme='dark'] .ticker-report-rs-chart__legend {
     gap: 6px;
     width: max-content;
     min-width: 100%;
+    margin-top: 10px;
   }
 
   .ticker-report-page__months li {
@@ -1107,6 +1239,24 @@ html[data-theme='dark'] .ticker-report-rs-chart__legend {
     font-size: 12px;
   }
 
+  .ticker-report__table--compact {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .ticker-report__table--compact-mobile {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .ticker-report__table-wrap--fit {
+    overflow-x: visible;
+  }
+
+  .ticker-report__table-wrap--fit-mobile {
+    overflow-x: visible;
+  }
+
   .ticker-report__table th,
   .ticker-report__table td {
     padding: 7px 8px;
@@ -1216,5 +1366,27 @@ html[data-theme='dark'] .ticker-report-rs-chart__legend {
 
   .ticker-report-page__main {
     border: none;
+  }
+
+  .ticker-report__takeaways,
+  .ticker-report__stats-grid,
+  .ticker-report__split-cols,
+  .ticker-report__table-wrap,
+  .ticker-report__heatmap-wrap,
+  figure.ticker-report__chart,
+  .ticker-report__scorecard,
+  .ticker-report__summaries,
+  .ticker-report__summary,
+  .ticker-report__faq,
+  .ticker-report__disclosure,
+  .ticker-report__related {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ticker-report__article h2,
+  .ticker-report__article h3 {
+    break-after: avoid;
+    page-break-after: avoid;
   }
 }

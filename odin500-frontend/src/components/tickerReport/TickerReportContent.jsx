@@ -6,12 +6,22 @@ import { TickerReportAnnualCompareChart, TickerReportMonthlyReturnsChart } from 
 import { TickerReportDrawdownChart } from './TickerReportDrawdownChart.jsx';
 import { TickerReportPriceChart } from './TickerReportPriceChart.jsx';
 import { TickerReportRelativeStrengthChart } from './TickerReportRelativeStrengthChart.jsx';
+import { SeasonalityHeatmap } from './SeasonalityHeatmap.jsx';
 import { valueToneClassName } from '../../utils/tickerReportValueTone.js';
 
-function MetricTable({ rows, columns }) {
+function MetricTable({ rows, columns, compact = false, compactMobile = false }) {
+  const wrapClass =
+    'ticker-report__table-wrap' +
+    (compact ? ' ticker-report__table-wrap--fit' : '') +
+    (compactMobile ? ' ticker-report__table-wrap--fit-mobile' : '');
+  const tableClass =
+    'ticker-report__table' +
+    (compact ? ' ticker-report__table--compact' : '') +
+    (compactMobile ? ' ticker-report__table--compact-mobile' : '');
+
   return (
-    <div className="ticker-report__table-wrap">
-    <table className="ticker-report__table">
+    <div className={wrapClass}>
+    <table className={tableClass}>
       <thead>
         <tr>
           {columns.map((col) => (
@@ -69,56 +79,6 @@ function SectionSummary({ paragraphs }) {
           {p}
         </p>
       ))}
-    </div>
-  );
-}
-
-function SeasonalityHeatmap({ seasonality }) {
-  const { years, months, cells, averages } = seasonality;
-  const cellTone = (v) => {
-    if (v == null) return 'ticker-report__heat--empty';
-    if (v >= 8) return 'ticker-report__heat--pos-strong';
-    if (v >= 2) return 'ticker-report__heat--pos';
-    if (v >= 0) return 'ticker-report__heat--pos-soft';
-    if (v >= -3) return 'ticker-report__heat--neg-soft';
-    return 'ticker-report__heat--neg';
-  };
-  return (
-    <div className="ticker-report__heatmap-wrap">
-    <table className="ticker-report__heatmap">
-      <thead>
-        <tr>
-          <th>Year</th>
-          {months.map((m) => (
-            <th key={m}>{m}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {years.map((y) => (
-          <tr key={y}>
-            <th>{y}</th>
-            {(cells[String(y)] || []).map((v, idx) => (
-              <td key={`${y}-${idx}`} className={cellTone(v)}>
-                {v == null ? '—' : `${v > 0 ? '+' : ''}${v}%`}
-              </td>
-            ))}
-          </tr>
-        ))}
-        <tr>
-          <th className="ticker-report__heat-avg">3Y Avg</th>
-          {averages.map((v, idx) => (
-            <td
-              key={`avg-${idx}`}
-              className={`ticker-report__heat-avg ${valueToneClassName(v > 0 ? 'pos' : v < 0 ? 'neg' : '', v)}`}
-            >
-              {v > 0 ? '+' : ''}
-              {v}%
-            </td>
-          ))}
-        </tr>
-      </tbody>
-    </table>
     </div>
   );
 }
@@ -216,9 +176,9 @@ export function TickerReportContent({ report }) {
           </>
         )}
       </SectionIntro>
-      <div className="ticker-report__split-cols">
-        <MetricTable rows={report.monthlyStatsLeft} columns={['Statistic', 'Value']} />
-        <MetricTable rows={report.monthlyStatsRight} columns={['Win Rate', 'Count']} />
+      <div className="ticker-report__split-cols ticker-report__split-cols--monthly-stats">
+        <MetricTable rows={report.monthlyStatsLeft} columns={['Statistic', 'Value']} compact />
+        <MetricTable rows={report.monthlyStatsRight} columns={['Win Rate', 'Count']} compact />
       </div>
 
       <TickerReportMonthlyReturnsChart data={report.charts.monthlyReturns} />
@@ -273,19 +233,19 @@ export function TickerReportContent({ report }) {
         Quarterly and Annual Performance
       </h2>
       <h3>Last Six Quarters</h3>
-      <MetricTable rows={report.quarters} columns={['Quarter', 'Return']} />
+      <MetricTable rows={report.quarters} columns={['Quarter', 'Return']} compactMobile />
       <h3>Calendar Year Returns</h3>
-      <MetricTable rows={report.calendarYears} columns={['Year', 'Return']} />
+      <MetricTable rows={report.calendarYears} columns={['Year', 'Return']} compactMobile />
 
       <SectionSummary paragraphs={n.quarterlyAnnual?.summary ? [n.quarterlyAnnual.summary] : []} />
       <TickerReportAnnualCompareChart data={report.charts.annualCompare} symbol={sym} />
 
       <h2>
         <span className="ticker-report__section-num">06</span>
-        Drawdown and Technical Position
+        Drawdown Technical Position
       </h2>
       <SectionIntro>{n.drawdown?.intro}</SectionIntro>
-      <MetricTable rows={report.drawdownMetrics} columns={['Metric', 'Value']} />
+      <MetricTable rows={report.drawdownMetrics} columns={['Metric', 'Value']} compactMobile />
       <SectionSummary paragraphs={n.drawdown?.summary ? [n.drawdown.summary] : []} />
       <TickerReportDrawdownChart data={report.charts.drawdown} symbol={sym} periodEnd={m.periodEnd} />
 
@@ -294,7 +254,7 @@ export function TickerReportContent({ report }) {
         Relative Strength vs S&amp;P 500
       </h2>
       <SectionIntro>{n.relativeStrength?.intro}</SectionIntro>
-      <MetricTable rows={report.relativeStrength} columns={['RS Metric', 'Value']} />
+      <MetricTable rows={report.relativeStrength} columns={['RS Metric', 'Value']} compactMobile />
       <SectionSummary
         paragraphs={[n.relativeStrength?.summary, n.relativeStrength?.summaryExtra].filter(Boolean)}
       />
@@ -313,7 +273,7 @@ export function TickerReportContent({ report }) {
       <SeasonalityHeatmap seasonality={report.seasonality} />
       <SectionSummary paragraphs={n.seasonality?.summary ? [n.seasonality.summary] : []} />
 
-      <h2>
+      {/* <h2>
         <span className="ticker-report__section-num">09</span>
         Investment Attractiveness Scorecard
       </h2>
@@ -349,10 +309,10 @@ export function TickerReportContent({ report }) {
           </div>
         ))}
       </div>
-      <SectionSummary paragraphs={n.scorecard?.summary ? [n.scorecard.summary] : []} />
+      <SectionSummary paragraphs={n.scorecard?.summary ? [n.scorecard.summary] : []} /> */}
 
       <h2>
-        <span className="ticker-report__section-num">10</span>
+        <span className="ticker-report__section-num">09</span>
         Frequently Asked Questions
       </h2>
       {report.faqs.map((item) => (
@@ -364,7 +324,7 @@ export function TickerReportContent({ report }) {
 
       <section className="ticker-report__related" aria-label="Related pages">
         <h2>
-          <span className="ticker-report__section-num">11</span>
+          <span className="ticker-report__section-num">10</span>
           Related on Odin500
         </h2>
         <ul>

@@ -19073,6 +19073,66 @@ html[data-theme='light'] .about-legal-item {
   overflow: hidden;
 }
 
+.ticker-page__seasonality-body {
+  padding: 0 12px 12px;
+}
+
+.ticker-page__seasonality-loading {
+  margin: 0;
+  padding: 4px 0 8px;
+  font-size: 13px;
+}
+
+.ticker-page__seasonality--desktop {
+  display: block;
+}
+
+.ticker-page__seasonality--mobile {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .ticker-page__seasonality--desktop {
+    display: none;
+  }
+
+  .ticker-page__seasonality--mobile {
+    display: block;
+  }
+}
+
+.ticker-page__seasonality .ticker-report__heatmap thead th,
+.ticker-page__seasonality .ticker-report__heatmap tbody th {
+  background: transparent;
+  color: #94a3b8;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ticker-page__seasonality .ticker-report__heatmap tbody th.ticker-report__heat-avg {
+  background: transparent !important;
+  color: #94a3b8;
+}
+
+.ticker-page__seasonality .ticker-report__heatmap td.ticker-report__heat-avg {
+  background: transparent !important;
+}
+
+.ticker-page__seasonality .ticker-report__heatmap th,
+.ticker-page__seasonality .ticker-report__heatmap td {
+  border-color: rgba(148, 163, 184, 0.15);
+}
+
+[data-theme='light'] .ticker-page__seasonality .ticker-report__heatmap thead th,
+[data-theme='light'] .ticker-page__seasonality .ticker-report__heatmap tbody th {
+  color: #64748b;
+}
+
+[data-theme='light'] .ticker-page__seasonality .ticker-report__heatmap tbody th.ticker-report__heat-avg {
+  color: #64748b;
+}
+
 .statistic-data__card--target {
   border-color: rgba(56, 189, 248, 0.75);
   box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.22);

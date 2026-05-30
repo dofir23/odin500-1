@@ -33,6 +33,9 @@ import {
   yearOptionsForEnd,
   yearOptionsForStart
 } from '../utils/dateRangeConstraints.js';
+import { MonthlySeasonalitySection } from '../components/MonthlySeasonalitySection.jsx';
+import { buildMonthlySeasonality } from '../utils/buildMonthlySeasonality.js';
+import '../styles/ticker-report.css';
 
 const RESIZE_KEY_QTR_FIGMA = 'odin_ticker_quarterly_resize_figma';
 const RESIZE_KEY_QTR_POSNEG = 'odin_ticker_quarterly_resize_posneg';
@@ -313,6 +316,7 @@ export default function TickerQuarterlyPage() {
   const [asOfDate, setAsOfDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [quarterlyReturnsRaw, setQuarterlyReturnsRaw] = useState([]);
   const [quarterlyReturnsBenchRaw, setQuarterlyReturnsBenchRaw] = useState([]);
+  const [monthlyReturnsRaw, setMonthlyReturnsRaw] = useState([]);
   const [dynamicSym, setDynamicSym] = useState([]);
   const [dynamicSpy, setDynamicSpy] = useState([]);
   const [statsRows, setStatsRows] = useState([]);
@@ -353,6 +357,7 @@ export default function TickerQuarterlyPage() {
     if (!canFetchProtectedApi()) {
       setError('Sign in to load ticker data.');
       setQuarterlyReturnsRaw([]);
+      setMonthlyReturnsRaw([]);
       return () => {
         cancelled = true;
       };
@@ -371,9 +376,10 @@ export default function TickerQuarterlyPage() {
         const oneYearStart = new Date(end + 'T12:00:00');
         oneYearStart.setFullYear(oneYearStart.getFullYear() - 1);
         const oneYearStartIso = oneYearStart.toISOString().slice(0, 10);
-        const [qRes, qBenchRes, coreSymRes, coreSpyRes, ohlcSymRes, ohlcSpyRes, detailsRes] = await Promise.all([
+        const [qRes, qBenchRes, mRes, coreSymRes, coreSpyRes, ohlcSymRes, ohlcSpyRes, detailsRes] = await Promise.all([
           fetchJsonCached({ path: '/api/market/ticker-quarterly-returns', method: 'POST', body, ttlMs: 5 * 60 * 1000 }),
           fetchJsonCached({ path: '/api/market/ticker-quarterly-returns', method: 'POST', body: { ...body, ticker: benchmarkIndex }, ttlMs: 5 * 60 * 1000 }),
+          fetchJsonCached({ path: '/api/market/ticker-monthly-returns', method: 'POST', body, ttlMs: 5 * 60 * 1000 }),
           fetchJsonCached({ path: '/api/market/ticker-core-returns', method: 'POST', body, ttlMs: 5 * 60 * 1000 }),
           fetchJsonCached({
             path: '/api/market/ticker-core-returns',
@@ -401,10 +407,12 @@ export default function TickerQuarterlyPage() {
         if (cancelled) return;
         const perf = qRes?.data?.performance || {};
         const perfBench = qBenchRes?.data?.performance || {};
+        const monthlyPerf = mRes?.data?.performance || {};
         const coreSymPerf = coreSymRes?.data?.performance || {};
         const coreSpyPerf = coreSpyRes?.data?.performance || {};
         setQuarterlyReturnsRaw(Array.isArray(perf.quarterlyReturns) ? perf.quarterlyReturns : []);
         setQuarterlyReturnsBenchRaw(Array.isArray(perfBench.quarterlyReturns) ? perfBench.quarterlyReturns : []);
+        setMonthlyReturnsRaw(Array.isArray(monthlyPerf.monthlyReturns) ? monthlyPerf.monthlyReturns : []);
         setDynamicSym(Array.isArray(coreSymPerf.dynamicPeriods) ? coreSymPerf.dynamicPeriods : []);
         setDynamicSpy(Array.isArray(coreSpyPerf.dynamicPeriods) ? coreSpyPerf.dynamicPeriods : []);
         const symRows = Array.isArray(ohlcSymRes?.data?.data) ? ohlcSymRes.data.data : Array.isArray(ohlcSymRes?.data) ? ohlcSymRes.data : [];
@@ -418,6 +426,7 @@ export default function TickerQuarterlyPage() {
           setError(e?.message || 'Failed to load quarterly returns');
           setQuarterlyReturnsRaw([]);
           setQuarterlyReturnsBenchRaw([]);
+          setMonthlyReturnsRaw([]);
           setDynamicSym([]);
           setDynamicSpy([]);
           setStatsRows([]);
@@ -576,6 +585,11 @@ export default function TickerQuarterlyPage() {
     });
     return rows;
   }, [tableRows, tableSort]);
+
+  const monthlySeasonality = useMemo(
+    () => buildMonthlySeasonality(monthlyReturnsRaw),
+    [monthlyReturnsRaw]
+  );
 
   const tableTotalPages = useMemo(() => Math.max(1, Math.ceil(tableRowsSorted.length / TABLE_PAGE_SIZE)), [tableRowsSorted.length]);
   const tablePageSafe = useMemo(() => Math.min(Math.max(1, tablePage), tableTotalPages), [tablePage, tableTotalPages]);
@@ -798,6 +812,12 @@ export default function TickerQuarterlyPage() {
             />
           </TickerChartResizeScope>
 
+          <MonthlySeasonalitySection
+            seasonality={monthlySeasonality}
+            placement="desktop"
+            loading={loading}
+          />
+
           <section className="statistic-data__card">
             <div className="statistic-data__table-head">
               <h2 className="statistic-data__table-title">Quarterly Returns</h2>
@@ -924,6 +944,12 @@ export default function TickerQuarterlyPage() {
               </div>
             ) : null}
           </section>
+
+          <MonthlySeasonalitySection
+            seasonality={monthlySeasonality}
+            placement="mobile"
+            loading={loading}
+          />
         </div>
         <aside className="ticker-page__aside ticker-page__aside-stack">
           {/* <section className="ticker-card ticker-card--signal" aria-labelledby="odin-signal-h-q">

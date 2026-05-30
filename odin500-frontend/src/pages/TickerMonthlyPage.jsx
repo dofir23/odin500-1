@@ -30,6 +30,8 @@ import {
   getCompanyProfileApiKeyPresent,
   numOrNull
 } from '../utils/companyOverviewProfile.js';
+import { MonthlySeasonalitySection } from '../components/MonthlySeasonalitySection.jsx';
+import { buildMonthlySeasonality } from '../utils/buildMonthlySeasonality.js';
 import {
   applyDateEndChange,
   applyDateStartChange,
@@ -40,6 +42,7 @@ import {
   yearOptionsForEnd,
   yearOptionsForStart
 } from '../utils/dateRangeConstraints.js';
+import '../styles/ticker-report.css';
 
 const RESIZE_KEY_M_FIGMA = 'odin_ticker_monthly_resize_figma';
 const RESIZE_KEY_M_POSNEG = 'odin_ticker_monthly_resize_posneg';
@@ -969,6 +972,11 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
     weeklyStartYear
   ]);
 
+  const monthlySeasonality = useMemo(() => {
+    if (isWeekly || isDaily) return null;
+    return buildMonthlySeasonality(monthlyReturnsRaw);
+  }, [isWeekly, isDaily, monthlyReturnsRaw]);
+
   const tableRowsSorted = useMemo(() => {
     const rows = [...tableRowsFiltered];
     const { column, direction } = tableSort;
@@ -1249,6 +1257,14 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
             </TickerChartResizeScope>
           ) : null}
 
+          {!isWeekly && !isDaily ? (
+            <MonthlySeasonalitySection
+              seasonality={monthlySeasonality}
+              placement="desktop"
+              loading={loading}
+            />
+          ) : null}
+
           <section className="statistic-data__card">
             <div className="statistic-data__table-head">
               <div className="statistic-data__title-stack">
@@ -1390,6 +1406,14 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
               </div>
             ) : null}
           </section>
+
+          {!isWeekly && !isDaily ? (
+            <MonthlySeasonalitySection
+              seasonality={monthlySeasonality}
+              placement="mobile"
+              loading={loading}
+            />
+          ) : null}
         </div>
 
         <aside className="ticker-page__aside ticker-page__aside-stack">

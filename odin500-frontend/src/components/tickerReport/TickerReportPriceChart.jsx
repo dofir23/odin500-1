@@ -12,6 +12,10 @@ import { fetchJsonCached, canFetchProtectedApi } from '../../store/apiStore.js';
 import { mapRowsToCandles } from '../../utils/chartData.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../../utils/documentTheme.js';
 import { fmtChartPrice } from '../../utils/formatDisplayNumber.js';
+import {
+  detachTickerReportChart,
+  subscribeTickerReportTimeScale
+} from '../../utils/tickerReportChartUtils.js';
 
 const CHART_HEIGHT = 360;
 
@@ -82,6 +86,7 @@ export function TickerReportPriceChart({ symbol, periodEnd, fallback, chartCapti
   const maSeriesRef = useRef(null);
   const pendingDataRef = useRef(null);
   const rangeRef = useRef({ high: null, low: null, last: null });
+  const updateOverlayRef = useRef(() => {});
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -142,6 +147,8 @@ export function TickerReportPriceChart({ symbol, periodEnd, fallback, chartCapti
     });
   }, []);
 
+  updateOverlayRef.current = updateOverlay;
+
   const applySeriesData = useCallback(() => {
     const pending = pendingDataRef.current;
     const priceSeries = priceSeriesRef.current;
@@ -151,9 +158,12 @@ export function TickerReportPriceChart({ symbol, periodEnd, fallback, chartCapti
     priceSeries.setData(pending.linePts);
     maSeries?.setData(pending.ma200Data);
     chart.timeScale().fitContent();
-    requestAnimationFrame(() => updateOverlay());
+    requestAnimationFrame(() => updateOverlayRef.current());
     return true;
-  }, [updateOverlay]);
+  }, []);
+
+  const applySeriesDataRef = useRef(applySeriesData);
+  applySeriesDataRef.current = applySeriesData;
 
   useEffect(() => {
     let cancelled = false;
@@ -194,7 +204,7 @@ export function TickerReportPriceChart({ symbol, periodEnd, fallback, chartCapti
         rangeRef.current = { high: high52, low: low52, last };
         setRange52({ high: high52, low: low52, last });
         pendingDataRef.current = { linePts, ma200Data };
-        applySeriesData();
+        applySeriesDataRef.current();
       } catch (e) {
         if (!cancelled) {
           setError(e?.message || 'Failed to load chart');
@@ -207,7 +217,7 @@ export function TickerReportPriceChart({ symbol, periodEnd, fallback, chartCapti
     return () => {
       cancelled = true;
     };
-  }, [sym, startDate, endDate, fallback?.high52, fallback?.low52, applySeriesData]);
+  }, [sym, startDate, endDate, fallback?.high52, fallback?.low52]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -242,45 +252,37 @@ export function TickerReportPriceChart({ symbol, periodEnd, fallback, chartCapti
     maSeriesRef.current = maSeries;
     chartRef.current = chart;
     priceSeriesRef.current = priceSeries;
-    applySeriesData();
+    applySeriesDataRef.current();
 
     const onResize = () => {
       if (!containerRef.current || !chartRef.current) return;
       chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
-      updateOverlay();
+      updateOverlayRef.current();
     };
 
     const ts = chart.timeScale();
-    const onRange = () => updateOverlay();
-    ts.subscribeVisibleLogicalRangeChange(onRange);
-    ts.subscribeVisibleTimeRangeChange(onRange);
-
+    const onRange = () => updateOverlayRef.current();
+    subscribeTickerReportTimeScale(ts, onRange);
     window.addEventListener('resize', onResize);
 
     return () => {
       window.removeEventListener('resize', onResize);
-      ts.unsubscribeVisibleLogicalRangeChange(onRange);
-      ts.unsubscribeVisibleTimeRangeChange(onRange);
-      chart.remove();
+      detachTickerReportChart(chart, ts, onRange);
       chartRef.current = null;
       priceSeriesRef.current = null;
       maSeriesRef.current = null;
     };
-  }, [theme, lineColors.price, lineColors.ma, updateOverlay, applySeriesData]);
+  }, [theme, lineColors.price, lineColors.ma]);
 
   useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart) return;
-    chart.applyOptions(chartOptionsForTheme(theme, containerRef.current?.clientWidth || 640));
-    priceSeriesRef.current?.applyOptions({ color: lineColors.price });
-    maSeriesRef.current?.applyOptions({ color: lineColors.ma });
-  }, [theme, lineColors]);
+    applySeriesDataRef.current();
+  }, [sym, startDate, endDate]);
 
   useLayoutEffect(() => {
     updateOverlay();
     const host = hostRef.current;
     if (!host) return;
-    const ro = new ResizeObserver(() => updateOverlay());
+    const ro = new ResizeObserver(() => updateOverlayRef.current());
     ro.observe(host);
     return () => ro.disconnect();
   }, [updateOverlay, range52]);

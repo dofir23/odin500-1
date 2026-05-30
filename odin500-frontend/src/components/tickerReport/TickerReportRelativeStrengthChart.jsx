@@ -15,6 +15,10 @@ import {
   relativeStrengthPointsFromSparse,
   resolveRelativeStrengthStats
 } from '../../utils/relativeStrengthSeries.js';
+import {
+  detachTickerReportChart,
+  subscribeTickerReportTimeScale
+} from '../../utils/tickerReportChartUtils.js';
 
 const CHART_HEIGHT = 340;
 const BASELINE = 100;
@@ -72,13 +76,17 @@ export function TickerReportRelativeStrengthChart({
   const bench = String(benchmark || 'SPY').toUpperCase();
   const theme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
   const light = theme === 'light';
+  const lightRef = useRef(light);
+  lightRef.current = light;
+  const statsDataRef = useRef(data);
+  statsDataRef.current = data;
 
   const hostRef = useRef(null);
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const pendingRef = useRef(null);
-  const statsRef = useRef(null);
+  const updateEvenLabelRef = useRef(() => {});
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -116,6 +124,8 @@ export function TickerReportRelativeStrengthChart({
     setEvenLabelTop(Math.max(8, Math.min(Number(y) - 8, host.clientHeight - 24)));
   }, []);
 
+  updateEvenLabelRef.current = updateEvenLabel;
+
   const applySeriesData = useCallback(() => {
     const pending = pendingRef.current;
     const series = seriesRef.current;
@@ -123,17 +133,17 @@ export function TickerReportRelativeStrengthChart({
     if (!pending?.length || !series || !chart) return false;
 
     series.setData(pending);
-    const resolved = resolveRelativeStrengthStats(pending, data || {});
-    statsRef.current = resolved;
+    const resolved = resolveRelativeStrengthStats(pending, statsDataRef.current || {});
     setStats(resolved);
 
     const troughPt = resolved.troughPoint;
+    const isLight = lightRef.current;
     if (troughPt?.time) {
       series.setMarkers([
         {
           time: troughPt.time,
           position: 'inBar',
-          color: light ? '#C62828' : '#f87171',
+          color: isLight ? '#C62828' : '#f87171',
           shape: 'circle',
           size: 1.2
         }
@@ -143,9 +153,12 @@ export function TickerReportRelativeStrengthChart({
     }
 
     chart.timeScale().fitContent();
-    requestAnimationFrame(() => updateEvenLabel());
+    requestAnimationFrame(() => updateEvenLabelRef.current());
     return true;
-  }, [data, light, updateEvenLabel]);
+  }, []);
+
+  const applySeriesDataRef = useRef(applySeriesData);
+  applySeriesDataRef.current = applySeriesData;
 
   useEffect(() => {
     let cancelled = false;
@@ -153,7 +166,7 @@ export function TickerReportRelativeStrengthChart({
 
     if (!canFetchProtectedApi()) {
       pendingRef.current = fallback;
-      applySeriesData();
+      applySeriesDataRef.current();
       setLoading(false);
       return;
     }
@@ -185,11 +198,11 @@ export function TickerReportRelativeStrengthChart({
         if (points.length < 2 && fallback.length) points = fallback;
 
         pendingRef.current = points;
-        applySeriesData();
+        applySeriesDataRef.current();
       } catch (e) {
         if (!cancelled) {
           pendingRef.current = fallback;
-          applySeriesData();
+          applySeriesDataRef.current();
           if (!fallback.length) setError(e?.message || 'Failed to load relative strength chart');
         }
       } finally {
@@ -200,7 +213,7 @@ export function TickerReportRelativeStrengthChart({
     return () => {
       cancelled = true;
     };
-  }, [sym, bench, startDate, endDate, data, applySeriesData]);
+  }, [sym, bench, startDate, endDate, data]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -227,43 +240,36 @@ export function TickerReportRelativeStrengthChart({
 
     chartRef.current = chart;
     seriesRef.current = series;
-    applySeriesData();
+    applySeriesDataRef.current();
 
     const onResize = () => {
       if (!containerRef.current || !chartRef.current) return;
       chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
-      updateEvenLabel();
+      updateEvenLabelRef.current();
     };
 
     const ts = chart.timeScale();
-    const onRange = () => updateEvenLabel();
-    ts.subscribeVisibleLogicalRangeChange(onRange);
-    ts.subscribeVisibleTimeRangeChange(onRange);
+    const onRange = () => updateEvenLabelRef.current();
+    subscribeTickerReportTimeScale(ts, onRange);
     window.addEventListener('resize', onResize);
 
     return () => {
       window.removeEventListener('resize', onResize);
-      ts.unsubscribeVisibleLogicalRangeChange(onRange);
-      ts.unsubscribeVisibleTimeRangeChange(onRange);
-      chart.remove();
+      detachTickerReportChart(chart, ts, onRange);
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [theme, lineColor, baselineColor, applySeriesData, updateEvenLabel]);
+  }, [theme, lineColor, baselineColor]);
 
   useEffect(() => {
-    const chart = chartRef.current;
-    const series = seriesRef.current;
-    if (!chart || !series) return;
-    chart.applyOptions(chartOptionsForTheme(theme, containerRef.current?.clientWidth || 640));
-    series.applyOptions({ color: lineColor });
-  }, [theme, lineColor]);
+    applySeriesDataRef.current();
+  }, [sym, startDate, endDate, data]);
 
   useLayoutEffect(() => {
     updateEvenLabel();
     const host = hostRef.current;
     if (!host) return;
-    const ro = new ResizeObserver(() => updateEvenLabel());
+    const ro = new ResizeObserver(() => updateEvenLabelRef.current());
     ro.observe(host);
     return () => ro.disconnect();
   }, [updateEvenLabel, loading]);

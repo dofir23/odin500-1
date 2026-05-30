@@ -18,6 +18,10 @@ import {
   formatDrawdownPct
 } from '../../utils/drawdownSeries.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../../utils/documentTheme.js';
+import {
+  detachTickerReportChart,
+  subscribeTickerReportTimeScale
+} from '../../utils/tickerReportChartUtils.js';
 
 const CHART_HEIGHT = 340;
 
@@ -88,6 +92,8 @@ export function TickerReportDrawdownChart({ symbol, periodEnd, data }) {
   const sym = String(symbol || 'AAPL').toUpperCase();
   const theme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
   const light = theme === 'light';
+  const lightRef = useRef(light);
+  lightRef.current = light;
 
   const hostRef = useRef(null);
   const containerRef = useRef(null);
@@ -95,6 +101,7 @@ export function TickerReportDrawdownChart({ symbol, periodEnd, data }) {
   const seriesRef = useRef(null);
   const pendingRef = useRef(null);
   const maxPointRef = useRef(null);
+  const updateMaxOverlayRef = useRef(() => {});
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -133,6 +140,8 @@ export function TickerReportDrawdownChart({ symbol, periodEnd, data }) {
     });
   }, []);
 
+  updateMaxOverlayRef.current = updateMaxOverlay;
+
   const applySeriesData = useCallback(() => {
     const pending = pendingRef.current;
     const series = seriesRef.current;
@@ -141,12 +150,13 @@ export function TickerReportDrawdownChart({ symbol, periodEnd, data }) {
     series.setData(pending);
     const maxPt = findMaxDrawdownPoint(pending);
     maxPointRef.current = maxPt;
+    const isLight = lightRef.current;
     if (maxPt) {
       series.setMarkers([
         {
           time: maxPt.time,
           position: 'inBar',
-          color: light ? '#c62828' : '#f87171',
+          color: isLight ? '#c62828' : '#f87171',
           shape: 'circle',
           size: 1.2
         }
@@ -155,9 +165,12 @@ export function TickerReportDrawdownChart({ symbol, periodEnd, data }) {
       series.setMarkers([]);
     }
     chart.timeScale().fitContent();
-    requestAnimationFrame(() => updateMaxOverlay());
+    requestAnimationFrame(() => updateMaxOverlayRef.current());
     return true;
-  }, [light, updateMaxOverlay]);
+  }, []);
+
+  const applySeriesDataRef = useRef(applySeriesData);
+  applySeriesDataRef.current = applySeriesData;
 
   useEffect(() => {
     let cancelled = false;
@@ -165,7 +178,7 @@ export function TickerReportDrawdownChart({ symbol, periodEnd, data }) {
 
     if (!canFetchProtectedApi()) {
       pendingRef.current = fallback;
-      applySeriesData();
+      applySeriesDataRef.current();
       setLoading(false);
       return;
     }
@@ -185,11 +198,11 @@ export function TickerReportDrawdownChart({ symbol, periodEnd, data }) {
         let points = drawdownFromOhlcRows(rows);
         if (points.length < 2 && fallback.length) points = fallback;
         pendingRef.current = points;
-        applySeriesData();
+        applySeriesDataRef.current();
       } catch (e) {
         if (!cancelled) {
           pendingRef.current = fallback;
-          applySeriesData();
+          applySeriesDataRef.current();
           if (!fallback.length) setError(e?.message || 'Failed to load drawdown chart');
         }
       } finally {
@@ -200,7 +213,7 @@ export function TickerReportDrawdownChart({ symbol, periodEnd, data }) {
     return () => {
       cancelled = true;
     };
-  }, [sym, startDate, endDate, data, applySeriesData]);
+  }, [sym, startDate, endDate, data]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -217,43 +230,36 @@ export function TickerReportDrawdownChart({ symbol, periodEnd, data }) {
 
     chartRef.current = chart;
     seriesRef.current = series;
-    applySeriesData();
+    applySeriesDataRef.current();
 
     const onResize = () => {
       if (!containerRef.current || !chartRef.current) return;
       chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
-      updateMaxOverlay();
+      updateMaxOverlayRef.current();
     };
 
     const ts = chart.timeScale();
-    const onRange = () => updateMaxOverlay();
-    ts.subscribeVisibleLogicalRangeChange(onRange);
-    ts.subscribeVisibleTimeRangeChange(onRange);
+    const onRange = () => updateMaxOverlayRef.current();
+    subscribeTickerReportTimeScale(ts, onRange);
     window.addEventListener('resize', onResize);
 
     return () => {
       window.removeEventListener('resize', onResize);
-      ts.unsubscribeVisibleLogicalRangeChange(onRange);
-      ts.unsubscribeVisibleTimeRangeChange(onRange);
-      chart.remove();
+      detachTickerReportChart(chart, ts, onRange);
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [theme, applySeriesData, updateMaxOverlay]);
+  }, [theme]);
 
   useEffect(() => {
-    const chart = chartRef.current;
-    const series = seriesRef.current;
-    if (!chart || !series) return;
-    chart.applyOptions(chartOptionsForTheme(theme, containerRef.current?.clientWidth || 640));
-    series.applyOptions(drawdownSeriesOptions(theme === 'light'));
-  }, [theme]);
+    applySeriesDataRef.current();
+  }, [sym, startDate, endDate, data]);
 
   useLayoutEffect(() => {
     updateMaxOverlay();
     const host = hostRef.current;
     if (!host) return;
-    const ro = new ResizeObserver(() => updateMaxOverlay());
+    const ro = new ResizeObserver(() => updateMaxOverlayRef.current());
     ro.observe(host);
     return () => ro.disconnect();
   }, [updateMaxOverlay, loading]);
@@ -262,9 +268,6 @@ export function TickerReportDrawdownChart({ symbol, periodEnd, data }) {
     <figure className="ticker-report__chart ticker-report-drawdown-chart">
       <div className="ticker-report-drawdown-chart__plot" ref={hostRef} style={{ height: CHART_HEIGHT }}>
         <div ref={containerRef} className="ticker-report-drawdown-chart__canvas" />
-        {/* <div className="ticker-report-drawdown-chart__legend" aria-hidden>
-          Drawdown from rolling peak
-        </div> */}
         {maxOverlay.visible ? (
           <div
             className="ticker-report-drawdown-chart__max-label"

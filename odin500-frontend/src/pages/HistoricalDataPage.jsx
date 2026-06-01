@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { FigmaDataTable } from '../components/FigmaDataTable.jsx';
 import { FigmaPagination } from '../components/FigmaPagination.jsx';
 import { ReturnsChartToolbarIconButton } from '../components/ReturnsChartToolbar.jsx';
@@ -7,7 +8,11 @@ import { ThemedDropdown } from '../components/ThemedDropdown.jsx';
 import { TickerSymbolCombobox } from '../components/TickerSymbolCombobox.jsx';
 import {fetchJsonCached, getAuthToken, canFetchProtectedApi} from '../store/apiStore.js';
 import { rowDateToTimeKey } from '../utils/chartData.js';
-import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
+import {
+  buildHistoricalDataHref,
+  DEFAULT_TICKER_ROUTE_SYMBOL,
+  sanitizeTickerPageInput
+} from '../utils/tickerUrlSync.js';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
@@ -22,7 +27,7 @@ import {
 
 const PAGE_SIZE = 50;
 const TABLE_SKELETON_ROWS = 24;
-const DEFAULT_TICKER = 'AAPL';
+const DEFAULT_TICKER = DEFAULT_TICKER_ROUTE_SYMBOL;
 /** Daily OHLC requests are limited to this many calendar years before the end date. */
 const DAILY_MAX_HISTORY_YEARS = 3;
 
@@ -344,13 +349,38 @@ function sortHistoricalRows(rows, headerKey, dir) {
 }
 
 export default function HistoricalDataPage() {
+  const { symbol: symbolParam } = useParams();
+  const navigate = useNavigate();
+  const sym = useMemo(
+    () => sanitizeTickerPageInput(symbolParam) || DEFAULT_TICKER,
+    [symbolParam]
+  );
+
   usePageSeo({
-    title: 'Historical OHLC Data and CSV Export | Odin500',
-    description:
-      'Query historical OHLC data by ticker and date range, then export clean CSV tables for analysis.',
-    canonicalPath: '/historical-data'
+    title: `${sym} Historical OHLC Data & CSV Export | Odin500`,
+    description: `Query and export historical OHLC data for ${sym} by date range — daily, weekly, monthly, quarterly, and annual tables with CSV download.`,
+    canonicalPath: buildHistoricalDataHref(sym)
   });
-  const [ticker, setTicker] = useState(DEFAULT_TICKER);
+
+  useEffect(() => {
+    if (!symbolParam) return;
+    const s = sanitizeTickerPageInput(symbolParam);
+    if (!s) {
+      navigate(buildHistoricalDataHref(DEFAULT_TICKER), { replace: true });
+      return;
+    }
+    if (symbolParam !== s.toLowerCase()) {
+      navigate(buildHistoricalDataHref(s), { replace: true });
+    }
+  }, [symbolParam, navigate]);
+
+  const onSymbolChange = useCallback(
+    (next) => {
+      const s = sanitizeTickerPageInput(next) || DEFAULT_TICKER;
+      navigate(buildHistoricalDataHref(s));
+    },
+    [navigate]
+  );
   /** @type {[OhlcFrequency, function]} */
   const [frequency, setFrequency] = useState('daily');
   const [startDate, setStartDate] = useState(defaultStartDate);
@@ -362,7 +392,7 @@ export default function HistoricalDataPage() {
   const [sortKey, setSortKey] = useState('period');
   const [sortDir, setSortDir] = useState('desc');
 
-  const displayTicker = sanitizeTickerPageInput(ticker) || DEFAULT_TICKER;
+  const displayTicker = sym;
   const dailyMinStart = frequency === 'daily' ? isoAddCalendarYears(endDate, -DAILY_MAX_HISTORY_YEARS) : '';
   const histDateBounds = dateInputBounds(startDate, endDate, {
     globalMin: frequency === 'daily' ? dailyMinStart : undefined
@@ -374,7 +404,7 @@ export default function HistoricalDataPage() {
   }, [frequency, endDate]);
 
   const runQuery = useCallback(async () => {
-    const sym = sanitizeTickerPageInput(ticker) || DEFAULT_TICKER;
+    const symQuery = sym;
     if (!canFetchProtectedApi()) {
       setError('Sign in to load historical data.');
       setRows([]);
@@ -391,7 +421,7 @@ export default function HistoricalDataPage() {
       if (frequency === 'daily') {
         const res = await fetchJsonCached({
           path:
-            `/api/market/ohlc?symbol=${encodeURIComponent(sym)}` +
+            `/api/market/ohlc?symbol=${encodeURIComponent(symQuery)}` +
             `&start_date=${encodeURIComponent(startForRequest)}` +
             `&end_date=${encodeURIComponent(endDate)}`,
           method: 'GET',
@@ -404,7 +434,7 @@ export default function HistoricalDataPage() {
         const res = await fetchJsonCached({
           path: '/api/market/weekly-ohlc',
           method: 'POST',
-          body: { ticker: sym, start_date: startForRequest, end_date: endDate },
+          body: { ticker: symQuery, start_date: startForRequest, end_date: endDate },
           ttlMs: 5 * 60 * 1000
         });
         const weekly = res?.data?.weeklyOHLC;
@@ -413,7 +443,7 @@ export default function HistoricalDataPage() {
         const res = await fetchJsonCached({
           path: '/api/market/monthly-ohlc',
           method: 'POST',
-          body: { ticker: sym, start_date: startForRequest, end_date: endDate },
+          body: { ticker: symQuery, start_date: startForRequest, end_date: endDate },
           ttlMs: 5 * 60 * 1000
         });
         const monthly = res?.data?.monthlyOHLC;
@@ -422,7 +452,7 @@ export default function HistoricalDataPage() {
         const res = await fetchJsonCached({
           path: '/api/market/monthly-ohlc',
           method: 'POST',
-          body: { ticker: sym, start_date: startForRequest, end_date: endDate },
+          body: { ticker: symQuery, start_date: startForRequest, end_date: endDate },
           ttlMs: 5 * 60 * 1000
         });
         const monthly = res?.data?.monthlyOHLC;
@@ -431,7 +461,7 @@ export default function HistoricalDataPage() {
         const res = await fetchJsonCached({
           path: '/api/market/monthly-ohlc',
           method: 'POST',
-          body: { ticker: sym, start_date: startForRequest, end_date: endDate },
+          body: { ticker: symQuery, start_date: startForRequest, end_date: endDate },
           ttlMs: 5 * 60 * 1000
         });
         const monthly = res?.data?.monthlyOHLC;
@@ -446,7 +476,7 @@ export default function HistoricalDataPage() {
     } finally {
       setBusy(false);
     }
-  }, [ticker, startDate, endDate, frequency]);
+  }, [sym, startDate, endDate, frequency]);
 
   useEffect(() => {
     void runQuery();
@@ -479,11 +509,11 @@ export default function HistoricalDataPage() {
   const seoTableNarrative = useMemo(
     () =>
       buildTableNarrative({
-        title: `${sanitizeTickerPageInput(ticker) || DEFAULT_TICKER} historical data table`,
+        title: `${sym} historical data table`,
         rowCount: sortedRows.length,
         columns: [periodColumnLabel, 'Open', 'High', 'Low', 'Close', 'Return %']
       }),
-    [ticker, sortedRows.length, periodColumnLabel]
+    [sym, sortedRows.length, periodColumnLabel]
   );
 
   const loadingLabel = useMemo(() => {
@@ -521,33 +551,34 @@ export default function HistoricalDataPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `historical-data-${sanitizeTickerPageInput(ticker) || DEFAULT_TICKER}-${frequency}-${
+    a.download = `historical-data-${sym}-${frequency}-${
       frequency === 'daily' ? clampDailyStartDate(startDate, endDate) : startDate
     }-${endDate}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [sortedRows, ticker, startDate, endDate, frequency, periodColumnLabel]);
+  }, [sortedRows, sym, startDate, endDate, frequency, periodColumnLabel]);
 
   const onDownloadCsvClick = useGatedCsvDownload(onDownloadCsv);
 
   return (
     <div className="historical-data-page">
-      <header className="historical-data__head">
-        <h1 className="historical-data__head-title">
-          <span className="historical-data__head-ticker">{displayTicker}</span>
-          <span className="historical-data__head-sep" aria-hidden="true">
-            ·
-          </span>
-          <span className="historical-data__head-label">Historical Data</span>
-        </h1>
-      </header>
+      <div className="historical-data__toolbar">
+        <header className="historical-data__head">
+          <h1 className="historical-data__head-title">
+            <span className="historical-data__head-ticker">{displayTicker}</span>
+            <span className="historical-data__head-sep" aria-hidden="true">
+              ·
+            </span>
+            <span className="historical-data__head-label">Historical Data</span>
+          </h1>
+        </header>
 
-      <section className="historical-data__controls">
+        <section className="historical-data__controls" aria-label="Historical data filters">
         <div className="historical-data__controls-row historical-data__controls-row--selects">
           <div className="historical-data__ticker">
             <TickerSymbolCombobox
-              symbol={ticker}
-              onSymbolChange={(next) => setTicker(sanitizeTickerPageInput(next) || DEFAULT_TICKER)}
+              symbol={sym}
+              onSymbolChange={onSymbolChange}
               inputId="historical-data-ticker"
               placeholder="Search ticker (e.g. NVDA)"
             />
@@ -613,7 +644,8 @@ export default function HistoricalDataPage() {
             </ReturnsChartToolbarIconButton>
           </div>
         </div>
-      </section>
+        </section>
+      </div>
 
       {error ? <p className="historical-data__status historical-data__status--err">{error}</p> : null}
 

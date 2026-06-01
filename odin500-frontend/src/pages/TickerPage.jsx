@@ -38,6 +38,7 @@ import { coerceDateRange, dateInputBounds } from '../utils/dateRangeConstraints.
 import { ChartSnapshotExportModal } from '../components/ChartSnapshotExportModal.jsx';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { useIsLoggedIn } from '../hooks/useIsLoggedIn.js';
+import { usePaperPositions } from '../hooks/usePaperPositions.js';
 import { applyTickerChartSnapshotCloneFixes, useChartSnapshotExport } from '../hooks/useChartSnapshotExport.js';
 import { buildRelativeStrengthTickerHref } from '../utils/relativeStrengthNavigation.js';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
@@ -1484,6 +1485,20 @@ export default function TickerPage() {
   }, [sortedChart, sym, timeframe, appliedCustomRange]);
 
   const loggedIn = useIsLoggedIn();
+  const { positions: paperPositions } = usePaperPositions({ enabled: loggedIn });
+  const paperChartPosition = useMemo(() => {
+    if (!loggedIn) return null;
+    const u = String(sym || '').toUpperCase();
+    const row = paperPositions.find((p) => String(p.ticker || '').toUpperCase() === u);
+    if (!row || !Number(row.qty)) return null;
+    return {
+      qty: Number(row.qty),
+      avgCost: Number(row.avg_cost),
+      currentPrice: row.current_price != null ? Number(row.current_price) : null,
+      unrealizedPnl: row.unrealized_pnl != null ? Number(row.unrealized_pnl) : null,
+      unrealizedPnlPct: row.unrealized_pnl_pct != null ? Number(row.unrealized_pnl_pct) : null
+    };
+  }, [loggedIn, paperPositions, sym]);
   const downloadMainChartCsvClick = useGatedCsvDownload(downloadMainChartCsv);
   const mainChartExportDisabled = chartLoading || metaBusy || !sortedChart.length;
 
@@ -2104,6 +2119,7 @@ export default function TickerPage() {
                     height={plotHeight}
                     chartType={mainChartType}
                     onHoverOhlcChange={setChartHoverOhlc}
+                    paperPosition={paperChartPosition}
                   />
                 ) : (
                   <div className="ticker-sparkline ticker-sparkline--empty">No OHLC rows in this range.</div>

@@ -30,6 +30,7 @@ import NewsPage from './pages/NewsPage.jsx';
 import Pricing from './pages/Pricing.jsx';
 import AboutPage from './pages/AboutPage.jsx';
 import AccountsPage from './pages/AccountsPage.jsx';
+import PaperTradingPage from './pages/PaperTrading/PaperTradingPage.jsx';
 
 const eagerPages = {
   App,
@@ -57,7 +58,8 @@ const eagerPages = {
   NewsPage,
   Pricing,
   AboutPage,
-  AccountsPage
+  AccountsPage,
+  PaperTradingPage
 };
 
 const ssrRoutes = createAppRoutes(eagerPages);

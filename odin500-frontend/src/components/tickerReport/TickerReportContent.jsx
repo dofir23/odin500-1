@@ -333,7 +333,8 @@ export function TickerReportContent({ report }) {
             statistics.
           </li>
           <li>
-            <Link to="/historical-data">Historical OHLC data</Link> — export price history.
+            <Link to={`/historical-data/${encodeURIComponent(sym.toLowerCase())}`}>Historical OHLC data</Link> —
+            export price history.
           </li>
           <li>
             <Link to="/indices/sp500">S&amp;P 500 index</Link> — benchmark context.

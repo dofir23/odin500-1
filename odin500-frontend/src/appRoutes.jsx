@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { ProtectedLayout } from './components/ProtectedLayout.jsx';
 import { isAuthDisabled } from './store/apiStore.js';
 import { buildRelativePerformanceTickerHref } from './utils/relativeStrengthNavigation.js';
@@ -26,11 +26,14 @@ function LegacyRelativeStrengthRedirect() {
 
 function ProtectedRoute({ children }) {
   if (AUTH_DISABLED) return children;
+  const { pathname } = useLocation();
+  const allowPaperTradingShell = pathname === '/paper-trading';
   if (typeof window === 'undefined') {
     return <Navigate to="/login" replace />;
   }
   const token = localStorage.getItem('auth_token');
-  return token ? children : <Navigate to="/login" replace />;
+  if (token || allowPaperTradingShell) return children;
+  return <Navigate to="/login" replace />;
 }
 
 /**
@@ -61,7 +64,8 @@ function ProtectedRoute({ children }) {
  *   NewsPage: React.ComponentType,
  *   Pricing: React.ComponentType,
  *   AboutPage: React.ComponentType,
- *   AccountsPage: React.ComponentType
+ *   AccountsPage: React.ComponentType,
+ *   PaperTradingPage: React.ComponentType
  * }} pages
  */
 export function createAppRoutes(pages) {
@@ -92,7 +96,8 @@ export function createAppRoutes(pages) {
     NewsPage,
     Pricing,
     AboutPage,
-    AccountsPage
+    AccountsPage,
+    PaperTradingPage
   } = pages;
 
   return (
@@ -179,13 +184,18 @@ export function createAppRoutes(pages) {
         <Route path="/relative-performance/ticker/:symbol" element={<RelativeStrengthTickerPage />} />
         <Route path="/relative-strength/ticker" element={<LegacyRelativeStrengthRedirect />} />
         <Route path="/relative-strength/ticker/:symbol" element={<LegacyRelativeStrengthRedirect />} />
-        <Route path="/historical-data" element={<HistoricalDataPage />} />
+        <Route
+          path="/historical-data"
+          element={<Navigate to={`/historical-data/${DEFAULT_TICKER_ROUTE_SYMBOL.toLowerCase()}`} replace />}
+        />
+        <Route path="/historical-data/:symbol" element={<HistoricalDataPage />} />
         <Route
           path="/ticker-report"
           element={<Navigate to={`/ticker-report/${DEFAULT_TICKER_ROUTE_SYMBOL.toLowerCase()}`} replace />}
         />
         <Route path="/ticker-report/:symbol" element={<TickerReportPage />} />
         <Route path="/accounts" element={<AccountsPage />} />
+        <Route path="/paper-trading" element={<PaperTradingPage />} />
         <Route path="/premium" element={<Pricing />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/pricing" />

@@ -10,7 +10,6 @@ export const SITEMAP_STATIC_PATHS = [
   '/market-movers',
   '/statistic-data',
   '/return-table',
-  '/historical-data',
   '/about',
   '/premium'
 ];
@@ -80,7 +79,7 @@ export const PRERENDER_STATIC_PATHS = [
   '/market-movers',
   '/statistic-data',
   '/return-table',
-  '/historical-data',
+  '/historical-data/aapl',
   '/about',
   '/premium',
   '/indices/sp500',
@@ -133,6 +132,7 @@ export function buildDynamicSitemapPaths(tickers) {
   for (const sym of syms) {
     const enc = encodeURIComponent(sym.toLowerCase());
     paths.push(`/ticker/${enc}`);
+    paths.push(`/historical-data/${enc}`);
     paths.push(`/relative-performance/ticker/${enc}`);
     for (const kind of SITEMAP_STAT_KINDS) {
       paths.push(`/statistic/${kind}/${enc}`);

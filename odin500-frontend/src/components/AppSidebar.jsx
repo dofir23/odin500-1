@@ -7,6 +7,7 @@ import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme
 import { prefetchRouteChunks } from '../utils/routePrefetch.js';
 import { buildRelativePerformanceDefaultHref } from '../utils/relativeStrengthNavigation.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL, isMainTickerRoutePath } from '../utils/tickerUrlSync.js';
+import { useLoginGateOptional } from '../context/LoginGateContext.jsx';
 
 function IconGlobe() {
   return (
@@ -213,7 +214,17 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
     guestLabel: 'Guest',
     signedInFallback: 'Account'
   });
+  const loginGate = useLoginGateOptional();
   const accountWrapRef = useRef(null);
+
+  const onPaperTradingNavClick = useCallback(
+    (e) => {
+      if (loggedIn) return;
+      e.preventDefault();
+      loginGate?.showLoginRequired();
+    },
+    [loggedIn, loginGate]
+  );
 
   useEffect(() => {
     const onDown = (e) => {
@@ -463,6 +474,12 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
                 active={isMainTickerRoutePath(location.pathname)}
               />
             </nav>
+              <NavRow
+                to="/paper-trading"
+                icon={IconWallet}
+                label="Paper Trading"
+                onClick={onPaperTradingNavClick}
+              />
               <NavRow to="/market-movers" icon={IconFlame} label="Market Movers" />
               <NavRow to="/heatmap" icon={IconGrid} label="Heatmaps" />
               <NavRow
@@ -607,7 +624,12 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
 
             <div className="app-sidebar__section-label">Data</div>
             <nav className="app-sidebar__nav" aria-label="Data">
-              <NavRow to="/historical-data" icon={IconDocSearch} label="Historical data" />
+              <NavRow
+                to={`/historical-data/${DEFAULT_TICKER_ROUTE_SYMBOL.toLowerCase()}`}
+                icon={IconDocSearch}
+                label="Historical data"
+                active={/^\/historical-data\//i.test(location.pathname)}
+              />
               {/* <NavRow icon={IconLineChart} label="Returns" onClick={() => {}} /> */}
               {/* <NavRow to="/statistic-data" icon={IconCamera} label="Statistic Table" /> */}
             </nav>

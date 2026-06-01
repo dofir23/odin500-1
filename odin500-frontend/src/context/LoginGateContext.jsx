@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAuthToken } from '../store/apiStore.js';
 import { LoginRequiredModal } from '../components/LoginRequiredModal.jsx';
@@ -19,8 +19,20 @@ export function LoginGateProvider({ children }) {
   const isLoggedIn = Boolean(getAuthToken());
   void authEpoch;
 
-  const showLoginRequired = useCallback(() => setOpen(true), []);
-  const closeLoginRequired = useCallback(() => setOpen(false), []);
+  const dismissRef = useRef(null);
+
+  /** @param {{ onDismiss?: () => void }} [opts] */
+  const showLoginRequired = useCallback((opts) => {
+    dismissRef.current = typeof opts?.onDismiss === 'function' ? opts.onDismiss : null;
+    setOpen(true);
+  }, []);
+
+  const closeLoginRequired = useCallback(() => {
+    setOpen(false);
+    const onDismiss = dismissRef.current;
+    dismissRef.current = null;
+    if (typeof onDismiss === 'function') onDismiss();
+  }, []);
 
   const requireLogin = useCallback((onAllowed) => {
     if (Boolean(getAuthToken())) {

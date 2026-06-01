@@ -199,6 +199,16 @@ export function normalizePathname(pathname) {
 export function resolveDynamicRouteMetadata(pathname) {
   const path = normalizePathname(pathname);
 
+  const historicalDataMatch = path.match(/^\/historical-data\/([A-Za-z0-9.]+)$/i);
+  if (historicalDataMatch) {
+    const symbol = decodeURIComponent(historicalDataMatch[1]).toUpperCase();
+    return {
+      title: `${symbol} Historical OHLC Data & CSV Export | Odin500`,
+      description: `Query and export historical OHLC data for ${symbol}: daily, weekly, monthly, quarterly, and annual price history with open, high, low, and close.`,
+      canonical: `${SITE_ORIGIN}/historical-data/${encodeURIComponent(symbol.toLowerCase())}`
+    };
+  }
+
   const tickerReportMatch = path.match(/^\/ticker-report\/([A-Za-z0-9.]+)$/i);
   if (tickerReportMatch) {
     const symbol = decodeURIComponent(tickerReportMatch[1]).toUpperCase();

@@ -50,6 +50,11 @@ export const PAGE_SEO_CATALOG = {
     description:
       'Search ticker historical data and export OHLC price history for U.S. stocks and ETFs, including open, high, low, close, and date.'
   },
+  '/historical-data/aapl': {
+    title: 'AAPL Historical OHLC Data & CSV Export | Odin500',
+    description:
+      'Query and export historical OHLC data for AAPL: daily, weekly, monthly, quarterly, and annual price history with CSV download.'
+  },
   '/about': {
     title: 'Your Odin500 Profile & Account Settings',
     description: 'Manage your Odin500 account profile, plan, email, and security settings.'

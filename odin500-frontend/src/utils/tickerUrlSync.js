@@ -27,6 +27,12 @@ export function sanitizeTickerPageInput(raw) {
     .slice(0, 20);
 }
 
+/** Canonical `/historical-data/:symbol` path (lowercase segment, same as ticker reports). */
+export function buildHistoricalDataHref(symbol) {
+  const s = sanitizeTickerPageInput(symbol) || DEFAULT_TICKER_ROUTE_SYMBOL;
+  return `/historical-data/${encodeURIComponent(s.toLowerCase())}`;
+}
+
 /** For ticker search APIs: keep spaces (company names); case sent as typed (DB ilike is case-insensitive). */
 export function sanitizeTickerSearchInput(raw) {
   return String(raw || '')

@@ -5247,7 +5247,7 @@ a.mkt-mini-card__ticker--link:hover {
   line-height: 1.1;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #e2e8f0;
+  /* color: #e2e8f0; */
 }
 
 .mkt-returns-summary__scroll {
@@ -7424,7 +7424,11 @@ button:disabled {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  z-index: 40;
+  z-index: 1200;
+}
+
+.ticker-symbol-search--open {
+  z-index: 1200;
 }
 
 .ticker-symbol-search__status {
@@ -10212,16 +10216,28 @@ a.ticker-page__metric-label--link:hover {
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
+    overflow: visible;
+  }
+
+  .ticker-card--main-chart .ticker-chart-body--main {
     overflow: hidden;
+    border-radius: 0 0 10px 10px;
   }
 
   .ticker-card--main-chart .ticker-card__head {
     min-width: 0;
     max-width: 100%;
-    overflow-x: hidden;
+    overflow: visible;
+    position: relative;
+    z-index: 30;
     padding-left: 10px;
     padding-right: 10px;
     box-sizing: border-box;
+  }
+
+  .ticker-card--main-chart .ticker-page__search-row,
+  .ticker-card--main-chart .ticker-page__search-row-controls {
+    overflow: visible;
   }
 
   .ticker-page__search-row {
@@ -11261,6 +11277,67 @@ a.ticker-page__metric-label--link:hover {
 .ticker-lw-chart__root {
   width: 100%;
   min-height: 280px;
+}
+
+.ticker-lw-chart__paper-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  max-width: min(92%, 320px);
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  font-weight: 600;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.ticker-lw-chart__paper-badge-tag {
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(251, 191, 36, 0.2);
+  color: #fcd34d;
+}
+
+.ticker-lw-chart__paper-badge-pnl {
+  font-variant-numeric: tabular-nums;
+}
+
+.ticker-lw-chart__paper-badge--up .ticker-lw-chart__paper-badge-pnl {
+  color: var(--app-positive, #4ade80);
+}
+
+.ticker-lw-chart__paper-badge--down .ticker-lw-chart__paper-badge-pnl {
+  color: var(--app-negative, #f87171);
+}
+
+.ticker-lw-chart__paper-badge--down {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+[data-theme='light'] .ticker-lw-chart__paper-badge {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(22, 163, 74, 0.45);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+[data-theme='light'] .ticker-lw-chart__paper-badge-tag {
+  color: #92400e;
+  background: #fef3c7;
 }
 
 .ticker-lw-chart__hover {
@@ -17645,12 +17722,15 @@ html[data-theme="dark"] .market-movers-page__leaders-scroll::-webkit-scrollbar-t
     flex-wrap: nowrap;
   }
 
+  .historical-data__ticker {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
   .historical-data__controls-row--dates {
     flex-wrap: nowrap;
     gap: 8px;
   }
-
-  
 
   .historical-data__frequency {
     flex: 0 0 min(140px, 34vw);
@@ -17758,7 +17838,13 @@ html[data-theme="dark"] .market-movers-page__leaders-scroll::-webkit-scrollbar-t
   }
 
   .historical-data__controls-row--selects {
+    flex-wrap: nowrap;
     gap: 8px;
+  }
+
+  .historical-data__ticker {
+    flex: 1 1 0;
+    min-width: 0;
   }
 
   .historical-data__frequency {
@@ -19886,7 +19972,8 @@ html[data-theme='light'] .about-legal-item {
 .statistic-data-page,
 .return-table-page,
 .news-page,
-.historical-data-page {
+.historical-data-page,
+.paper-page {
   font-family: var(--app-ticker-list-font);
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
@@ -20111,6 +20198,10 @@ html[data-theme='light'] .about-legal-item {
   font-size: 13px;
 }
 
+.historical-data__toolbar {
+  min-width: 0;
+}
+
 .historical-data__controls {
   margin-top: 14px;
   border: 1px solid rgba(56, 189, 248, 0.22);
@@ -20138,7 +20229,67 @@ html[data-theme='light'] .about-legal-item {
   justify-content: flex-start;
 }
 
+/* Desktop: title left; ticker, frequency, dates, download on one row to the right */
+@media (min-width: 769px) {
+  .historical-data__toolbar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 14px;
+    border: 1px solid rgba(56, 189, 248, 0.22);
+    border-radius: 12px;
+    padding: 12px 14px;
+    min-width: 0;
+  }
 
+  .historical-data__head {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+
+  .historical-data__head-title {
+    flex-wrap: nowrap;
+  }
+
+  .historical-data__controls {
+    margin-top: 0;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 10px;
+    background: transparent;
+  }
+
+  .historical-data__controls-row--selects,
+  .historical-data__controls-row--dates {
+    display: contents;
+  }
+
+  .historical-data__ticker {
+    flex: 0 1 minmax(132px, 188px);
+    min-width: 0;
+  }
+
+  .historical-data__frequency {
+    flex: 0 0 minmax(124px, 148px);
+  }
+
+  .historical-data__dates {
+    flex: 0 0 minmax(128px, 152px);
+  }
+
+  .historical-data__actions {
+    margin-left: 0;
+    flex: 0 0 auto;
+  }
+}
 
 .historical-data__ticker .ticker-symbol-search {
   margin-bottom: 0;
@@ -20385,6 +20536,18 @@ html[data-theme='light'] .about-legal-item {
   background: #ffffff;
 }
 
+@media (min-width: 769px) {
+  [data-theme='light'] .historical-data__toolbar {
+    border-color: rgba(148, 163, 184, 0.28);
+    background: #ffffff;
+  }
+
+  [data-theme='light'] .historical-data__controls {
+    border: none;
+    background: transparent;
+  }
+}
+
 [data-theme='light'] .historical-data__field label,
 [data-theme='light'] .historical-data__status,
 [data-theme='light'] .historical-data__pager-meta {
@@ -20458,13 +20621,7 @@ html[data-theme='light'] .about-legal-item {
   border-top-color: rgba(148, 163, 184, 0.28);
 }
 
-@media (max-width: 1060px) {
-  .historical-data__controls-row--selects {
-    flex-wrap: wrap;
-  }
-
-  
-
+@media (max-width: 1060px) and (min-width: 769px) {
   .historical-data__frequency {
     flex: 1 1 minmax(140px, 200px);
   }

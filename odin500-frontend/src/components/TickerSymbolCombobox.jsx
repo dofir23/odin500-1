@@ -65,6 +65,7 @@ export function TickerSymbolCombobox({
   const [loading, setLoading] = useState(false);
   const [highlight, setHighlight] = useState(-1);
   const wrapRef = useRef(null);
+  const inputRef = useRef(null);
   const listId = useRef('ticker-search-listbox-' + Math.random().toString(36).slice(2)).current;
 
   const syncInputFromProps = useCallback(() => {
@@ -267,13 +268,12 @@ export function TickerSymbolCombobox({
   const clearInput = () => {
     setInput('');
     setItems([]);
-    setOpen(false);
+    setOpen(true);
     setHighlight(-1);
     if (multiple) {
       onSymbolsChange?.([]);
-    } else {
-      onSymbolChange('');
     }
+    requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   const showDropdown = open && (multiple ? true : Boolean(qActive));
@@ -285,6 +285,7 @@ export function TickerSymbolCombobox({
 
   const inputEl = (
     <input
+      ref={inputRef}
       id={inputId}
       className={inputClass}
       type="text"
@@ -303,7 +304,7 @@ export function TickerSymbolCombobox({
   );
 
   return (
-    <div className={rootClass} ref={wrapRef}>
+    <div className={rootClass + (open ? ' ticker-symbol-search--open' : '')} ref={wrapRef}>
       {isHeader ? (
         <div className="ticker-symbol-search__shell">
           <span className="ticker-symbol-search__leading" aria-hidden>

@@ -31,6 +31,7 @@ const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
 const Pricing = lazy(() => import('./pages/Pricing.jsx'));
 const AboutPage = lazy(() => import('./pages/AboutPage.jsx'));
 const AccountsPage = lazy(() => import('./pages/AccountsPage.jsx'));
+const PaperTradingPage = lazy(() => import('./pages/PaperTrading/PaperTradingPage.jsx'));
 
 const lazyPages = {
   App,
@@ -59,7 +60,8 @@ const lazyPages = {
   NewsPage,
   Pricing,
   AboutPage,
-  AccountsPage
+  AccountsPage,
+  PaperTradingPage
 };
 
 function ClientAppRoutes() {

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useMemo, useCallback, useSyncExternalStore } from 'react';
-import { createChart, CrosshairMode } from 'lightweight-charts';
+import { createChart, CrosshairMode, LineStyle } from 'lightweight-charts';
 import { mapRowsToCandles, rowDateToTimeKey } from '../utils/chartData.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
-import { fmtChartPrice } from '../utils/formatDisplayNumber.js';
+import { fmtChartPrice, fmtPctSigned } from '../utils/formatDisplayNumber.js';
 
 function chartOptionsForTheme(theme, height) {
   if (theme === 'light') {
@@ -147,14 +147,30 @@ function ohlcFromMainPoint(chartType, md) {
 }
 
 /**
- * TradingView **Lightweight Charts™** — main series type controlled by parent (line, area, candles, bars) + volume.
- * @param {{ rows: unknown[], height?: number, chartType?: TickerChartType }} props
+ * @typedef {object} PaperChartPosition
+ * @property {number} qty
+ * @property {number} avgCost
+ * @property {number|null} [currentPrice]
+ * @property {number|null} [unrealizedPnl]
+ * @property {number|null} [unrealizedPnlPct]
  */
-export function TickerLightweightChart({ rows, height = 320, chartType = 'line', onHoverOhlcChange = null }) {
+
+/**
+ * TradingView **Lightweight Charts™** — main series type controlled by parent (line, area, candles, bars) + volume.
+ * @param {{ rows: unknown[], height?: number, chartType?: TickerChartType, paperPosition?: PaperChartPosition|null }} props
+ */
+export function TickerLightweightChart({
+  rows,
+  height = 320,
+  chartType = 'line',
+  onHoverOhlcChange = null,
+  paperPosition = null
+}) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const mainSeriesRef = useRef(null);
   const volRef = useRef(null);
+  const paperPriceLineRef = useRef(null);
   const rowByTimeRef = useRef(new Map());
   const chartTypeRef = useRef(chartType);
   const onHoverOhlcChangeRef = useRef(onHoverOhlcChange);
@@ -393,8 +409,95 @@ export function TickerLightweightChart({ rows, height = 320, chartType = 'line',
     chart.timeScale().fitContent();
   }, [linePoints, candles, volumes, chartType, chartTheme]);
 
+  useEffect(() => {
+    const main = mainSeriesRef.current;
+    if (!main) return undefined;
+
+    if (paperPriceLineRef.current) {
+      try {
+        main.removePriceLine(paperPriceLineRef.current);
+      } catch {
+        /* series may have been removed */
+      }
+      paperPriceLineRef.current = null;
+    }
+
+    if (!paperPosition) return undefined;
+
+    const qty = Number(paperPosition.qty);
+    const avg = Number(paperPosition.avgCost);
+    if (!Number.isFinite(qty) || qty === 0 || !Number.isFinite(avg) || avg <= 0) {
+      return undefined;
+    }
+
+    const isLong = qty > 0;
+    const lineColor = isLong
+      ? chartTheme === 'light'
+        ? '#16a34a'
+        : '#22c55e'
+      : chartTheme === 'light'
+        ? '#dc2626'
+        : '#ef4444';
+
+    paperPriceLineRef.current = main.createPriceLine({
+      price: avg,
+      color: lineColor,
+      lineWidth: 2,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: `Paper ${Math.abs(qty)} @ ${fmtChartPrice(avg)}`
+    });
+
+    return () => {
+      if (paperPriceLineRef.current && mainSeriesRef.current) {
+        try {
+          mainSeriesRef.current.removePriceLine(paperPriceLineRef.current);
+        } catch {
+          /* ignore */
+        }
+        paperPriceLineRef.current = null;
+      }
+    };
+  }, [paperPosition, chartType, chartTheme, linePoints.length, candles.length]);
+
+  const paperBadge = useMemo(() => {
+    if (!paperPosition) return null;
+    const qty = Number(paperPosition.qty);
+    const avg = Number(paperPosition.avgCost);
+    if (!Number.isFinite(qty) || qty === 0 || !Number.isFinite(avg)) return null;
+    const pnl = paperPosition.unrealizedPnl;
+    const pnlPct = paperPosition.unrealizedPnlPct;
+    const pnlUp = pnl != null && Number(pnl) > 0;
+    const pnlDown = pnl != null && Number(pnl) < 0;
+    return {
+      qty: Math.abs(qty),
+      avg,
+      pnl,
+      pnlPct,
+      pnlClass: pnlUp ? 'ticker-lw-chart__paper-badge--up' : pnlDown ? 'ticker-lw-chart__paper-badge--down' : ''
+    };
+  }, [paperPosition]);
+
   return (
     <div className="ticker-lw-chart">
+      {paperBadge ? (
+        <div
+          className={'ticker-lw-chart__paper-badge' + (paperBadge.pnlClass ? ` ${paperBadge.pnlClass}` : '')}
+          aria-label="Paper trading position on this symbol"
+        >
+          <span className="ticker-lw-chart__paper-badge-tag">Paper</span>
+          <span className="ticker-lw-chart__paper-badge-main">
+            {paperBadge.qty} @ {fmtChartPrice(paperBadge.avg)}
+          </span>
+          {paperBadge.pnl != null && Number.isFinite(Number(paperBadge.pnl)) ? (
+            <span className="ticker-lw-chart__paper-badge-pnl">
+              {Number(paperBadge.pnl) >= 0 ? '+' : ''}
+              {fmtChartPrice(paperBadge.pnl)}
+              {paperBadge.pnlPct != null ? ` (${fmtPctSigned(paperBadge.pnlPct)})` : ''}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       <div ref={containerRef} className="ticker-lw-chart__root" />
     </div>
   );

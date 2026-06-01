@@ -9,13 +9,13 @@ const {
     deleteWatchlist,
     updateWatchlist
 } = require('../controllers/watchlistController');
-const requireAuth = require('../middleware/authMiddleware'); // Must be logged in!
+const { requireAuthStrict } = require('../middleware/authMiddleware');
 
 // defaults are public
 router.get('/defaults', getDefaultWatchlists); // Fetch the five built-in watchlists
 
-// Apply auth middleware to all other watchlist routes
-router.use(requireAuth); 
+// User watchlists always require a real session (ignores AUTH_DISABLED)
+router.use(requireAuthStrict); 
 
 router.post('/', createWatchlist); // Create new watchlist
 router.get('/', getMyWatchlists); // Get all my watchlists

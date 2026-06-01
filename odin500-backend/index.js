@@ -32,8 +32,10 @@ const userRoutes = require('./routes/userRoutes');
 const tickerRoutes = require('./routes/tickerRoutes');
 const watchlistRoutes = require('./routes/watchlistRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const paperRoutes = require('./routes/paper');
 const { startSnapshotRefresher } = require('./services/snapshotRefresher');
 const { startTickerReturnsPrewarmer, waitForTickerReturnsWarmup } = require('./services/tickerReturnsPrewarmer');
+const { startPaperJobs } = require('./services/paperJobRunner');
 
 const app = express();
 
@@ -58,6 +60,7 @@ app.use('/api/market', marketRoutes);
 app.use('/api/tickers', tickerRoutes);
 app.use('/api/watchlists', watchlistRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/paper', paperRoutes);
 
 app.get('/api/public/supabase-config', (req, res) => {
     res.json({
@@ -86,6 +89,7 @@ async function bootstrap() {
         console.log(`Server is running on port ${PORT}`);
         startSnapshotRefresher();
         startTickerReturnsPrewarmer();
+        startPaperJobs();
     });
 }
 

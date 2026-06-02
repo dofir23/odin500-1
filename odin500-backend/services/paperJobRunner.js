@@ -1,12 +1,14 @@
-// Starts paper background jobs (snapshot hourly, pending orders every 30s).
+// Starts paper background jobs (snapshot daily, pending limit orders every 4h by default).
 // Pattern: services/snapshotRefresher.js
 
 const { runPaperSnapshot } = require('../jobs/paperSnapshotJob');
 const { checkPendingOrders } = require('../jobs/pendingOrderWatcher');
 
 const ENABLE = process.env.ENABLE_PAPER_JOBS !== '0';
-const SNAPSHOT_MS = Number(process.env.PAPER_SNAPSHOT_INTERVAL_MS || 3600000);
-const PENDING_MS = Number(process.env.PAPER_PENDING_ORDER_MS || 30000);
+/** Default: once per day (86_400_000 ms). Override with PAPER_SNAPSHOT_INTERVAL_MS. */
+const SNAPSHOT_MS = Number(process.env.PAPER_SNAPSHOT_INTERVAL_MS || 86400000);
+/** Default: every 4 hours (14_400_000 ms). Override with PAPER_PENDING_ORDER_MS. */
+const PENDING_MS = Number(process.env.PAPER_PENDING_ORDER_MS || 14400000);
 
 let snapshotTimer = null;
 let pendingTimer = null;
@@ -50,8 +52,8 @@ function startPaperJobs() {
     return;
   }
 
-  const snapMs = Number.isFinite(SNAPSHOT_MS) && SNAPSHOT_MS > 0 ? SNAPSHOT_MS : 3600000;
-  const pendMs = Number.isFinite(PENDING_MS) && PENDING_MS > 0 ? PENDING_MS : 30000;
+  const snapMs = Number.isFinite(SNAPSHOT_MS) && SNAPSHOT_MS > 0 ? SNAPSHOT_MS : 86400000;
+  const pendMs = Number.isFinite(PENDING_MS) && PENDING_MS > 0 ? PENDING_MS : 14400000;
 
   void runSnapshotOnce();
   snapshotTimer = setInterval(() => {

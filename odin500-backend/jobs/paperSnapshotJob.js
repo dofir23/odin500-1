@@ -1,4 +1,4 @@
-// Hourly portfolio equity snapshots for all paper accounts.
+// Portfolio equity snapshots for all paper accounts (interval: paperJobRunner, default daily).
 // Pattern: services/snapshotRefresher.js (setInterval from index.js).
 
 const supabaseService = require('../config/supabaseService');

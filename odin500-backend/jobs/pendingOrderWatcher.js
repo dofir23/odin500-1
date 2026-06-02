@@ -1,4 +1,4 @@
-// Polls pending limit/stop_limit paper orders every 30s (started from index.js).
+// Polls pending limit/stop_limit paper orders (interval: paperJobRunner, default every 4h).
 
 const supabaseService = require('../config/supabaseService');
 const { executeFill } = require('../services/paper/orderEngine');

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const requireAuth = require('../middleware/authMiddleware');
+const { requireAuthStrict } = require('../middleware/authMiddleware');
 const supabase = require('../config/supabase');
 const supabaseService = require('../config/supabaseService');
 
@@ -34,7 +34,7 @@ async function buildAvatarSignedUrl(avatarPath) {
 }
 
 // Returns authenticated profile basics + display name from public.user_profiles.
-router.get('/profile', requireAuth, async (req, res) => {
+router.get('/profile', requireAuthStrict, async (req, res) => {
     try {
         const userId = req.user?.id;
         const userEmail = req.user?.email || '';
@@ -77,7 +77,7 @@ router.get('/profile', requireAuth, async (req, res) => {
     }
 });
 
-router.patch('/profile', requireAuth, async (req, res) => {
+router.patch('/profile', requireAuthStrict, async (req, res) => {
     try {
         const displayName = toStringOrEmpty(req.body?.displayName ?? req.body?.display_name);
         if (displayName && displayName.length < 2) {
@@ -115,7 +115,7 @@ router.patch('/profile', requireAuth, async (req, res) => {
     }
 });
 
-router.post('/profile/avatar/upload-url', requireAuth, async (req, res) => {
+router.post('/profile/avatar/upload-url', requireAuthStrict, async (req, res) => {
     try {
         const mimeType = toStringOrEmpty(req.body?.mimeType);
         const sizeBytes = Number(req.body?.sizeBytes || 0);
@@ -150,7 +150,7 @@ router.post('/profile/avatar/upload-url', requireAuth, async (req, res) => {
     }
 });
 
-router.patch('/profile/avatar', requireAuth, async (req, res) => {
+router.patch('/profile/avatar', requireAuthStrict, async (req, res) => {
     try {
         const avatarPath = toStringOrEmpty(req.body?.avatarPath ?? req.body?.avatar_path);
         if (!avatarPath) return res.status(400).json({ error: 'avatarPath is required' });
@@ -174,7 +174,7 @@ router.patch('/profile/avatar', requireAuth, async (req, res) => {
     }
 });
 
-router.post('/change-email', requireAuth, async (req, res) => {
+router.post('/change-email', requireAuthStrict, async (req, res) => {
     try {
         const newEmail = toStringOrEmpty(req.body?.newEmail ?? req.body?.email);
         if (!newEmail) return res.status(400).json({ error: 'newEmail is required' });
@@ -202,7 +202,7 @@ router.post('/change-email', requireAuth, async (req, res) => {
     }
 });
 
-router.post('/reset-password', requireAuth, async (req, res) => {
+router.post('/reset-password', requireAuthStrict, async (req, res) => {
     try {
         const email = toStringOrEmpty(req.user?.email);
         if (!email) return res.status(400).json({ error: 'Missing user email' });
@@ -218,7 +218,7 @@ router.post('/reset-password', requireAuth, async (req, res) => {
     }
 });
 
-router.delete('/account', requireAuth, async (req, res) => {
+router.delete('/account', requireAuthStrict, async (req, res) => {
     try {
         const userId = req.user.id;
         // Use service-role for cleanup so RLS/ownership issues do not block auth deletion.

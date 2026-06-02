@@ -280,6 +280,10 @@ html[data-theme='dark'] .ticker-report-page__year-btn.is-active-year {
   width: auto;
 }
 
+.ticker-report__header-brand .odin-brand-beta {
+  font-size: 10px;
+}
+
 .ticker-report__header-meta {
   font-size: 12px;
   color: var(--tr-text-muted);

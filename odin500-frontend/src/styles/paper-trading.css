@@ -43,9 +43,9 @@
   padding: 1.25rem 1.35rem;
   border-radius: 16px;
   border: 1px solid rgba(59, 130, 246, 0.28);
-  background:
+  /* background:
     radial-gradient(120% 160% at 100% -20%, rgba(59, 130, 246, 0.22), transparent 55%),
-    linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.88));
+    linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.88)); */
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
 
@@ -177,7 +177,7 @@
   padding: 1rem 1.1rem;
   border-radius: 14px;
   border: 1px solid var(--paper-border);
-  background: var(--paper-card);
+  /* background: var(--paper-card); */
   backdrop-filter: blur(8px);
   min-width: 0;
   overflow: hidden;
@@ -210,10 +210,10 @@
   margin-left: 0.25rem;
 }
 
-.paper-stat--highlight {
+/* .paper-stat--highlight {
   border-color: rgba(59, 130, 246, 0.45);
   background: linear-gradient(160deg, rgba(37, 99, 235, 0.12), var(--paper-card));
-}
+} */
 
 .paper-layout {
   margin-top: 1rem;
@@ -240,7 +240,7 @@
 .paper-card {
   border-radius: 14px;
   border: 1px solid var(--paper-border);
-  background: var(--paper-card);
+  /* background: var(--paper-card); */
   backdrop-filter: blur(8px);
   overflow: hidden;
   width: 100%;
@@ -349,7 +349,7 @@
 .paper-order .ticker-symbol-search__shell {
   min-height: 46px;
   border-color: var(--paper-border);
-  background: var(--paper-bg);
+  /* background: var(--paper-bg); */
 }
 
 .paper-order .ticker-symbol-search__input--header {
@@ -378,7 +378,7 @@
   gap: 0;
   padding: 3px;
   border-radius: 10px;
-  background: var(--paper-bg);
+  /* background: var(--paper-bg); */
   border: 1px solid var(--paper-border);
 }
 
@@ -433,7 +433,7 @@
   padding: 0.5rem 0.75rem;
   border-radius: 10px;
   border: 1px solid var(--paper-border);
-  background: var(--paper-bg);
+  /* background: var(--paper-bg); */
   color: var(--paper-text);
   font-size: 0.9375rem;
   font-variant-numeric: tabular-nums;
@@ -540,7 +540,7 @@
   gap: 0.25rem;
   padding: 0.25rem;
   border-radius: 10px;
-  background: var(--paper-bg);
+  /* background: var(--paper-bg); */
   border: 1px solid var(--paper-border);
 }
 

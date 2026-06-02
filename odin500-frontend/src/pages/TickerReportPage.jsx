@@ -14,6 +14,8 @@ import {
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { downloadTickerReportCsv, downloadTickerReportPdf } from '../utils/tickerReportExport.js';
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
+import { apiUrl } from '../utils/apiOrigin.js';
+import { fetchWithAuth } from '../store/apiStore.js';
 import '../styles/ticker-report.css';
 
 export default function TickerReportPage() {
@@ -22,6 +24,9 @@ export default function TickerReportPage() {
   const navigate = useNavigate();
   const reportRef = useRef(null);
   const [exportBusy, setExportBusy] = useState(false);
+  const [liveReport, setLiveReport] = useState(null);
+  const [liveError, setLiveError] = useState('');
+  const [liveLoading, setLiveLoading] = useState(true);
 
   const sym = useMemo(() => sanitizeTickerPageInput(symbolParam || 'AAPL') || 'AAPL', [symbolParam]);
 
@@ -46,11 +51,47 @@ export default function TickerReportPage() {
     setExpandedYear(isMonthlyReportYear(selectedYear) ? selectedYear : null);
   }, [selectedYear]);
 
-  const report = useMemo(() => {
+  const templateReport = useMemo(() => {
     if (isAnnualPeriod) return getTickerReport(sym, selectedYear, null);
     return getTickerReport(sym, selectedYear, selectedMonth);
   }, [sym, selectedYear, selectedMonth, isAnnualPeriod]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const url =
+      apiUrl(`/api/reports/ticker/${encodeURIComponent(sym.toLowerCase())}`) +
+      `?year=${encodeURIComponent(selectedYear)}` +
+      (isAnnualPeriod ? '' : `&month=${encodeURIComponent(selectedMonth || 1)}`);
+
+    (async () => {
+      setLiveLoading(true);
+      try {
+        const res = await fetchWithAuth(url, { method: 'GET' });
+        const payload = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok || !payload?.report) {
+          setLiveReport(null);
+          setLiveError(payload?.error || 'Live report unavailable');
+          setLiveLoading(false);
+          return;
+        }
+        setLiveReport(payload.report);
+        setLiveError('');
+        setLiveLoading(false);
+      } catch (e) {
+        if (cancelled) return;
+        setLiveReport(null);
+        setLiveError(e?.message || 'Live report unavailable');
+        setLiveLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sym, selectedYear, selectedMonth, isAnnualPeriod]);
+
+  const report = liveReport || (!liveLoading ? templateReport : null);
   const periodLabel = report?.meta?.periodLabel || `${selectedYear}`;
   const reportKind = report?.meta?.reportKind || (isAnnualPeriod ? 'annual' : 'monthly');
 
@@ -116,12 +157,22 @@ export default function TickerReportPage() {
   if (!report) {
     return (
       <div className="ticker-report-page odin-content-page">
-        <p className="ticker-report-page__empty">Report data is not available.</p>
+        <p className="ticker-report-page__empty">
+          {liveError ? 'Report data is not available.' : 'Generating live report…'}
+        </p>
       </div>
     );
   }
 
-  const isDemoCopy = !hasExactReport(sym, selectedYear, selectedMonth);
+  const isDemoCopy = !liveLoading && !liveReport && !hasExactReport(sym, selectedYear, selectedMonth);
+
+  if (liveLoading && !liveReport) {
+    return (
+      <div className="ticker-report-page odin-content-page">
+        <p className="ticker-report-page__empty">Generating live report…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="ticker-report-page odin-content-page">
@@ -155,6 +206,11 @@ export default function TickerReportPage() {
         <p className="ticker-report-page__demo-note" role="status">
           Showing sample report layout for {sym} — {periodLabel}. Full symbol-specific reports will be generated from
           live data.
+        </p>
+      ) : null}
+      {!liveLoading && !liveReport && liveError ? (
+        <p className="ticker-report-page__demo-note" role="status">
+          Live report generation is unavailable right now ({liveError}). Showing fallback report layout.
         </p>
       ) : null}
 

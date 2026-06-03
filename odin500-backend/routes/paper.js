@@ -20,6 +20,7 @@ const {
   aggregateLotsToPositions,
   summarizeAccountMetrics
 } = require('../services/paper/pnlCalculator');
+const { runStrategiesForAccount } = require('../services/paper/strategyRunner');
 
 router.use(requireAuthStrict);
 
@@ -294,31 +295,247 @@ router.post('/strategies/:id/rules', async (req, res) => {
   }
 });
 
-router.post('/strategies/:id/bindings', async (req, res) => {
+async function assertStrategyOwned(userId, strategyId) {
+  const { data: strategy, error } = await supabaseService
+    .from('paper_strategies')
+    .select('id, user_id')
+    .eq('id', strategyId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!strategy) {
+    const err = new Error('Strategy not found');
+    err.status = 404;
+    throw err;
+  }
+  return strategy;
+}
+
+async function assertNoOtherActiveBinding(accountId, strategyId) {
+  const { data: existing, error } = await supabaseService
+    .from('paper_strategy_account_bindings')
+    .select('id, strategy_id')
+    .eq('account_id', accountId)
+    .eq('is_active', true);
+  if (error) throw error;
+  const conflict = (existing || []).find((b) => b.strategy_id !== strategyId);
+  if (conflict) {
+    const err = new Error(
+      'This portfolio already has an active strategy. Pause or remove it before binding another.'
+    );
+    err.status = 400;
+    throw err;
+  }
+}
+
+router.get('/strategies/by-account', async (req, res) => {
+  try {
+    const account = await loadActiveAccount(req.user.id, req);
+    const { data: binding, error: bErr } = await supabaseService
+      .from('paper_strategy_account_bindings')
+      .select('*, paper_strategies(*, paper_strategy_rules(*))')
+      .eq('account_id', account.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (bErr) throw bErr;
+    if (!binding?.paper_strategies) {
+      return res.status(200).json({ strategy: null, binding: null, rules: [] });
+    }
+    const strategy = binding.paper_strategies;
+    const rules = (strategy.paper_strategy_rules || []).sort(
+      (a, b) => new Date(a.created_at) - new Date(b.created_at)
+    );
+    res.status(200).json({
+      strategy: { ...strategy, paper_strategy_rules: undefined },
+      binding: {
+        id: binding.id,
+        strategy_id: binding.strategy_id,
+        account_id: binding.account_id,
+        is_active: binding.is_active,
+        last_run_at: binding.last_run_at,
+        last_error: binding.last_error,
+        created_at: binding.created_at
+      },
+      rules
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/strategies/execution-log', async (req, res) => {
+  try {
+    const account = await loadActiveAccount(req.user.id, req);
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const { data, error } = await supabaseService
+      .from('paper_strategy_execution_log')
+      .select('*, paper_strategy_rules(rule_type, ticker, action)')
+      .eq('account_id', account.id)
+      .order('ran_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    res.status(200).json({ log: data || [] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/strategies/run-once', async (req, res) => {
+  try {
+    const account = await loadActiveAccount(req.user.id, req);
+    const result = await runStrategiesForAccount(account.id);
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.patch('/strategies/:id', async (req, res) => {
   try {
     const strategyId = req.params.id;
-    const account = await loadActiveAccount(req.user.id, req);
-    const { data: strategy, error: sErr } = await supabaseService
-      .from('paper_strategies')
-      .select('id')
-      .eq('id', strategyId)
-      .eq('user_id', req.user.id)
-      .maybeSingle();
-    if (sErr) throw sErr;
-    if (!strategy) return res.status(404).json({ error: 'Strategy not found' });
+    await assertStrategyOwned(req.user.id, strategyId);
+    const payload = req.body || {};
+    const updates = {};
+    if (payload.name != null) updates.name = String(payload.name).trim() || 'Untitled Strategy';
+    if (payload.description !== undefined) updates.description = payload.description;
+    if (payload.is_active !== undefined) updates.is_active = !!payload.is_active;
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
     const { data, error } = await supabaseService
-      .from('paper_strategy_account_bindings')
-      .upsert({
-        strategy_id: strategyId,
-        account_id: account.id,
-        is_active: req.body?.is_active !== false
-      })
+      .from('paper_strategies')
+      .update(updates)
+      .eq('id', strategyId)
       .select('*')
       .single();
     if (error) throw error;
     res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    const status = error.status || 500;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+router.patch('/strategies/:id/rules/:ruleId', async (req, res) => {
+  try {
+    const { id: strategyId, ruleId } = req.params;
+    await assertStrategyOwned(req.user.id, strategyId);
+    const payload = req.body || {};
+    const updates = {};
+    if (payload.rule_type != null) updates.rule_type = String(payload.rule_type);
+    if (payload.ticker != null) updates.ticker = String(payload.ticker).toUpperCase();
+    if (payload.action != null) updates.action = String(payload.action).toUpperCase();
+    if (payload.qty != null) updates.qty = Number(payload.qty);
+    if (payload.threshold_value !== undefined) {
+      updates.threshold_value =
+        payload.threshold_value != null ? Number(payload.threshold_value) : null;
+    }
+    if (payload.params !== undefined) updates.params = payload.params || {};
+    if (payload.is_active !== undefined) updates.is_active = !!payload.is_active;
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    const { data, error } = await supabaseService
+      .from('paper_strategy_rules')
+      .update(updates)
+      .eq('id', ruleId)
+      .eq('strategy_id', strategyId)
+      .select('*')
+      .single();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Rule not found' });
+    res.status(200).json(data);
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+router.delete('/strategies/:id/rules/:ruleId', async (req, res) => {
+  try {
+    const { id: strategyId, ruleId } = req.params;
+    await assertStrategyOwned(req.user.id, strategyId);
+    const { error } = await supabaseService
+      .from('paper_strategy_rules')
+      .delete()
+      .eq('id', ruleId)
+      .eq('strategy_id', strategyId);
+    if (error) throw error;
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+router.post('/strategies/:id/bindings', async (req, res) => {
+  try {
+    const strategyId = req.params.id;
+    const body = req.body || {};
+    if (!body.account_id && !body.accountId) {
+      return res.status(400).json({ error: 'account_id is required' });
+    }
+    const account = await resolveAccountForUser(
+      req.user.id,
+      body.account_id || body.accountId
+    );
+    await assertStrategyOwned(req.user.id, strategyId);
+    await assertNoOtherActiveBinding(account.id, strategyId);
+
+    const { data, error } = await supabaseService
+      .from('paper_strategy_account_bindings')
+      .upsert(
+        {
+          strategy_id: strategyId,
+          account_id: account.id,
+          is_active: body.is_active !== false
+        },
+        { onConflict: 'strategy_id,account_id' }
+      )
+      .select('*')
+      .single();
+    if (error) throw error;
+    res.status(200).json(data);
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+router.patch('/strategies/:id/bindings', async (req, res) => {
+  try {
+    const strategyId = req.params.id;
+    const body = req.body || {};
+    if (!body.account_id && !body.accountId) {
+      return res.status(400).json({ error: 'account_id is required' });
+    }
+    const account = await resolveAccountForUser(
+      req.user.id,
+      body.account_id || body.accountId
+    );
+    await assertStrategyOwned(req.user.id, strategyId);
+    if (body.is_active === true) {
+      await assertNoOtherActiveBinding(account.id, strategyId);
+    }
+    const updates = {};
+    if (body.is_active !== undefined) updates.is_active = !!body.is_active;
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    const { data, error } = await supabaseService
+      .from('paper_strategy_account_bindings')
+      .update(updates)
+      .eq('strategy_id', strategyId)
+      .eq('account_id', account.id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Binding not found' });
+    res.status(200).json(data);
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ error: error.message });
   }
 });
 

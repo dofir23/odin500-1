@@ -56,7 +56,7 @@ function latestCloseFromOhlcPayload(payload) {
   return null;
 }
 
-export function OrderTicket({ onPlaceOrder, positions = [] }) {
+export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = false }) {
   const [ticker, setTicker] = useState('');
   const [action, setAction] = useState('BTO');
   const [orderType, setOrderType] = useState('market');
@@ -221,6 +221,12 @@ export function OrderTicket({ onPlaceOrder, positions = [] }) {
         {sym ? <span className="paper-table__sym">{sym}</span> : null}
       </div>
       <div className="paper-card__body paper-order">
+        {strategyActive ? (
+          <p className="paper-order__strategy-warn" role="status">
+            This portfolio also runs an automated strategy. Manual orders may conflict with strategy
+            trades.
+          </p>
+        ) : null}
         <div className="paper-order__symbol-block">
           <span className="paper-order__symbol-label">Symbol</span>
           <TickerSymbolCombobox

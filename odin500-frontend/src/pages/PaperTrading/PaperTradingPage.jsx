@@ -16,6 +16,9 @@ import { ClosedTradesTable } from '../../components/paper/ClosedTradesTable.jsx'
 import { EquityCurve } from '../../components/paper/EquityCurve.jsx';
 import { ThemedDropdown } from '../../components/ThemedDropdown.jsx';
 import { PaperManageModal } from '../../components/paper/PaperManageModal.jsx';
+import { StrategyPanel } from '../../components/paper/StrategyPanel.jsx';
+import { StrategyAccountWizard } from '../../components/paper/StrategyAccountWizard.jsx';
+import { usePaperStrategy } from '../../hooks/usePaperStrategy.js';
 import '../../styles/paper-trading.css';
 
 function PaperTradingPageContent() {
@@ -34,12 +37,31 @@ function PaperTradingPageContent() {
   const { positions, loading: positionsLoading, refetch: refetchPositions } = usePaperPositions({
     accountId: activeAccountId
   });
-  const { orders, loading: ordersLoading, placeOrder, cancelOrder } = usePaperOrders({
+  const { orders, loading: ordersLoading, placeOrder, cancelOrder, refetch: refetchOrders } = usePaperOrders({
     accountId: activeAccountId
   });
   const { trades: closedTrades, totals: closedTotals, loading: closedLoading, refetch: refetchClosed } =
     usePaperClosedTrades({ accountId: activeAccountId });
+  const {
+    strategy,
+    binding,
+    rules,
+    executionLog,
+    strategyActive,
+    automatedAccountIds,
+    loading: strategyLoading,
+    error: strategyError,
+    refetch: refetchStrategy,
+    createStrategy,
+    addRule,
+    deleteRule,
+    bindStrategy,
+    patchBinding,
+    patchStrategy,
+    runOnce
+  } = usePaperStrategy(activeAccountId);
   const [tab, setTab] = useState('positions');
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [history, setHistory] = useState([]);
   const [resetting, setResetting] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -51,9 +73,16 @@ function PaperTradingPageContent() {
   const pendingCount = useMemo(() => orders.filter((o) => o.status === 'pending').length, [orders]);
 
   const accountOptions = useMemo(
-    () => (accounts || []).map((a) => ({ id: a.id, label: String(a.name || 'Account').trim() || 'Account' })),
-    [accounts]
+    () =>
+      (accounts || []).map((a) => {
+        const base = String(a.name || 'Account').trim() || 'Account';
+        const auto = automatedAccountIds.has(a.id);
+        return { id: a.id, label: auto ? `${base} (Auto)` : base };
+      }),
+    [accounts, automatedAccountIds]
   );
+
+  const showStrategyTab = !!strategy || tab === 'strategy';
 
   const selectedAccountId = activeAccountId || accountOptions[0]?.id || '';
 
@@ -194,6 +223,13 @@ function PaperTradingPageContent() {
           </button>
           <button
             type="button"
+            className="paper-btn paper-btn--ghost"
+            onClick={() => setWizardOpen(true)}
+          >
+            New strategy account
+          </button>
+          <button
+            type="button"
             className="paper-btn paper-btn--ghost paper-btn--danger"
             disabled={resetting || accountLoading}
             onClick={openResetModal}
@@ -327,13 +363,32 @@ function PaperTradingPageContent() {
         {modalError ? <p className="wl-manage-err">{modalError}</p> : null}
       </PaperManageModal>
 
+      <StrategyAccountWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        createAccount={createAccount}
+        createStrategy={createStrategy}
+        addRule={addRule}
+        bindStrategy={bindStrategy}
+        onComplete={async ({ accountId }) => {
+          setActiveAccountId(accountId);
+          setTab('strategy');
+          await refetchStrategy();
+          await refetchAccount();
+        }}
+      />
+
       {accountError ? <div className="paper-alert paper-alert--error">{accountError}</div> : null}
 
       <AccountSummary account={account} loading={accountLoading} />
 
       <div className="paper-layout">
         <aside className="paper-layout__ticket">
-          <OrderTicket onPlaceOrder={handlePlaceOrder} positions={positions} />
+          <OrderTicket
+            onPlaceOrder={handlePlaceOrder}
+            positions={positions}
+            strategyActive={strategyActive}
+          />
         </aside>
 
         <div className="paper-layout__main">
@@ -377,10 +432,52 @@ function PaperTradingPageContent() {
                   Closed trades
                   <span className="paper-tabs__count">{closedTrades.length}</span>
                 </button>
+                {showStrategyTab ? (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === 'strategy'}
+                    className={'paper-tabs__btn' + (tab === 'strategy' ? ' paper-tabs__btn--active' : '')}
+                    onClick={() => setTab('strategy')}
+                  >
+                    Strategy
+                    {strategyActive ? <span className="paper-tabs__auto">Auto</span> : null}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={false}
+                    className="paper-tabs__btn paper-tabs__btn--setup"
+                    onClick={() => setWizardOpen(true)}
+                  >
+                    Set up automation
+                  </button>
+                )}
               </div>
             </div>
             <div className="paper-card__body">
-              {tab === 'positions' ? (
+              {tab === 'strategy' ? (
+                <StrategyPanel
+                  strategy={strategy}
+                  binding={binding}
+                  rules={rules}
+                  executionLog={executionLog}
+                  strategyActive={strategyActive}
+                  loading={strategyLoading}
+                  error={strategyError}
+                  onAddRule={(payload) => addRule(strategy.id, payload)}
+                  onDeleteRule={(ruleId) => deleteRule(strategy.id, ruleId)}
+                  onToggleActive={async (active) => {
+                    await patchBinding(strategy.id, activeAccountId, { is_active: active });
+                    await patchStrategy(strategy.id, { is_active: active });
+                  }}
+                  onRunOnce={() => runOnce(activeAccountId)}
+                  onRefetch={async () => {
+                    await Promise.all([refetchStrategy(), refetchAccount(), refetchOrders()]);
+                  }}
+                />
+              ) : tab === 'positions' ? (
                 <PositionsTable positions={positions} loading={positionsLoading} />
               ) : tab === 'closed' ? (
                 <ClosedTradesTable trades={closedTrades} totals={closedTotals} loading={closedLoading} />

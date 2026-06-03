@@ -10,7 +10,7 @@ async function parseJson(res) {
   return payload;
 }
 
-export function usePaperOrders() {
+export function usePaperOrders({ accountId = '' } = {}) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -22,7 +22,8 @@ export function usePaperOrders() {
     }
     setLoading(true);
     try {
-      const res = await fetchWithAuth(apiUrl('/api/paper/orders'), { method: 'GET' });
+      const qs = accountId ? `?account_id=${encodeURIComponent(accountId)}` : '';
+      const res = await fetchWithAuth(apiUrl(`/api/paper/orders${qs}`), { method: 'GET' });
       const data = await parseJson(res);
       setOrders(data.orders || []);
     } catch {
@@ -30,7 +31,7 @@ export function usePaperOrders() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [accountId]);
 
   useEffect(() => {
     void refetch();
@@ -41,18 +42,19 @@ export function usePaperOrders() {
       const res = await fetchWithAuth(apiUrl('/api/paper/orders'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderInput)
+        body: JSON.stringify({ ...orderInput, account_id: accountId || orderInput.account_id })
       });
       const result = await parseJson(res);
       await refetch();
       return result;
     },
-    [refetch]
+    [refetch, accountId]
   );
 
   const cancelOrder = useCallback(
     async (orderId) => {
-      const res = await fetchWithAuth(apiUrl(`/api/paper/orders/${encodeURIComponent(orderId)}`), {
+      const qs = accountId ? `?account_id=${encodeURIComponent(accountId)}` : '';
+      const res = await fetchWithAuth(apiUrl(`/api/paper/orders/${encodeURIComponent(orderId)}${qs}`), {
         method: 'DELETE'
       });
       const result = await parseJson(res);

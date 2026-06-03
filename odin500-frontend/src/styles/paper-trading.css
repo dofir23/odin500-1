@@ -116,7 +116,14 @@
 
 .paper-header__actions {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
+}
+
+.paper-header__account-dd {
+  min-width: 16rem;
+  max-width: 100%;
 }
 
 .paper-btn {
@@ -139,10 +146,44 @@
   color: var(--paper-muted);
 }
 
+.paper-btn--danger {
+  border-color: rgba(239, 68, 68, 0.65);
+  color: #fecaca;
+  background: rgba(220, 38, 38, 0.22);
+}
+
 .paper-btn--danger:hover {
-  border-color: rgba(239, 68, 68, 0.5);
-  color: #fca5a5;
-  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.85);
+  color: #fff;
+  background: rgba(220, 38, 38, 0.45);
+}
+
+.paper-btn--danger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wl-manage-btn--danger {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+
+.wl-manage-btn--danger:hover:not(:disabled) {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
+.paper-modal-msg {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+
+.paper-modal-msg strong {
+  color: #f1f5f9;
+  font-weight: 600;
 }
 
 .paper-alert {
@@ -312,6 +353,15 @@
   }
 }
 
+.paper-order__dd {
+  width: 100%;
+  min-width: 0;
+}
+
+.paper-order__dd .app-dropdown__btn {
+  width: 100%;
+}
+
 .paper-order {
   display: flex;
   flex-direction: column;
@@ -479,6 +529,20 @@
 .paper-order__estimate strong {
   color: var(--paper-text);
   font-weight: 600;
+}
+
+.paper-order__estimate-meta {
+  font-size: 0.72rem;
+  opacity: 0.9;
+}
+
+.paper-order__estimate--muted {
+  font-size: 0.75rem;
+}
+
+.paper-order__price-err {
+  margin: 0;
+  font-size: 0.75rem;
 }
 
 .paper-submit {
@@ -776,10 +840,24 @@
   color: #0f172a;
 }
 
-[data-theme='light'] .paper-btn--danger:hover {
+[data-theme='light'] .paper-btn--danger {
   color: #b91c1c;
   background: #fef2f2;
-  border-color: rgba(239, 68, 68, 0.45);
+  border-color: rgba(239, 68, 68, 0.55);
+}
+
+[data-theme='light'] .paper-btn--danger:hover {
+  color: #fff;
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+[data-theme='light'] .paper-modal-msg {
+  color: #475569;
+}
+
+[data-theme='light'] .paper-modal-msg strong {
+  color: #0f172a;
 }
 
 [data-theme='light'] .paper-alert--error {
@@ -977,6 +1055,11 @@
 
   .paper-header__actions {
     width: 100%;
+  }
+
+  .paper-header__account-dd {
+    width: 100%;
+    min-width: 0;
   }
 
   .paper-header__actions .paper-btn {

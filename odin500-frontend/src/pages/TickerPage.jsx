@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Upload } from 'lucide-react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ChartInfoTip } from '../components/ChartInfoTip.jsx';
+import { TickerSignalLadder } from '../components/TickerSignalLadder.jsx';
 import { CHART_INFO_TIPS } from '../components/chartInfoTips.js';
 import { FigmaPagination } from '../components/FigmaPagination.jsx';
 import { TickerAnnualReturnsFigma } from '../components/TickerAnnualReturnsFigma.jsx';
@@ -21,6 +22,7 @@ import {
 } from '../components/TickerLightweightChart.jsx';
 import {fetchJsonCached, getAuthToken, canFetchProtectedApi} from '../store/apiStore.js';
 import { rowDateToTimeKey } from '../utils/chartData.js';
+import { readRowSignal, toSignalBucket } from '../utils/odinSignalTreemap.js';
 import { toDateInput } from '../utils/misc.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { pickRelatedByCategory, RELATED_INDEX_LINKS } from '../utils/relatedTickers.js';
@@ -381,20 +383,6 @@ function sortRowsAsc(rows) {
     const tb = rowDateToTimeKey(b);
     return ta < tb ? -1 : ta > tb ? 1 : 0;
   });
-}
-
-function signalBucket(sig) {
-  const s = String(sig || 'N')
-    .trim()
-    .toUpperCase();
-  if (!s || s === 'N' || s === 'NULL') return 'N';
-  if (/^L1/.test(s)) return 'L1';
-  if (/^L2/.test(s)) return 'L2';
-  if (s.startsWith('L')) return 'L3';
-  if (/^S1/.test(s)) return 'S1';
-  if (/^S2/.test(s)) return 'S2';
-  if (s.startsWith('S')) return 'S3';
-  return 'N';
 }
 
 function toIsoDate(d) {
@@ -1530,8 +1518,8 @@ export default function TickerPage() {
   const dayChg =
     lastClose != null && prevClose != null && prevClose !== 0 ? ((lastClose - prevClose) / prevClose) * 100 : null;
   const dayAbs = lastClose != null && prevClose != null ? lastClose - prevClose : null;
-  const lastSignal = lastRow && lastRow.signal != null ? String(lastRow.signal) : 'N';
-  const activeBucket = signalBucket(lastSignal);
+  const lastSignal = readRowSignal(lastRow);
+  const activeBucket = toSignalBucket(lastSignal);
 
   const statsSorted = useMemo(() => sortRowsAsc(statsRows), [statsRows]);
   const statsSpySorted = useMemo(() => sortRowsAsc(statsRowsSpy), [statsRowsSpy]);
@@ -2150,32 +2138,13 @@ export default function TickerPage() {
                 <ChartInfoTip tip={CHART_INFO_TIPS.tickerSignalLadder} align="start" />
               </span>
             </header>
-            <div className="ticker-aside-mini__body">
-              <p className="ticker-signal-asof">As of {lastUpdatedFmt}</p>
-              <div className="ticker-signal-lanes" role="list">
-                {[
-                  { k: 'L1', tone: 'green-dark' },
-                  { k: 'L2', tone: 'green-dark' },
-                  { k: 'L3', tone: 'green-bright' },
-                  { k: 'S1', tone: 'orange' },
-                  { k: 'S2', tone: 'orange-mid' },
-                  { k: 'S3', tone: 'amber' },
-                  { k: 'N', tone: 'gray' }
-                ].map((s) => (
-                  <div
-                    key={s.k}
-                    className={
-                      'ticker-signal-cell ticker-signal-cell--' +
-                      s.tone +
-                      (activeBucket === s.k ? ' ticker-signal-cell--active' : '')
-                    }
-                    role="listitem"
-                  >
-                    {s.k}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <TickerSignalLadder
+              activeBucket={activeBucket}
+              lastSignal={lastSignal}
+              lastUpdatedFmt={lastUpdatedFmt}
+              loading={chartLoading}
+              hasChartData={sortedChart.length > 0}
+            />
           </section>
 
           <section className="ticker-card ticker-card--news" aria-labelledby="ticker-news-h">
@@ -2250,31 +2219,13 @@ export default function TickerPage() {
                 <ChartInfoTip tip={CHART_INFO_TIPS.tickerSignalLadder} align="start" />
               </span>
             </header>
-            <div className="ticker-aside-mini__body">
-              <p className="ticker-signal-asof">As of {lastUpdatedFmt}</p>
-              <div className="ticker-signal-lanes" role="list">
-                {[
-                  { k: 'L1', tone: 'green-dark' },
-                  { k: 'L2', tone: 'green-dark' },
-                  { k: 'L3', tone: 'green-bright' },
-                  { k: 'S1', tone: 'orange' },
-                  { k: 'S2', tone: 'orange-mid' },
-                  { k: 'S3', tone: 'amber' },
-                  { k: 'N', tone: 'gray' }
-                ].map((s) => (
-                  <div
-                    key={s.k}
-                    className={
-                      'ticker-signal-cell ticker-signal-cell--' +
-                      s.tone +
-                      (activeBucket === s.k ? ' ticker-signal-cell--active' : '')
-                    }
-                    role="listitem"
-                  >
-                    {s.k}
-                  </div>
-                ))}
-              </div>
+            <TickerSignalLadder
+              activeBucket={activeBucket}
+              lastSignal={lastSignal}
+              lastUpdatedFmt={lastUpdatedFmt}
+              loading={chartLoading}
+              hasChartData={sortedChart.length > 0}
+            />
               {/* <div className="ticker-signal-foot">
                 <Link to="/odin-signals" className="ticker-signal-foot__link">
                   Learn more about Odin Signals
@@ -2292,9 +2243,7 @@ export default function TickerPage() {
                   </svg>
                 </Link>
               </div> */}
-            </div>
           </section>
-          
 
           <section className="mkt-mini-card ticker-aside-mini" aria-labelledby="key-data-h">
             <header className="mkt-mini-card__head">

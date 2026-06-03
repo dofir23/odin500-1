@@ -33,10 +33,13 @@ export function PositionsTable({ positions, loading }) {
         <thead>
           <tr>
             <th>Symbol</th>
-            <th>Qty</th>
-            <th>Avg cost</th>
+            <th>Long qty</th>
+            <th>Short qty</th>
+            <th>Net qty</th>
+            <th>Avg long</th>
+            <th>Avg short</th>
             <th>Last</th>
-            <th>Market value</th>
+            <th title="Long MV minus short liability">Net market value</th>
             <th>Unrealized P&L</th>
           </tr>
         </thead>
@@ -44,10 +47,20 @@ export function PositionsTable({ positions, loading }) {
           {positions.map((p) => (
             <tr key={p.id || p.ticker}>
               <td className="paper-table__sym">{p.ticker}</td>
-              <td>{p.qty}</td>
-              <td>{money(p.avg_cost)}</td>
+              <td>{p.long_qty ?? 0}</td>
+              <td>{p.short_qty ?? 0}</td>
+              <td>{p.net_qty ?? 0}</td>
+              <td>{money(p.avg_long_cost)}</td>
+              <td>{money(p.avg_short_cost)}</td>
               <td>{money(p.current_price)}</td>
-              <td>{money(p.market_value)}</td>
+              <td className={toneClass(p.market_value)}>
+                {money(p.market_value)}
+                {Number(p.short_qty) > 0 && Number(p.long_qty) > 0 ? (
+                  <span style={{ display: 'block', fontSize: '0.7rem', opacity: 0.85 }}>
+                    L {money(p.long_market_value)} · S −{money(p.short_market_value)}
+                  </span>
+                ) : null}
+              </td>
               <td className={toneClass(p.unrealized_pnl)}>
                 {money(p.unrealized_pnl)}
                 <span style={{ marginLeft: '0.35rem', fontSize: '0.75rem' }}>

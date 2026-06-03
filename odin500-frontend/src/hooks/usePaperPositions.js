@@ -15,7 +15,7 @@ async function parseJson(res) {
 /**
  * @param {{ enabled?: boolean }} [options] — when false, skips fetch/poll (e.g. logged out).
  */
-export function usePaperPositions({ enabled = true } = {}) {
+export function usePaperPositions({ enabled = true, accountId = '' } = {}) {
   const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,7 +27,8 @@ export function usePaperPositions({ enabled = true } = {}) {
     }
     setLoading(true);
     try {
-      const res = await fetchWithAuth(apiUrl('/api/paper/positions'), { method: 'GET' });
+      const qs = accountId ? `?account_id=${encodeURIComponent(accountId)}` : '';
+      const res = await fetchWithAuth(apiUrl(`/api/paper/positions${qs}`), { method: 'GET' });
       const data = await parseJson(res);
       setPositions(data.positions || []);
     } catch {
@@ -35,7 +36,7 @@ export function usePaperPositions({ enabled = true } = {}) {
     } finally {
       setLoading(false);
     }
-  }, [enabled]);
+  }, [enabled, accountId]);
 
   useEffect(() => {
     if (!enabled) {

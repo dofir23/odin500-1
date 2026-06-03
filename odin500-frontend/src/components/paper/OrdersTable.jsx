@@ -19,9 +19,10 @@ function money(v) {
   );
 }
 
-function SidePill({ side }) {
+function SidePill({ side, action }) {
   const s = String(side).toLowerCase();
-  return <span className={'paper-side-pill paper-side-pill--' + s}>{s}</span>;
+  const a = String(action || '').toUpperCase();
+  return <span className={'paper-side-pill paper-side-pill--' + s}>{a || s}</span>;
 }
 
 function StatusPill({ status }) {
@@ -43,7 +44,7 @@ export function OrdersTable({ orders, loading, onCancel }) {
     return (
       <tr key={o.id}>
         <td>
-          <SidePill side={o.side} />
+          <SidePill side={o.side} action={o.action} />
         </td>
         <td className="paper-table__sym">{o.ticker}</td>
         <td>{o.qty}</td>

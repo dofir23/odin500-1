@@ -17,7 +17,7 @@ export function AccountSummary({ account, loading }) {
   if (loading && !account) {
     return (
       <section className="paper-stats" aria-busy="true">
-        {[1, 2, 3, 4].map((i) => (
+        {[1, 2, 3, 4, 5, 6].map((i) => (
           <article key={i} className="paper-stat" aria-hidden>
             <div className="paper-skeleton" style={{ minHeight: '4.5rem' }} />
           </article>
@@ -29,6 +29,8 @@ export function AccountSummary({ account, loading }) {
   const equity = account?.equity ?? account?.cash_balance;
   const totalReturn = account?.total_return ?? 0;
   const totalReturnPct = account?.total_return_pct ?? 0;
+  const openPnl = account?.unrealized_pnl_total ?? 0;
+  const closedPnl = account?.realized_pnl_total ?? 0;
   return (
     <section className="paper-stats" aria-label="Portfolio summary">
       <article className="paper-stat paper-stat--highlight">
@@ -50,10 +52,15 @@ export function AccountSummary({ account, loading }) {
         <span className="paper-stat__label">Open positions</span>
         <strong className="paper-stat__value">{account?.positions_count ?? 0}</strong>
       </article>
+      <article className="paper-stat">
+        <span className="paper-stat__label">Open trades P&amp;L</span>
+        <strong className={`paper-stat__value ${toneClass(openPnl)}`}>{money(openPnl)}</strong>
+      </article>
+      <article className="paper-stat">
+        <span className="paper-stat__label">Closed trades P&amp;L</span>
+        <strong className={`paper-stat__value ${toneClass(closedPnl)}`}>{money(closedPnl)}</strong>
+      </article>
     </section>
   );
 }
 
-export function VirtualMoneyBadge() {
-  return <span className="paper-badge">Virtual · Not real money</span>;
-}

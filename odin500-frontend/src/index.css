@@ -307,45 +307,57 @@ body {
   display: block;
 }
 
-/* Odin wordmark + “Beta” (see Odin500BrandLink.jsx) */
+/* Odin wordmark + “Beta” below, right-aligned to logo (Odin500BrandLink.jsx) */
 .odin-brand-link {
-  display: inline-flex;
+  display: inline-block;
   text-decoration: none;
   color: inherit;
+  line-height: 1;
 }
 
 .odin-brand-link__stack {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: stretch;
-  width: fit-content;
+  display: inline-grid;
+  grid-template-columns: minmax(0, max-content);
+  grid-template-rows: auto auto;
+  row-gap: 0;
+  width: max-content;
   max-width: 100%;
-  gap: 1px;
   line-height: 1;
 }
 
-.odin-brand-link__stack img {
-  align-self: flex-start;
+.odin-brand-link__stack > img {
+  grid-row: 1;
+  justify-self: start;
+  display: block;
   max-width: 100%;
+  height: auto;
 }
 
 .odin-brand-beta {
-  align-self: flex-end;
-  font-size: 9px;
+  grid-row: 2;
+  justify-self: end;
+  font-size: 7px;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   line-height: 1;
-  text-align: right;
+  margin-top: 1px;
+  padding-right: 1px;
   user-select: none;
+  white-space: nowrap;
 }
 
 .odin-brand-beta--dark {
-  color: rgba(248, 250, 252, 0.55);
+  color: rgba(248, 250, 252, 0.5);
 }
 
 .odin-brand-beta--light {
-  color: rgba(15, 23, 42, 0.5);
+  color: rgba(15, 23, 42, 0.45);
+}
+
+.odin-brand-link__stack:has(.auth-split-logo) .odin-brand-beta {
+  font-size: 6px;
+  letter-spacing: 0.06em;
 }
 
 .main-nav {
@@ -2549,8 +2561,8 @@ backdrop-filter: blur(12px);
   }
 
   .app-main-topbar__brand .odin-brand-beta {
-    font-size: 7px;
-    letter-spacing: 0.12em;
+    font-size: 6px;
+    letter-spacing: 0.06em;
   }
 
   .app-main-topbar__logo {
@@ -2824,6 +2836,12 @@ backdrop-filter: blur(12px);
   text-decoration: none;
   color: inherit;
   line-height: 0;
+}
+
+.app-header-wordmark-link.odin-brand-link,
+.app-header-brand.odin-brand-link {
+  display: inline-block;
+  line-height: 1;
 }
 
 .app-header-logo-img {
@@ -3576,11 +3594,13 @@ backdrop-filter: blur(12px);
   min-width: 0;
   text-decoration: none;
   color: inherit;
+  line-height: 1;
   cursor: pointer;
 }
 
 .app-sidebar__brand .odin-brand-beta {
-  font-size: 8px;
+  font-size: 6px;
+  letter-spacing: 0.06em;
 }
 
 .app-sidebar__logo {

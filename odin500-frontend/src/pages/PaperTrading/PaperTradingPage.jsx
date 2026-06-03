@@ -7,41 +7,102 @@ import { useIsLoggedIn } from '../../hooks/useIsLoggedIn.js';
 import { usePaperAccount } from '../../hooks/usePaperAccount.js';
 import { usePaperPositions } from '../../hooks/usePaperPositions.js';
 import { usePaperOrders } from '../../hooks/usePaperOrders.js';
-import { AccountSummary, VirtualMoneyBadge } from '../../components/paper/AccountSummary.jsx';
+import { usePaperClosedTrades } from '../../hooks/usePaperClosedTrades.js';
+import { AccountSummary } from '../../components/paper/AccountSummary.jsx';
 import { OrderTicket } from '../../components/paper/OrderTicket.jsx';
 import { PositionsTable } from '../../components/paper/PositionsTable.jsx';
 import { OrdersTable } from '../../components/paper/OrdersTable.jsx';
+import { ClosedTradesTable } from '../../components/paper/ClosedTradesTable.jsx';
 import { EquityCurve } from '../../components/paper/EquityCurve.jsx';
+import { ThemedDropdown } from '../../components/ThemedDropdown.jsx';
+import { PaperManageModal } from '../../components/paper/PaperManageModal.jsx';
 import '../../styles/paper-trading.css';
 
 function PaperTradingPageContent() {
-  const { account, loading: accountLoading, error: accountError, refetch: refetchAccount, resetPortfolio } =
-    usePaperAccount();
-  const { positions, loading: positionsLoading, refetch: refetchPositions } = usePaperPositions();
-  const { orders, loading: ordersLoading, placeOrder, cancelOrder } = usePaperOrders();
+  const {
+    account,
+    accounts,
+    activeAccountId,
+    setActiveAccountId,
+    loading: accountLoading,
+    error: accountError,
+    refetch: refetchAccount,
+    resetPortfolio,
+    createAccount,
+    deleteAccount
+  } = usePaperAccount();
+  const { positions, loading: positionsLoading, refetch: refetchPositions } = usePaperPositions({
+    accountId: activeAccountId
+  });
+  const { orders, loading: ordersLoading, placeOrder, cancelOrder } = usePaperOrders({
+    accountId: activeAccountId
+  });
+  const { trades: closedTrades, totals: closedTotals, loading: closedLoading, refetch: refetchClosed } =
+    usePaperClosedTrades({ accountId: activeAccountId });
   const [tab, setTab] = useState('positions');
   const [history, setHistory] = useState([]);
   const [resetting, setResetting] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [modal, setModal] = useState(null);
+  const [newAccountName, setNewAccountName] = useState('');
+  const [modalBusy, setModalBusy] = useState(false);
+  const [modalError, setModalError] = useState('');
 
   const pendingCount = useMemo(() => orders.filter((o) => o.status === 'pending').length, [orders]);
 
+  const accountOptions = useMemo(
+    () => (accounts || []).map((a) => ({ id: a.id, label: String(a.name || 'Account').trim() || 'Account' })),
+    [accounts]
+  );
+
+  const selectedAccountId = activeAccountId || accountOptions[0]?.id || '';
+
+  const selectedAccountLabel =
+    accountOptions.find((o) => o.id === selectedAccountId)?.label || account?.name || 'this account';
+
+  function closeModal() {
+    setModal(null);
+    setModalError('');
+    setNewAccountName('');
+    setModalBusy(false);
+  }
+
+  function openCreateModal() {
+    setModalError('');
+    setNewAccountName('');
+    setModal('create');
+  }
+
+  function openResetModal() {
+    setModalError('');
+    setModal('reset');
+  }
+
+  function openDeleteModal() {
+    setModalError('');
+    setModal('delete');
+  }
+
   const loadHistory = useCallback(async () => {
     try {
-      const res = await fetchWithAuth(apiUrl('/api/paper/portfolio/history'), { method: 'GET' });
+      const endpoint = activeAccountId
+        ? `/api/paper/portfolio/history?account_id=${encodeURIComponent(activeAccountId)}`
+        : '/api/paper/portfolio/history';
+      const res = await fetchWithAuth(apiUrl(endpoint), { method: 'GET' });
       const payload = await res.json().catch(() => ({}));
       if (res.ok) setHistory(payload.history || []);
     } catch {
       setHistory([]);
     }
-  }, []);
+  }, [activeAccountId]);
 
   useEffect(() => {
     void loadHistory();
   }, [loadHistory]);
 
   const handleOrderPlaced = useCallback(async () => {
-    await Promise.all([refetchAccount(), refetchPositions(), loadHistory()]);
-  }, [refetchAccount, refetchPositions, loadHistory]);
+    await Promise.all([refetchAccount(), refetchPositions(), refetchClosed(), loadHistory()]);
+  }, [refetchAccount, refetchPositions, refetchClosed, loadHistory]);
 
   const handlePlaceOrder = useCallback(
     async (input) => {
@@ -52,17 +113,54 @@ function PaperTradingPageContent() {
     [placeOrder, handleOrderPlaced]
   );
 
-  async function handleReset() {
-    if (!window.confirm('Reset to $100,000 virtual cash and clear all positions and pending orders?')) {
+  async function submitCreateAccount() {
+    const name = newAccountName.trim();
+    if (!name) {
+      setModalError('Enter an account name');
       return;
     }
+    setModalBusy(true);
+    setModalError('');
+    try {
+      await createAccount({ name });
+      closeModal();
+    } catch (err) {
+      setModalError(err?.message || 'Failed to create account');
+    } finally {
+      setModalBusy(false);
+    }
+  }
+
+  async function submitResetPortfolio() {
     setResetting(true);
+    setModalBusy(true);
+    setModalError('');
     try {
       await resetPortfolio();
+      closeModal();
       await refetchPositions();
       await loadHistory();
+    } catch (err) {
+      setModalError(err?.message || 'Failed to reset portfolio');
     } finally {
       setResetting(false);
+      setModalBusy(false);
+    }
+  }
+
+  async function submitDeleteAccount() {
+    if (!selectedAccountId) return;
+    setDeletingAccount(true);
+    setModalBusy(true);
+    setModalError('');
+    try {
+      await deleteAccount(selectedAccountId);
+      closeModal();
+    } catch (err) {
+      setModalError(err?.message || 'Failed to delete account');
+    } finally {
+      setDeletingAccount(false);
+      setModalBusy(false);
     }
   }
 
@@ -72,7 +170,7 @@ function PaperTradingPageContent() {
         <div>
           <div className="paper-header__title-row">
             <h1 className="paper-header__title">Paper Trading</h1>
-            <VirtualMoneyBadge />
+            
           </div>
           <p className="paper-header__sub">
             Simulate trades with $100,000 virtual capital. Market orders fill at the latest Odin daily close with
@@ -80,16 +178,154 @@ function PaperTradingPageContent() {
           </p>
         </div>
         <div className="paper-header__actions">
+          <ThemedDropdown
+            className="paper-header__account-dd"
+            value={selectedAccountId}
+            options={accountOptions}
+            onChange={setActiveAccountId}
+            title="Paper account"
+            ariaLabelPrefix="Paper account"
+            labelFallback="Select account"
+            wideLabel
+            disabled={accountLoading || accountOptions.length === 0}
+          />
+          <button type="button" className="paper-btn paper-btn--ghost" onClick={openCreateModal}>
+            New account
+          </button>
           <button
             type="button"
             className="paper-btn paper-btn--ghost paper-btn--danger"
             disabled={resetting || accountLoading}
-            onClick={() => void handleReset()}
+            onClick={openResetModal}
           >
             {resetting ? 'Resetting…' : 'Reset portfolio'}
           </button>
+          <button
+            type="button"
+            className="paper-btn paper-btn--danger"
+            disabled={
+              deletingAccount || accountLoading || !selectedAccountId || (accounts?.length ?? 0) <= 1
+            }
+            title={
+              (accounts?.length ?? 0) <= 1 ? 'Keep at least one paper trading account' : undefined
+            }
+            onClick={openDeleteModal}
+          >
+            {deletingAccount ? 'Deleting…' : 'Delete account'}
+          </button>
         </div>
       </header>
+
+      <PaperManageModal
+        open={modal === 'create'}
+        title="New paper account"
+        titleId="paper-create-account-title"
+        onClose={closeModal}
+        footer={
+          <>
+            <button
+              type="button"
+              className="wl-manage-btn wl-manage-btn--ghost"
+              onClick={closeModal}
+              disabled={modalBusy}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="wl-manage-btn wl-manage-btn--primary"
+              onClick={() => void submitCreateAccount()}
+              disabled={modalBusy}
+            >
+              {modalBusy ? 'Creating…' : 'Create'}
+            </button>
+          </>
+        }
+      >
+        <label className="wl-manage-label" htmlFor="paper-create-account-name">
+          Name
+        </label>
+        <input
+          id="paper-create-account-name"
+          type="text"
+          className="wl-manage-input"
+          value={newAccountName}
+          onChange={(e) => setNewAccountName(e.target.value)}
+          placeholder="e.g. Growth strategy"
+          disabled={modalBusy}
+          autoComplete="off"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void submitCreateAccount();
+          }}
+        />
+        {modalError ? <p className="wl-manage-err">{modalError}</p> : null}
+      </PaperManageModal>
+
+      <PaperManageModal
+        open={modal === 'reset'}
+        title="Reset portfolio"
+        titleId="paper-reset-portfolio-title"
+        onClose={closeModal}
+        footer={
+          <>
+            <button
+              type="button"
+              className="wl-manage-btn wl-manage-btn--ghost"
+              onClick={closeModal}
+              disabled={modalBusy}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="wl-manage-btn wl-manage-btn--danger"
+              onClick={() => void submitResetPortfolio()}
+              disabled={modalBusy}
+            >
+              {modalBusy ? 'Resetting…' : 'Reset'}
+            </button>
+          </>
+        }
+      >
+        <p className="paper-modal-msg">
+          Reset <strong>{selectedAccountLabel}</strong> to $100,000 virtual cash and clear all positions and
+          pending orders? This cannot be undone.
+        </p>
+        {modalError ? <p className="wl-manage-err">{modalError}</p> : null}
+      </PaperManageModal>
+
+      <PaperManageModal
+        open={modal === 'delete'}
+        title="Delete account"
+        titleId="paper-delete-account-title"
+        onClose={closeModal}
+        footer={
+          <>
+            <button
+              type="button"
+              className="wl-manage-btn wl-manage-btn--ghost"
+              onClick={closeModal}
+              disabled={modalBusy}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="wl-manage-btn wl-manage-btn--danger"
+              onClick={() => void submitDeleteAccount()}
+              disabled={modalBusy || !selectedAccountId}
+            >
+              {modalBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </>
+        }
+      >
+        <p className="paper-modal-msg">
+          Permanently delete <strong>{selectedAccountLabel}</strong>? All positions, orders, fills, and history for
+          this account will be removed.
+        </p>
+        {modalError ? <p className="wl-manage-err">{modalError}</p> : null}
+      </PaperManageModal>
 
       {accountError ? <div className="paper-alert paper-alert--error">{accountError}</div> : null}
 
@@ -131,11 +367,23 @@ function PaperTradingPageContent() {
                     </span>
                   ) : null}
                 </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === 'closed'}
+                  className={'paper-tabs__btn' + (tab === 'closed' ? ' paper-tabs__btn--active' : '')}
+                  onClick={() => setTab('closed')}
+                >
+                  Closed trades
+                  <span className="paper-tabs__count">{closedTrades.length}</span>
+                </button>
               </div>
             </div>
             <div className="paper-card__body">
               {tab === 'positions' ? (
                 <PositionsTable positions={positions} loading={positionsLoading} />
+              ) : tab === 'closed' ? (
+                <ClosedTradesTable trades={closedTrades} totals={closedTotals} loading={closedLoading} />
               ) : (
                 <OrdersTable
                   orders={orders}

@@ -95,11 +95,7 @@ export function TickerReportContent({ report }) {
   return (
     <article className="ticker-report__article">
       <header className="ticker-report__header">
-        <Odin500BrandLink
-          className="ticker-report__header-brand"
-          imgClassName="ticker-report__logo"
-          theme={theme}
-        />
+        <Odin500BrandLink imgClassName="ticker-report__logo" theme={theme} />
         <div className="ticker-report__header-meta">
           {isAnnual ? 'Annual Stock Report' : 'Monthly Stock Report'}
           <br />

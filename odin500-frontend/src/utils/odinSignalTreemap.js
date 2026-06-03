@@ -52,6 +52,59 @@ function normalizeSignalCode(sig) {
   return ['L1', 'L2', 'L3', 'S1', 'S2', 'S3', 'N'].includes(s) ? s : '';
 }
 
+/** Ladder cells for ticker/index indicative signal UI (left = bullish, right = bearish). */
+export const SIGNAL_LADDER_BUCKETS = [
+  { k: 'L1', tone: 'green-dark' },
+  { k: 'L2', tone: 'green-dark' },
+  { k: 'L3', tone: 'green-bright' },
+  { k: 'S1', tone: 'orange' },
+  { k: 'S2', tone: 'orange-mid' },
+  { k: 'S3', tone: 'amber' },
+  { k: 'N', tone: 'gray' }
+];
+
+/** Read signal from an OHLC+signals row (API uses `signal`; BQ may use `Signal`). */
+export function readRowSignal(row) {
+  if (!row) return 'N';
+  const raw = row.signal ?? row.Signal ?? '';
+  const s = String(raw).trim().toUpperCase();
+  if (!s || s === 'NULL') return 'N';
+  return s;
+}
+
+/** Map API/chart signal string to ladder bucket L1–L3, S1–S3, or N. */
+export function toSignalBucket(sig) {
+  const exact = normalizeSignalCode(sig);
+  if (exact) return exact;
+  const s = String(sig || 'N')
+    .trim()
+    .toUpperCase();
+  if (!s || s === 'N' || s === 'NULL') return 'N';
+  const num = Number(s);
+  if (Number.isFinite(num)) return chartNumberToSignalCode(num);
+  if (/^L1/.test(s)) return 'L1';
+  if (/^L2/.test(s)) return 'L2';
+  if (s.startsWith('L')) return 'L3';
+  if (/^S1/.test(s)) return 'S1';
+  if (/^S2/.test(s)) return 'S2';
+  if (s.startsWith('S')) return 'S3';
+  return 'N';
+}
+
+/** @returns {'long' | 'short' | 'neutral'} */
+export function signalSideFromBucket(bucket) {
+  const k = String(bucket || 'N').toUpperCase();
+  if (k === 'L1' || k === 'L2' || k === 'L3') return 'long';
+  if (k === 'S1' || k === 'S2' || k === 'S3') return 'short';
+  return 'neutral';
+}
+
+export function signalSideLabel(side) {
+  if (side === 'long') return 'Long';
+  if (side === 'short') return 'Short';
+  return 'Neutral';
+}
+
 /**
  * Bucket total return into chart numbers -3 … +3 (maps to S3…L3 labels).
  * `span` is half-range in %-points: [-span, +span] maps to S3…L3.

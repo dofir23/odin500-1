@@ -3,11 +3,12 @@
 const MAX_QTY = 10000;
 
 /**
- * @param {{ side: string, ticker: string, qty: number, orderType?: string }} order
+ * @param {{ action: string, ticker: string, qty: number, orderType?: string }} order
  * @param {{ cash_balance: number }} account
  * @param {number} currentPrice
+ * @param {{ closableLongQty?: number, closableShortQty?: number }} [context]
  */
-function validateOrder(order, account, currentPrice) {
+function validateOrder(order, account, currentPrice, context = {}) {
   const ticker = String(order.ticker || '').trim().toUpperCase();
   if (!ticker) {
     throw new Error('Ticker symbol is required');
@@ -26,17 +27,28 @@ function validateOrder(order, account, currentPrice) {
     throw new Error(`No market price available for ${ticker}`);
   }
 
-  const side = String(order.side || '').toLowerCase();
-  if (side !== 'buy' && side !== 'sell') {
-    throw new Error('Side must be buy or sell');
+  const action = String(order.action || '').toUpperCase();
+  if (!['BTO', 'STO', 'BTC', 'STC'].includes(action)) {
+    throw new Error('Action must be one of BTO, STO, BTC, STC');
   }
 
-  if (side === 'buy') {
-    const cost = qty * price;
+  const isBuyCashFlow = action === 'BTO' || action === 'BTC';
+  if (isBuyCashFlow) {
+    const cost = qty * price * 1.002;
     const cash = Number(account.cash_balance);
     if (!Number.isFinite(cash) || cash < cost) {
-      throw new Error('Insufficient cash for this buy order');
+      throw new Error('Insufficient cash for this order');
     }
+  }
+
+  const closableLong = Number(context.closableLongQty || 0);
+  const closableShort = Number(context.closableShortQty || 0);
+
+  if (action === 'STC' && qty > closableLong) {
+    throw new Error(`Insufficient long lots to close: open long qty is ${closableLong}`);
+  }
+  if (action === 'BTC' && qty > closableShort) {
+    throw new Error(`Insufficient short lots to close: open short qty is ${closableShort}`);
   }
 }
 

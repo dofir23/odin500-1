@@ -47,7 +47,8 @@ async function checkPendingOrders() {
       const remaining = Number(order.qty) - Number(order.filled_qty || 0);
       if (remaining <= 0) continue;
 
-      const fill = simulateFill(order.side, remaining, price);
+      const action = String(order.action || '').toUpperCase() || (String(order.side).toLowerCase() === 'buy' ? 'BTO' : 'STC');
+      const fill = simulateFill(action, remaining, price);
       await executeFill(order.account_id, order, fill, price);
       filled += 1;
     } catch (err) {

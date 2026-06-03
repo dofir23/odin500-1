@@ -2,7 +2,11 @@
 // Pattern: services/snapshotRefresher.js (setInterval from index.js).
 
 const supabaseService = require('../config/supabaseService');
-const { enrichPositionsWithPnl, calcEquity } = require('../services/paper/pnlCalculator');
+const {
+  enrichLotsWithPnl,
+  aggregateLotsToPositions,
+  summarizeAccountMetrics
+} = require('../services/paper/pnlCalculator');
 
 async function runPaperSnapshot() {
   const { data: accounts, error } = await supabaseService.from('paper_accounts').select('id, cash_balance');
@@ -11,24 +15,30 @@ async function runPaperSnapshot() {
 
   let inserted = 0;
   for (const account of accounts) {
-    const { data: positions, error: posErr } = await supabaseService
-      .from('paper_positions')
+    const { data: lots, error: posErr } = await supabaseService
+      .from('paper_position_lots')
       .select('*')
       .eq('account_id', account.id)
-      .neq('qty', 0);
+      .eq('status', 'open')
+      .gt('remaining_qty', 0);
 
     if (posErr) {
       console.warn('[paper-snapshot] positions error:', posErr.message);
       continue;
     }
 
-    const enriched = await enrichPositionsWithPnl(positions || []);
-    const equity = calcEquity(account, enriched);
+    const enrichedLots = await enrichLotsWithPnl(lots || []);
+    const positions = aggregateLotsToPositions(enrichedLots);
+    const { data: closedTrades } = await supabaseService
+      .from('paper_trades_closed')
+      .select('net_realized_pnl')
+      .eq('account_id', account.id);
+    const metrics = summarizeAccountMetrics(account, positions, closedTrades || []);
     const now = new Date().toISOString();
 
     const { error: insErr } = await supabaseService.from('paper_portfolio_snapshots').insert({
       account_id: account.id,
-      equity,
+      equity: metrics.equity,
       cash: account.cash_balance,
       snapshot_at: now
     });

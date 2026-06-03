@@ -3,17 +3,21 @@
 
 const { runPaperSnapshot } = require('../jobs/paperSnapshotJob');
 const { checkPendingOrders } = require('../jobs/pendingOrderWatcher');
+const { runStrategiesOnce } = require('./paper/strategyRunner');
 
 const ENABLE = process.env.ENABLE_PAPER_JOBS !== '0';
 /** Default: once per day (86_400_000 ms). Override with PAPER_SNAPSHOT_INTERVAL_MS. */
 const SNAPSHOT_MS = Number(process.env.PAPER_SNAPSHOT_INTERVAL_MS || 86400000);
 /** Default: every 4 hours (14_400_000 ms). Override with PAPER_PENDING_ORDER_MS. */
 const PENDING_MS = Number(process.env.PAPER_PENDING_ORDER_MS || 14400000);
+const STRATEGY_MS = Number(process.env.PAPER_STRATEGY_INTERVAL_MS || 300000);
 
 let snapshotTimer = null;
 let pendingTimer = null;
+let strategyTimer = null;
 let snapshotRunning = false;
 let pendingRunning = false;
+let strategyRunning = false;
 
 async function runSnapshotOnce() {
   if (snapshotRunning) return;
@@ -46,6 +50,21 @@ async function runPendingOnce() {
   }
 }
 
+async function runStrategiesLoopOnce() {
+  if (strategyRunning) return;
+  strategyRunning = true;
+  try {
+    const out = await runStrategiesOnce();
+    if (out.triggered > 0 || out.failed > 0) {
+      console.log(`[paper-strategy-runner] triggered=${out.triggered} failed=${out.failed}`);
+    }
+  } catch (err) {
+    console.error('[paper-strategy-runner] failed:', err?.message || err);
+  } finally {
+    strategyRunning = false;
+  }
+}
+
 function startPaperJobs() {
   if (!ENABLE) {
     console.log('[paper-jobs] disabled (ENABLE_PAPER_JOBS=0)');
@@ -54,6 +73,7 @@ function startPaperJobs() {
 
   const snapMs = Number.isFinite(SNAPSHOT_MS) && SNAPSHOT_MS > 0 ? SNAPSHOT_MS : 86400000;
   const pendMs = Number.isFinite(PENDING_MS) && PENDING_MS > 0 ? PENDING_MS : 14400000;
+  const stratMs = Number.isFinite(STRATEGY_MS) && STRATEGY_MS > 0 ? STRATEGY_MS : 300000;
 
   void runSnapshotOnce();
   snapshotTimer = setInterval(() => {
@@ -67,7 +87,13 @@ function startPaperJobs() {
   }, pendMs);
   if (typeof pendingTimer?.unref === 'function') pendingTimer.unref();
 
-  console.log(`[paper-jobs] started (snapshot=${snapMs}ms, pending=${pendMs}ms)`);
+  void runStrategiesLoopOnce();
+  strategyTimer = setInterval(() => {
+    void runStrategiesLoopOnce();
+  }, stratMs);
+  if (typeof strategyTimer?.unref === 'function') strategyTimer.unref();
+
+  console.log(`[paper-jobs] started (snapshot=${snapMs}ms, pending=${pendMs}ms, strategy=${stratMs}ms)`);
 }
 
 module.exports = { startPaperJobs };

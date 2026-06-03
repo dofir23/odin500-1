@@ -545,6 +545,61 @@
   font-size: 0.75rem;
 }
 
+/* Odin signal badge in paper order ticker dropdown (showOdinSignal on combobox) */
+.paper-order .ticker-symbol-search__item--header {
+  text-align: left;
+}
+
+.paper-order .ticker-symbol-search__item-text {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.paper-order .ticker-symbol-search__sym {
+  flex-shrink: 0;
+}
+
+.paper-order .ticker-symbol-search__co {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+
+.paper-order .ticker-symbol-search__signal {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.2;
+}
+
+.paper-order .ticker-symbol-search__signal--long {
+  color: #86efac;
+  background: rgba(20, 83, 45, 0.55);
+}
+
+.paper-order .ticker-symbol-search__signal--short {
+  color: #fda4af;
+  background: rgba(127, 29, 29, 0.45);
+}
+
+.paper-order .ticker-symbol-search__signal--neutral {
+  color: #cbd5e1;
+  background: rgba(71, 85, 105, 0.45);
+}
+
 .paper-submit {
   width: 100%;
   min-height: 48px;

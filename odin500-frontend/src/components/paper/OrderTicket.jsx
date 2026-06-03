@@ -229,6 +229,7 @@ export function OrderTicket({ onPlaceOrder, positions = [] }) {
             onSymbolChange={onSymbolChange}
             inputId="paper-ticker-search"
             placeholder="Search symbol or company (e.g. NVDA)"
+            showOdinSignal
           />
           {sym && (held.long > 0 || held.short > 0) ? (
             <p className="paper-order__estimate">

@@ -9,6 +9,7 @@ import {
   parseMultiselectTickerInput,
   sanitizeTickerMultiselectInput
 } from '../utils/tickerMultiselectInput.js';
+import { fetchLatestSignalsForTickers } from '../utils/paperTickerSignal.js';
 
 function IconSearchLeading() {
   return (
@@ -52,7 +53,9 @@ export function TickerSymbolCombobox({
   onSymbolsChange,
   inputId = 'ticker-page-symbol-input',
   placeholder = 'Search ticker (e.g. NVDA)',
-  variant = 'default'
+  variant = 'default',
+  /** Paper order ticket: show Long / Short / Neutral from latest Odin signal in dropdown rows. */
+  showOdinSignal = false
 }) {
   const selectedSymbols = useMemo(() => normalizeTickerSymbolList(symbols), [symbols]);
   const selectedSet = useMemo(() => new Set(selectedSymbols), [selectedSymbols]);
@@ -64,6 +67,8 @@ export function TickerSymbolCombobox({
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [highlight, setHighlight] = useState(-1);
+  const [signalBySym, setSignalBySym] = useState(() => new Map());
+  const [signalsLoading, setSignalsLoading] = useState(false);
   const wrapRef = useRef(null);
   const inputRef = useRef(null);
   const listId = useRef('ticker-search-listbox-' + Math.random().toString(36).slice(2)).current;
@@ -116,6 +121,44 @@ export function TickerSymbolCombobox({
       clearTimeout(timer);
     };
   }, [qActive, open, variant, multiple, input]);
+
+  useEffect(() => {
+    if (!showOdinSignal || !open || multiple || items.length === 0) {
+      setSignalsLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    const syms = items.map((r) => String(r.symbol || '').toUpperCase().trim()).filter(Boolean);
+    (async () => {
+      setSignalsLoading(true);
+      try {
+        const map = await fetchLatestSignalsForTickers(syms);
+        if (!cancelled) setSignalBySym(map);
+      } catch {
+        if (!cancelled) setSignalBySym(new Map());
+      } finally {
+        if (!cancelled) setSignalsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showOdinSignal, open, multiple, items]);
+
+  function renderSignalBadge(sym) {
+    if (!showOdinSignal || multiple) return null;
+    const entry = signalBySym.get(sym);
+    const label = entry?.label || (signalsLoading ? '…' : '—');
+    const side = entry?.side || 'neutral';
+    return (
+      <span
+        className={'ticker-symbol-search__signal ticker-symbol-search__signal--' + side}
+        title={entry?.bucket ? `Signal ${entry.bucket}` : 'Odin signal'}
+      >
+        {label}
+      </span>
+    );
+  }
 
   const commitMultiselectInput = useCallback(
     (raw) => {
@@ -408,13 +451,17 @@ export function TickerSymbolCombobox({
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pick(row)}
                 >
-                  {isHeader && co ? (
+                  {isHeader && (co || showOdinSignal) ? (
                     <span className="ticker-symbol-search__item-text">
                       <span className="ticker-symbol-search__sym">{sym}</span>
-                      <span className="ticker-symbol-search__co">{co}</span>
+                      {co ? <span className="ticker-symbol-search__co">{co}</span> : null}
+                      {renderSignalBadge(sym)}
                     </span>
                   ) : (
-                    sym
+                    <>
+                      {sym}
+                      {renderSignalBadge(sym)}
+                    </>
                   )}
                 </button>
               );

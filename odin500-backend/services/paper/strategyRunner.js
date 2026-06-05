@@ -1,15 +1,13 @@
 const supabaseService = require('../../config/supabaseService');
 const { getCurrentPrice } = require('./pnlCalculator');
 const { placeOrder } = require('./orderEngine');
+const { getClosableQty } = require('./positionManager');
 const {
   getLatestSignalBucket,
   normalizeSignalBucket,
   signalSideFromBucket,
   VALID_BUCKETS
 } = require('./latestSignal');
-
-/** Min ms between repeat triggers for the same rule on the same account. */
-const RULE_COOLDOWN_MS = Number(process.env.PAPER_STRATEGY_RULE_COOLDOWN_MS || 15 * 60 * 1000);
 
 const BINDING_SELECT =
   '*, paper_strategies!inner(*, paper_strategy_rules(*))';
@@ -19,25 +17,20 @@ function normalizeAction(action) {
   return ['BTO', 'STO', 'BTC', 'STC'].includes(a) ? a : 'BTO';
 }
 
+function isOpeningAction(action) {
+  const a = normalizeAction(action);
+  return a === 'BTO' || a === 'STO';
+}
+
+function isClosingAction(action) {
+  const a = normalizeAction(action);
+  return a === 'STC' || a === 'BTC';
+}
+
 function parseParams(rule) {
   const p = rule?.params;
   if (p && typeof p === 'object' && !Array.isArray(p)) return p;
   return {};
-}
-
-async function wasRuleTriggeredRecently(accountId, ruleId) {
-  if (!RULE_COOLDOWN_MS || RULE_COOLDOWN_MS <= 0) return false;
-  const since = new Date(Date.now() - RULE_COOLDOWN_MS).toISOString();
-  const { data, error } = await supabaseService
-    .from('paper_strategy_execution_log')
-    .select('id')
-    .eq('account_id', accountId)
-    .eq('rule_id', ruleId)
-    .eq('status', 'triggered')
-    .gte('ran_at', since)
-    .limit(1);
-  if (error) return false;
-  return (data || []).length > 0;
 }
 
 async function evaluateRule(rule) {
@@ -88,11 +81,82 @@ async function evaluateRule(rule) {
   return { shouldTrade: false, message: `Unsupported rule_type ${rule.rule_type}` };
 }
 
+/**
+ * One order per open position cycle: opens only when flat on that side; closes only when lots exist.
+ * @returns {{ ok: true, qty: number, action: string } | { ok: false, skipMessage: string }}
+ */
+function resolveOrderFromRule(rule, position) {
+  const action = normalizeAction(rule.action);
+  const ruleQty = Number(rule.qty || 0);
+  if (!Number.isFinite(ruleQty) || ruleQty <= 0) {
+    return { ok: false, skipMessage: 'Invalid rule quantity' };
+  }
+
+  const longQty = Number(position?.closableLongQty || 0);
+  const shortQty = Number(position?.closableShortQty || 0);
+
+  if (action === 'BTO') {
+    if (longQty > 0) {
+      return { ok: false, skipMessage: 'Already in long position — entry skipped' };
+    }
+    return { ok: true, qty: ruleQty, action };
+  }
+
+  if (action === 'STO') {
+    if (shortQty > 0) {
+      return { ok: false, skipMessage: 'Already in short position — entry skipped' };
+    }
+    return { ok: true, qty: ruleQty, action };
+  }
+
+  if (action === 'STC') {
+    if (longQty <= 0) {
+      return { ok: false, skipMessage: 'No long position to close' };
+    }
+    return { ok: true, qty: Math.min(ruleQty, longQty), action };
+  }
+
+  if (action === 'BTC') {
+    if (shortQty <= 0) {
+      return { ok: false, skipMessage: 'No short position to close' };
+    }
+    return { ok: true, qty: Math.min(ruleQty, shortQty), action };
+  }
+
+  return { ok: false, skipMessage: `Unsupported action ${action}` };
+}
+
 function rulesFromBinding(binding) {
   const strategy = binding.paper_strategies;
   if (!strategy) return { strategy: null, rules: [] };
   const rules = (strategy.paper_strategy_rules || []).filter((r) => r.is_active !== false);
   return { strategy, rules };
+}
+
+async function loadPositionsForRules(accountId, rules) {
+  const tickers = [
+    ...new Set(
+      rules.map((r) => String(r.ticker || '').toUpperCase().trim()).filter(Boolean)
+    )
+  ];
+  const cache = new Map();
+  await Promise.all(
+    tickers.map(async (ticker) => {
+      cache.set(ticker, await getClosableQty(accountId, ticker));
+    })
+  );
+  return cache;
+}
+
+async function logStrategyEvent({ strategyId, accountId, ruleId, status, message, orderId = null }) {
+  await supabaseService.from('paper_strategy_execution_log').insert({
+    strategy_id: strategyId,
+    account_id: accountId,
+    rule_id: ruleId,
+    status,
+    message,
+    order_id: orderId
+  });
 }
 
 async function processBinding(binding) {
@@ -101,33 +165,39 @@ async function processBinding(binding) {
     return { triggered: 0, failed: 0 };
   }
 
+  const positionByTicker = await loadPositionsForRules(binding.account_id, rules);
+
   let triggered = 0;
   let failed = 0;
 
   for (const rule of rules) {
     try {
-      if (await wasRuleTriggeredRecently(binding.account_id, rule.id)) {
-        await supabaseService.from('paper_strategy_execution_log').insert({
-          strategy_id: strategy.id,
-          account_id: binding.account_id,
-          rule_id: rule.id,
+      const evalOut = await evaluateRule(rule);
+      if (!evalOut.shouldTrade) continue;
+
+      const ticker = String(rule.ticker || '').toUpperCase().trim();
+      const position = positionByTicker.get(ticker) || {
+        closableLongQty: 0,
+        closableShortQty: 0
+      };
+
+      const resolved = resolveOrderFromRule(rule, position);
+      if (!resolved.ok) {
+        await logStrategyEvent({
+          strategyId: strategy.id,
+          accountId: binding.account_id,
+          ruleId: rule.id,
           status: 'skipped',
-          message: 'Cooldown — rule already triggered recently'
+          message: resolved.skipMessage
         });
         continue;
       }
 
-      const evalOut = await evaluateRule(rule);
-      if (!evalOut.shouldTrade) continue;
-
-      const qty = Number(rule.qty || 0);
-      if (!Number.isFinite(qty) || qty <= 0) continue;
-
       const result = await placeOrder(strategy.user_id, {
         account_id: binding.account_id,
         ticker: rule.ticker,
-        action: normalizeAction(rule.action),
-        qty,
+        action: resolved.action,
+        qty: resolved.qty,
         orderType: 'market',
         source: 'strategy',
         metadata: {
@@ -138,21 +208,24 @@ async function processBinding(binding) {
         }
       });
 
-      await supabaseService.from('paper_strategy_execution_log').insert({
-        strategy_id: strategy.id,
-        account_id: binding.account_id,
-        rule_id: rule.id,
+      // Refresh cached position so later rules in the same run see updated lots.
+      positionByTicker.set(ticker, await getClosableQty(binding.account_id, ticker));
+
+      await logStrategyEvent({
+        strategyId: strategy.id,
+        accountId: binding.account_id,
+        ruleId: rule.id,
         status: 'triggered',
         message: 'Order submitted',
-        order_id: result?.order?.id || null
+        orderId: result?.order?.id || null
       });
       triggered += 1;
     } catch (e) {
       failed += 1;
-      await supabaseService.from('paper_strategy_execution_log').insert({
-        strategy_id: strategy.id,
-        account_id: binding.account_id,
-        rule_id: rule.id,
+      await logStrategyEvent({
+        strategyId: strategy.id,
+        accountId: binding.account_id,
+        ruleId: rule.id,
         status: 'failed',
         message: e.message || String(e)
       });
@@ -212,4 +285,11 @@ async function runStrategiesForAccount(accountId) {
   return { triggered, failed };
 }
 
-module.exports = { runStrategiesOnce, runStrategiesForAccount, evaluateRule };
+module.exports = {
+  runStrategiesOnce,
+  runStrategiesForAccount,
+  evaluateRule,
+  resolveOrderFromRule,
+  isOpeningAction,
+  isClosingAction
+};

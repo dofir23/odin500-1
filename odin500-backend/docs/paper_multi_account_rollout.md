@@ -83,7 +83,20 @@ Odin examples:
 { "rule_type": "signal_bucket", "ticker": "MSFT", "action": "BTO", "qty": 5, "params": { "bucket": "L2" } }
 ```
 
-Background runner: `strategyRunner` every ~5 min when `ENABLE_PAPER_JOBS` is not `0`. Optional cooldown: `PAPER_STRATEGY_RULE_COOLDOWN_MS` (default 15 min) per rule/account.
+Background runner: `strategyRunner` every ~5 min when `ENABLE_PAPER_JOBS` is not `0` (override with `PAPER_STRATEGY_INTERVAL_MS`).
+
+**Position-aware execution (one cycle per trade):**
+
+| Action | When rule condition is true |
+|--------|----------------------------|
+| `BTO` | Submit only if **no open long** on that ticker |
+| `STO` | Submit only if **no open short** on that ticker |
+| `STC` | Submit only if **open long** exists (qty = min(rule qty, open long)) |
+| `BTC` | Submit only if **open short** exists (qty = min(rule qty, open short)) |
+
+While a signal stays long, a `BTO` rule does **not** stack new buys. Add a second rule (e.g. `STC` when signal short/neutral) to exit, then a new entry can fire when flat and the entry condition matches again.
+
+Example pair: `BTO` + `signal_side` long qty 1; `STC` + `signal_side` short qty 1 (or neutral) to flatten before the next long entry.
 
 ## 6) Strategy smoke checklist (UI + API)
 
@@ -93,7 +106,8 @@ Background runner: `strategyRunner` every ~5 min when `ENABLE_PAPER_JOBS` is not
 4. **Pause** — Pause strategy → next run does not place orders.
 5. **Manual + warning** — BTO on same account succeeds; Order ticket shows amber automation notice.
 6. **One strategy per account** — bind second strategy to same account → API `400`.
-7. **Price rule** — `price_above` with threshold still triggers when price condition met.
+7. **Price rule** — `price_above` BTO fires once while flat; repeats only after position is closed.
+8. **No repeat entry** — `signal_side` long + BTO on AAPL with signal stuck on L1: only **one** buy until flat; log shows `Already in long position — entry skipped` on later runs.
 
 ## 7) Data consistency queries
 

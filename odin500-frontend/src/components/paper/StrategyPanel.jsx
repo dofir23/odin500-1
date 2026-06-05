@@ -122,8 +122,10 @@ export function StrategyPanel({
       </section>
 
       <p className="paper-strategy-docs">
-        Strategies evaluate every ~5 minutes when server jobs are enabled. Odin signal rules use the same
-        L1–S3 / N buckets as ticker pages.
+        Strategies evaluate on the server schedule (~5 min by default). Odin signal rules use L1–S3 / N
+        buckets. Each rule fires <strong>once per position cycle</strong>: BTO/STO only when flat on that
+        side; STC/BTC only when you have lots to close. Add an exit rule (e.g. STC when signal short) to
+        flatten before the next entry.
       </p>
     </div>
   );

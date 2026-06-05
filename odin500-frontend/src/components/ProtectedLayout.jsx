@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { fetchJsonCached, getAuthToken, isAuthDisabled } from '../store/apiStore.js';
 import { warmWatchlistDefaults } from '../hooks/useWatchlistDefaults.js';
-import { LoginGateProvider } from '../context/LoginGateContext.jsx';
-import { WatchlistDockProvider, useRightRailDock } from '../context/WatchlistDockContext.jsx';
+import { useRightRailDock } from '../context/WatchlistDockContext.jsx';
 import { AppMainTopBar } from './AppMainTopBar.jsx';
 import { AppSidebar } from './AppSidebar.jsx';
 import { AppRightRail } from './AppRightRail.jsx';
@@ -12,6 +11,7 @@ import { NewsRailFlyout } from './NewsRailFlyout.jsx';
 import { MarketMoversRailFlyout } from './MarketMoversRailFlyout.jsx';
 import { useSitewideSeo } from '../seo/usePageSeo.js';
 import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
+import { RouteNavigationGate } from './RouteNavigationGate.jsx';
 
 function ProtectedLayoutShell() {
   useSitewideSeo();
@@ -142,7 +142,9 @@ function ProtectedLayoutShell() {
           <div className="app-main-after-topbar">
             <div className="app-main-scroll" ref={mainScrollRef}>
               <main id="app-main-content">
-                <Outlet />
+                <RouteNavigationGate>
+                  <Outlet />
+                </RouteNavigationGate>
               </main>
             </div>
             {isDockOpen && isMobile ? (
@@ -177,11 +179,5 @@ function ProtectedLayoutShell() {
 }
 
 export function ProtectedLayout() {
-  return (
-    <LoginGateProvider>
-      <WatchlistDockProvider>
-        <ProtectedLayoutShell />
-      </WatchlistDockProvider>
-    </LoginGateProvider>
-  );
+  return <ProtectedLayoutShell />;
 }

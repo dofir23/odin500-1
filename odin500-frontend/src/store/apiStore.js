@@ -1,4 +1,11 @@
 import { apiUrl } from '../utils/apiOrigin.js';
+import {
+  composeAbortSignals,
+  getRouteNavigationAbortSignal,
+  isAbortError
+} from '../navigation/routeNavigationAbort.js';
+
+export { isAbortError };
 
 const CACHE_VERSION = 'v2';
 const CACHE_KEY = 'odin500_api_cache_' + CACHE_VERSION;
@@ -326,8 +333,10 @@ export function clearApiCache() {
  * Fetch with Bearer auth; on 401, refresh once and retry.
  */
 export async function fetchWithAuth(url, init = {}) {
-  const { auth = true, ...rest } = init;
+  const { auth = true, signal: callerSignal, ...rest } = init;
+  const signal = composeAbortSignals(callerSignal, getRouteNavigationAbortSignal());
   const exec = async () => {
+    if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
     const headers = new Headers(rest.headers || {});
     const token = getAuthToken();
     if (auth && token) headers.set('Authorization', 'Bearer ' + token);
@@ -338,7 +347,7 @@ export async function fetchWithAuth(url, init = {}) {
     ) {
       headers.set('Content-Type', 'application/json');
     }
-    return fetch(url, { ...rest, headers });
+    return fetch(url, { ...rest, headers, signal });
   };
 
   let response = await exec();
@@ -480,10 +489,12 @@ export async function fetchJsonCached({
   body,
   ttlMs = 5 * 60 * 1000,
   auth = true,
-  force = false
+  force = false,
+  signal: callerSignal
 }) {
   const reqKey = makeRequestKey(method, path, body);
   const now = Date.now();
+  const signal = composeAbortSignals(callerSignal, getRouteNavigationAbortSignal());
 
   const skipAppCache =
     method === 'GET' && typeof path === 'string' && path.includes('/api/tickers/search');
@@ -495,11 +506,17 @@ export async function fetchJsonCached({
     }
   }
 
+  if (signal.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
+
   if (memoryStore.inFlight.has(reqKey)) {
     return memoryStore.inFlight.get(reqKey);
   }
 
   const promise = (async () => {
+    if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+
     const headers = { 'Content-Type': 'application/json' };
     if (auth) {
       const token = getAuthToken();
@@ -511,7 +528,8 @@ export async function fetchJsonCached({
       headers,
       body: body == null ? undefined : JSON.stringify(body),
       /** Avoid browser HTTP 304 + empty body: `response.ok` is false for 304 and `.json()` often fails. */
-      cache: 'no-store'
+      cache: 'no-store',
+      signal
     };
 
     let response = await fetch(apiUrl(path), fetchInit);
@@ -519,6 +537,7 @@ export async function fetchJsonCached({
     if (response.status === 401 && auth) {
       const refreshed = await refreshSessionOnce();
       if (refreshed) {
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
         const token2 = getAuthToken();
         const h2 = { ...headers };
         if (token2) h2.Authorization = 'Bearer ' + token2;

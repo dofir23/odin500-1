@@ -2,6 +2,8 @@ import React, { Suspense, lazy } from 'react';
 import { useLocation } from 'react-router-dom';
 import { PageRouteFallback } from './components/PageRouteFallback.jsx';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary.jsx';
+import { LoginGateProvider } from './context/LoginGateContext.jsx';
+import { WatchlistDockProvider } from './context/WatchlistDockContext.jsx';
 import { createAppRoutes } from './appRoutes.jsx';
 
 const App = lazy(() => import('./App.jsx'));
@@ -72,8 +74,12 @@ export function AppShell({ ssr = false, routesElement = null }) {
   const { pathname } = useLocation();
   const routes = routesElement ?? <ClientAppRoutes />;
   return (
-    <RouteErrorBoundary resetKey={pathname}>
-      {ssr ? routes : <Suspense fallback={<PageRouteFallback />}>{routes}</Suspense>}
-    </RouteErrorBoundary>
+    <LoginGateProvider>
+      <WatchlistDockProvider>
+        <RouteErrorBoundary resetKey={pathname}>
+          {ssr ? routes : <Suspense fallback={<PageRouteFallback />}>{routes}</Suspense>}
+        </RouteErrorBoundary>
+      </WatchlistDockProvider>
+    </LoginGateProvider>
   );
 }

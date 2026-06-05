@@ -6035,6 +6035,29 @@ html[data-theme="light"] .np-card:-webkit-full-screen .np-chart-wrap {
   min-height: 0 !important;
 }
 
+.route-nav-gate {
+  position: relative;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.route-nav-gate__pending {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  min-height: 50vh;
+  padding-top: 12vh;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(2px);
+}
+
+[data-theme='light'] .route-nav-gate__pending {
+  background: rgba(248, 250, 252, 0.82);
+}
+
 .route-page-fallback {
   display: flex;
   align-items: center;
@@ -6547,7 +6570,7 @@ button:disabled {
 
   .mkt-mini-card__subhead,
   .mkt-mini-card__row {
-    grid-template-columns: 14px minmax(0, 1fr) 36px 44px 36px 34px;
+    grid-template-columns: 17px minmax(0, 1fr) 36px 44px 52px 53px;
     gap: 4px;
     padding: 4px 6px;
   }

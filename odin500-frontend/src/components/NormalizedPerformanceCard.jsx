@@ -757,9 +757,9 @@ export function NormalizedPerformanceCard({
       >
       {seoNarrative ? <p className="sr-only">{seoNarrative}</p> : null}
       <header className="np-card__head">
-        <h2 className="np-card__title">
+        <h1 className="np-card__title">
           Performance <ChartInfoTip tip={CHART_INFO_TIPS.normalizedPerformance} align="start" />
-        </h2>
+        </h1>
         <div className="np-card__head-actions">
           <button
             type="button"

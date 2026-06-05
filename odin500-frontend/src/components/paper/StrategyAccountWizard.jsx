@@ -56,7 +56,7 @@ export function StrategyAccountWizard({
     setBusy(true);
     setError('');
     try {
-      const displayName = accName.startsWith('[Auto]') ? accName : `[Auto] ${accName}`;
+      const displayName = accName ? accName : "Strategy Account";
       const account = await createAccount({ name: displayName });
       const strategy = await createStrategy({ name: stratName, description: null });
       for (const rule of pendingRules) {

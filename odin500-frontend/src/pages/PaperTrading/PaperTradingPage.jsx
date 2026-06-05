@@ -77,7 +77,7 @@ function PaperTradingPageContent() {
       (accounts || []).map((a) => {
         const base = String(a.name || 'Account').trim() || 'Account';
         const auto = automatedAccountIds.has(a.id);
-        return { id: a.id, label: auto ? `${base} (Auto)` : base };
+        return { id: a.id, label: base };
       }),
     [accounts, automatedAccountIds]
   );

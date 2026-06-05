@@ -10,6 +10,56 @@ import {
 } from '../services/authApi.js';
 import { clearApiCache, clearAuthToken } from '../store/apiStore.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import {
+  mapAboutProfileApiError,
+  validateAboutProfile,
+  validateAboutProfileField
+} from '../utils/aboutProfileValidation.js';
+
+const PROFILE_FIELD_CONFIG = [
+  { key: 'displayName', label: 'Name', placeholder: 'Enter name' },
+  { key: 'phone', label: 'Phone', placeholder: '+1 555 000 000' },
+  { key: 'addressLine1', label: 'Address line 1' },
+  { key: 'addressLine2', label: 'Address line 2' },
+  { key: 'city', label: 'City' },
+  { key: 'state', label: 'State' },
+  { key: 'country', label: 'Country', placeholder: 'United States' },
+  { key: 'postalCode', label: 'Postal code', placeholder: '10001' }
+];
+
+function ProfileFormField({
+  label,
+  name,
+  value,
+  onChange,
+  onBlur,
+  error,
+  readOnly = false,
+  placeholder
+}) {
+  return (
+    <label className={'about-field' + (error ? ' about-field--invalid' : '')}>
+      <span>{label}</span>
+      <div className="about-field__input-wrap">
+        <input
+          name={name}
+          value={value}
+          onChange={onChange}
+          onBlur={onBlur}
+          readOnly={readOnly}
+          placeholder={placeholder}
+          aria-invalid={error ? 'true' : undefined}
+          aria-describedby={error ? `${name}-error` : undefined}
+        />
+      </div>
+      {error ? (
+        <span className="about-field__error" id={`${name}-error`} role="alert">
+          {error}
+        </span>
+      ) : null}
+    </label>
+  );
+}
 
 function initialsFor(name, email) {
   const base = String(name || '').trim() || String(email || '').trim().split('@')[0] || 'U';
@@ -54,6 +104,7 @@ export default function AboutPage() {
     avatarUrl: ''
   });
   const [newEmail, setNewEmail] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const loadProfile = async () => {
     setLoading(true);
@@ -78,13 +129,62 @@ export default function AboutPage() {
     void loadProfile();
   }, []);
 
+  const setFieldError = (field, message) => {
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      if (message) next[field] = message;
+      else delete next[field];
+      return next;
+    });
+  };
+
+  const validateField = (field, nextProfile = profile) => {
+    const message = validateAboutProfileField(field, nextProfile[field], nextProfile);
+    setFieldError(field, message);
+    return !message;
+  };
+
+  const onProfileFieldChange = (field) => (e) => {
+    const value = e.target.value;
+    const nextProfile = { ...profile, [field]: value };
+    setProfile(nextProfile);
+    if (fieldErrors[field]) {
+      setFieldError(field, validateAboutProfileField(field, value, nextProfile));
+    }
+    if (field === 'country' && (fieldErrors.postalCode || nextProfile.postalCode)) {
+      setFieldError(
+        'postalCode',
+        validateAboutProfileField('postalCode', nextProfile.postalCode, nextProfile)
+      );
+    }
+  };
+
+  const onProfileFieldBlur = (field) => () => {
+    validateField(field);
+  };
+
   const initials = useMemo(
     () => initialsFor(profile.displayName || profile.userName, profile.userEmail),
     [profile.displayName, profile.userEmail, profile.userName]
   );
 
+  const focusFirstInvalidField = (errors) => {
+    const firstField = PROFILE_FIELD_CONFIG.find(({ key }) => errors[key])?.key;
+    if (!firstField) return;
+    requestAnimationFrame(() => {
+      document.querySelector(`[name="${firstField}"]`)?.focus();
+    });
+  };
+
   const onSaveProfile = async (e) => {
     e.preventDefault();
+    const errors = validateAboutProfile(profile);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      focusFirstInvalidField(errors);
+      return;
+    }
+
     setBusy(true);
     setError('');
     setMessage('');
@@ -99,11 +199,18 @@ export default function AboutPage() {
         postalCode: profile.postalCode,
         country: profile.country
       });
+      setFieldErrors({});
       setMessage('Profile saved.');
       await loadProfile();
       window.dispatchEvent(new CustomEvent('odin-auth-updated'));
     } catch (e2) {
-      setError(e2.message || 'Could not save profile');
+      const apiFieldError = mapAboutProfileApiError(e2.message);
+      if (apiFieldError) {
+        setFieldError(apiFieldError.field, apiFieldError.message);
+        focusFirstInvalidField({ [apiFieldError.field]: apiFieldError.message });
+      } else {
+        setError(e2.message || 'Could not save profile');
+      }
     } finally {
       setBusy(false);
     }
@@ -197,67 +304,23 @@ export default function AboutPage() {
           </div>
 
           <div className="about-fields">
-            <label className="about-field">
-              <span>Name</span>
-              <input
-                value={profile.displayName || ''}
-                onChange={(e) => setProfile((p) => ({ ...p, displayName: e.target.value }))}
-                placeholder="Enter name"
+            {PROFILE_FIELD_CONFIG.map(({ key, label, placeholder }) => (
+              <ProfileFormField
+                key={key}
+                label={label}
+                name={key}
+                value={profile[key] || ''}
+                onChange={onProfileFieldChange(key)}
+                onBlur={onProfileFieldBlur(key)}
+                error={fieldErrors[key]}
+                placeholder={placeholder}
               />
-            </label>
+            ))}
             <label className="about-field">
               <span>Email (current)</span>
-              <input value={profile.userEmail || ''} readOnly />
-            </label>
-            <label className="about-field">
-              <span>Phone</span>
-              <input
-                value={profile.phone || ''}
-                onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))}
-                placeholder="+1 555 000 000"
-              />
-            </label>
-            <label className="about-field">
-              <span>Address line 1</span>
-              <input
-                value={profile.addressLine1 || ''}
-                onChange={(e) => setProfile((p) => ({ ...p, addressLine1: e.target.value }))}
-              />
-            </label>
-            <label className="about-field">
-              <span>Address line 2</span>
-              <input
-                value={profile.addressLine2 || ''}
-                onChange={(e) => setProfile((p) => ({ ...p, addressLine2: e.target.value }))}
-              />
-            </label>
-            <label className="about-field">
-              <span>City</span>
-              <input
-                value={profile.city || ''}
-                onChange={(e) => setProfile((p) => ({ ...p, city: e.target.value }))}
-              />
-            </label>
-            <label className="about-field">
-              <span>State</span>
-              <input
-                value={profile.state || ''}
-                onChange={(e) => setProfile((p) => ({ ...p, state: e.target.value }))}
-              />
-            </label>
-            <label className="about-field">
-              <span>Postal code</span>
-              <input
-                value={profile.postalCode || ''}
-                onChange={(e) => setProfile((p) => ({ ...p, postalCode: e.target.value }))}
-              />
-            </label>
-            <label className="about-field">
-              <span>Country</span>
-              <input
-                value={profile.country || ''}
-                onChange={(e) => setProfile((p) => ({ ...p, country: e.target.value }))}
-              />
+              <div className="about-field__input-wrap">
+                <input value={profile.userEmail || ''} readOnly />
+              </div>
             </label>
           </div>
 

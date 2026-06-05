@@ -1,10 +1,30 @@
 import { Component } from 'react';
 
+const CHUNK_RE =
+  /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk \d+ failed/i;
+
 export class RouteErrorBoundary extends Component {
   state = { error: null };
 
   static getDerivedStateFromError(error) {
     return { error };
+  }
+
+  componentDidCatch(error) {
+    const message = String(error?.message || error || '');
+    if (!CHUNK_RE.test(message) || typeof window === 'undefined') return;
+
+    const key = 'odin_chunk_reload';
+    try {
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        window.location.reload();
+      } else {
+        sessionStorage.removeItem(key);
+      }
+    } catch {
+      /* ignore storage errors */
+    }
   }
 
   componentDidUpdate(prevProps) {

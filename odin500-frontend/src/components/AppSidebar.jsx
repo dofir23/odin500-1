@@ -266,13 +266,17 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
               {initials}
             </span>
           )}
-          <span className="header-pop__profile-name">{profileName}</span>
+          <span className="header-pop__profile-name" title={profileName || undefined}>
+            {profileName}
+          </span>
         </div>
         {loggedIn ? (
           <>
-            <Link to="/about" className="header-pop__item" onClick={closeProfileMenu}>
+          <button type="button" className="header-pop__item" onClick={closeProfileMenu}>
+            <Link to="/about">
               Your Profile
             </Link>
+            </button>
             <button type="button" className="header-pop__item" onClick={closeProfileMenu}>
               Setting
             </button>

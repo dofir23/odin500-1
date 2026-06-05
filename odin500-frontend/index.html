@@ -16,6 +16,22 @@
     <link rel="apple-touch-icon" href="/favicon.png" />
     <!--SSR:TITLE-->
     <!--SSR:META-->
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: linear-gradient(90deg, #061628 0%, #0b243f 50%, #061628 100%);
+      }
+      html[data-theme='light'],
+      html[data-theme='light'] body {
+        background: #f1f5f9;
+      }
+      #root {
+        min-height: 100%;
+        background: inherit;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

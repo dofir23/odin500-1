@@ -43,29 +43,48 @@ async function getRenderApp() {
   return renderApp;
 }
 
+function isStaticAssetPath(pathname) {
+  const p = String(pathname || '').split('?')[0];
+  if (!p || p === '/') return false;
+  if (p.startsWith('/assets/')) return true;
+  if (p === '/favicon.png' || p === '/robots.txt' || p === '/sitemap.xml') return true;
+  return /\.[a-z0-9]{1,8}$/i.test(p);
+}
+
+function wantsHtmlDocument(req) {
+  const accept = String(req.headers.accept || '');
+  if (!accept) return true;
+  return accept.includes('text/html') || accept.includes('*/*');
+}
+
+const serveStatic = sirv(clientDir, {
+  extensions: [],
+  etag: true,
+  gzip: false,
+  brotli: false,
+  setHeaders(res, pathname) {
+    if (pathname.endsWith('/index.html') || pathname === 'index.html') {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+    if (pathname.startsWith('/assets/')) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  }
+});
+
 app.disable('x-powered-by');
 app.use(compression());
 
-app.use(
-  sirv(clientDir, {
-    extensions: [],
-    etag: true,
-    gzip: false,
-    brotli: false,
-    setHeaders(res, pathname) {
-      if (pathname.endsWith('/index.html') || pathname === 'index.html') {
-        res.setHeader('Cache-Control', 'no-cache');
-      }
-    },
-    onNoMatch: (req, res, next) => next()
-  })
-);
+/** Never SPA-fallback JS/CSS/images to HTML — missing assets must 404. */
+app.use((req, res, next) => {
+  if (!isStaticAssetPath(req.path)) return next();
+  serveStatic(req, res, () => {
+    res.status(404).type('text/plain').send('Not found');
+  });
+});
 
 async function sendSsrHtml(req, res, next) {
-  const accept = req.headers.accept || '';
-  if (accept && !accept.includes('text/html') && !accept.includes('*/*')) {
-    return next();
-  }
+  if (!wantsHtmlDocument(req)) return next();
 
   const requestUrl = req.originalUrl || req.url;
   const meta = resolveRequestMetadata(req.path);
@@ -76,6 +95,7 @@ async function sendSsrHtml(req, res, next) {
     let html = injectSeoIntoTemplate(indexTemplate, meta);
     html = injectAppIntoRoot(html, appHtml);
 
+    res.setHeader('Cache-Control', 'no-cache');
     if (req.method === 'HEAD') {
       res.status(200).type('html').end();
       return;
@@ -85,6 +105,7 @@ async function sendSsrHtml(req, res, next) {
     console.error(`[server] SSR render failed for ${req.path}:`, err);
     try {
       const html = injectSeoIntoTemplate(indexTemplate, meta);
+      res.setHeader('Cache-Control', 'no-cache');
       if (req.method === 'HEAD') {
         res.status(200).type('html').end();
         return;
@@ -96,9 +117,15 @@ async function sendSsrHtml(req, res, next) {
   }
 }
 
+/** HTML routes use SSR (not prerendered route shells) so #root has real content for crawlers. */
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next();
-  sendSsrHtml(req, res, next);
+  if (isStaticAssetPath(req.path)) return next();
+  return sendSsrHtml(req, res, next);
+});
+
+app.use((req, res) => {
+  res.status(404).type('text/plain').send('Not found');
 });
 
 app.use((err, req, res, _next) => {

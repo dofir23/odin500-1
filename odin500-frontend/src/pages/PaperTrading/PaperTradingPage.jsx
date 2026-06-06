@@ -220,37 +220,39 @@ function PaperTradingPageContent() {
             wideLabel
             disabled={accountLoading || accountOptions.length === 0}
           />
-          <button type="button" className="paper-btn paper-btn--ghost" onClick={openCreateModal}>
-            New account
-          </button>
-          <button
-            type="button"
-            className="paper-btn paper-btn--ghost"
-            onClick={() => setWizardOpen(true)}
-          >
-            New strategy account
-          </button>
-          <button
-            type="button"
-            className="paper-btn paper-btn--ghost paper-btn--danger"
-            disabled={resetting || accountLoading}
-            onClick={openResetModal}
-          >
-            {resetting ? 'Resetting…' : 'Reset portfolio'}
-          </button>
-          <button
-            type="button"
-            className="paper-btn paper-btn--danger"
-            disabled={
-              deletingAccount || accountLoading || !selectedAccountId || (accounts?.length ?? 0) <= 1
-            }
-            title={
-              (accounts?.length ?? 0) <= 1 ? 'Keep at least one paper trading account' : undefined
-            }
-            onClick={openDeleteModal}
-          >
-            {deletingAccount ? 'Deleting…' : 'Delete account'}
-          </button>
+          <div className="paper-header__btn-row">
+            <button type="button" className="paper-btn paper-btn--ghost" onClick={openCreateModal}>
+              New account
+            </button>
+            <button
+              type="button"
+              className="paper-btn paper-btn--ghost"
+              onClick={() => setWizardOpen(true)}
+            >
+              New strategy account
+            </button>
+            <button
+              type="button"
+              className="paper-btn paper-btn--ghost paper-btn--danger"
+              disabled={resetting || accountLoading}
+              onClick={openResetModal}
+            >
+              {resetting ? 'Resetting…' : 'Reset portfolio'}
+            </button>
+            <button
+              type="button"
+              className="paper-btn paper-btn--danger"
+              disabled={
+                deletingAccount || accountLoading || !selectedAccountId || (accounts?.length ?? 0) <= 1
+              }
+              title={
+                (accounts?.length ?? 0) <= 1 ? 'Keep at least one paper trading account' : undefined
+              }
+              onClick={openDeleteModal}
+            >
+              {deletingAccount ? 'Deleting…' : 'Delete account'}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -409,8 +411,8 @@ function PaperTradingPageContent() {
       </div>
 
       <section className="paper-card paper-blotter">
-            <div className="paper-card__head paper-card__head--tabs">
-              <div className="paper-tabs" role="tablist" aria-label="Holdings and orders">
+        <div className="paper-card__head paper-card__head--tabs">
+          <div className="paper-tabs paper-tabs--scroll" role="tablist" aria-label="Holdings and orders">
                 <button
                   type="button"
                   role="tab"

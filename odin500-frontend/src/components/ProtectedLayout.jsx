@@ -20,24 +20,25 @@ function ProtectedLayoutShell() {
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [mobileLeftOpen, setMobileLeftOpen] = useState(false);
   const [mobileRightOpen, setMobileRightOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.innerWidth <= 900;
-  });
-  const [theme, setTheme] = useState(() => {
+  const [isMobile, setIsMobile] = useState(false);
+  const [theme, setTheme] = useState('dark');
+  const mainScrollRef = useRef(null);
+  const sidebarLayoutReadyRef = useRef(false);
+
+  useEffect(() => {
     try {
       const saved = localStorage.getItem('odin_theme');
-      if (saved === 'light' || saved === 'dark') return saved;
+      if (saved === 'light' || saved === 'dark') {
+        setTheme(saved);
+        return;
+      }
     } catch {
       /* ignore */
     }
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    if (window.matchMedia?.('(prefers-color-scheme: light)').matches) {
+      setTheme('light');
     }
-    return 'dark';
-  });
-  const mainScrollRef = useRef(null);
-  const sidebarLayoutReadyRef = useRef(false);
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);

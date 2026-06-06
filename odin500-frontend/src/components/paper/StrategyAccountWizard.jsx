@@ -35,7 +35,14 @@ export function StrategyAccountWizard({
   }
 
   function addPendingRule(payload) {
-    setPendingRules((r) => [...r, { ...payload, _localId: `${Date.now()}-${r.length}` }]);
+    const list = Array.isArray(payload) ? payload : [payload];
+    setPendingRules((r) => [
+      ...r,
+      ...list.map((item, i) => ({
+        ...item,
+        _localId: `${Date.now()}-${r.length + i}`
+      }))
+    ]);
   }
 
   async function finish() {

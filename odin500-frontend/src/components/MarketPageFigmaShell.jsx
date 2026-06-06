@@ -3,7 +3,13 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { ThemedDropdown } from './ThemedDropdown.jsx';
 import { ChartInfoTip } from './ChartInfoTip.jsx';
-import {fetchJsonCached, fetchWithAuth, getAuthToken, canFetchProtectedApi} from '../store/apiStore.js';
+import {
+  canFetchProtectedApi,
+  fetchJsonCached,
+  fetchWithAuth,
+  getAuthToken,
+  isAbortError
+} from '../store/apiStore.js';
 import { apiUrl } from '../utils/apiOrigin.js';
 import { NormalizedPerformanceCard } from './NormalizedPerformanceCard.jsx';
 import { SectorTreemap } from './SectorTreemap.jsx';
@@ -266,7 +272,7 @@ function LeftSnapshotStack({
           /* ignore */
         }
       } catch (e) {
-        if (!cancel) {
+        if (!cancel && !isAbortError(e)) {
           console.error('[market-rail-snapshot]', e);
         }
       }
@@ -756,18 +762,30 @@ export function MarketPageFigmaShell() {
     return () => mq.removeEventListener('change', sync);
   }, []);
 
-  const [selectedSeries, setSelectedSeries] = useState(() => {
+  const [selectedSeries, setSelectedSeries] = useState(DEFAULT_SELECTED_KEYS);
+  const [timeframe, setTimeframe] = useState('6M');
+  const [axisMode, setAxisMode] = useState('auto');
+  const [refreshMode, setRefreshMode] = useState(null);
+  const [prefsHydrated, setPrefsHydrated] = useState(false);
+
+  useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_KEYS.selected);
       const parsed = JSON.parse(raw || '[]');
-      return Array.isArray(parsed) && parsed.length ? parsed : DEFAULT_SELECTED_KEYS;
+      if (Array.isArray(parsed) && parsed.length) {
+        setSelectedSeries(parsed);
+      }
+      const savedTf = localStorage.getItem(LS_KEYS.tf);
+      if (savedTf) setTimeframe(savedTf);
+      const savedAxis = localStorage.getItem(LS_KEYS.axis);
+      if (savedAxis) setAxisMode(savedAxis);
+      const savedRefresh = localStorage.getItem(LS_KEYS.refresh);
+      if (savedRefresh != null) setRefreshMode(savedRefresh);
     } catch {
-      return DEFAULT_SELECTED_KEYS;
+      /* ignore */
     }
-  });
-  const [timeframe, setTimeframe] = useState(() => localStorage.getItem(LS_KEYS.tf) || '6M');
-  const [axisMode, setAxisMode] = useState(() => localStorage.getItem(LS_KEYS.axis) || 'auto');
-  const [refreshMode, setRefreshMode] = useState(() => localStorage.getItem(LS_KEYS.refresh));
+    setPrefsHydrated(true);
+  }, []);
   const refreshMs = REFRESH_MAP[refreshMode] ?? 0;
   const ohlcCacheRef = useRef(new Map());
 
@@ -830,13 +848,15 @@ export function MarketPageFigmaShell() {
   };
 
   useEffect(() => {
+    if (!prefsHydrated) return;
     try {
       localStorage.setItem(LS_KEYS.selected, JSON.stringify(selectedSeries));
     } catch {
       /* ignore */
     }
-  }, [selectedSeries]);
+  }, [selectedSeries, prefsHydrated]);
   useEffect(() => {
+    if (!prefsHydrated) return;
     try {
       localStorage.setItem(LS_KEYS.tf, timeframe);
       localStorage.setItem(LS_KEYS.axis, axisMode);
@@ -844,7 +864,7 @@ export function MarketPageFigmaShell() {
     } catch {
       /* ignore */
     }
-  }, [timeframe, axisMode, refreshMode]);
+  }, [timeframe, axisMode, refreshMode, prefsHydrated]);
 
   const normalizedPerformanceChart = (
     <NormalizedPerformanceCard

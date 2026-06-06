@@ -54,6 +54,7 @@ function PaperTradingPageContent() {
     refetch: refetchStrategy,
     createStrategy,
     addRule,
+    updateRule,
     deleteRule,
     bindStrategy,
     patchBinding,
@@ -77,7 +78,7 @@ function PaperTradingPageContent() {
       (accounts || []).map((a) => {
         const base = String(a.name || 'Account').trim() || 'Account';
         const auto = automatedAccountIds.has(a.id);
-        return { id: a.id, label: base };
+        return auto ? { id: a.id, label: base, tag: 'auto' } : { id: a.id, label: base };
       }),
     [accounts, automatedAccountIds]
   );
@@ -441,7 +442,11 @@ function PaperTradingPageContent() {
                     onClick={() => setTab('strategy')}
                   >
                     Strategy
-                    {strategyActive ? <span className="paper-tabs__auto">Auto</span> : null}
+                    {strategyActive ? (
+                      <span className="wl-flyout__select-item-tag wl-flyout__select-item-tag--auto paper-tabs__auto-tag">
+                        Auto
+                      </span>
+                    ) : null}
                   </button>
                 ) : (
                   <button
@@ -467,7 +472,9 @@ function PaperTradingPageContent() {
                   loading={strategyLoading}
                   error={strategyError}
                   onAddRule={(payload) => addRule(strategy.id, payload)}
+                  onUpdateRule={(ruleId, payload) => updateRule(strategy.id, ruleId, payload)}
                   onDeleteRule={(ruleId) => deleteRule(strategy.id, ruleId)}
+                  onPatchStrategy={(patch) => patchStrategy(strategy.id, patch)}
                   onToggleActive={async (active) => {
                     await patchBinding(strategy.id, activeAccountId, { is_active: active });
                     await patchStrategy(strategy.id, { is_active: active });

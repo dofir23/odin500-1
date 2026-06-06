@@ -1,3 +1,5 @@
+import { paperActionLabel } from './paperActionLabels.js';
+
 function formatTime(iso) {
   if (!iso) return '—';
   try {
@@ -21,8 +23,8 @@ function money(v) {
 
 function SidePill({ side, action }) {
   const s = String(side).toLowerCase();
-  const a = String(action || '').toUpperCase();
-  return <span className={'paper-side-pill paper-side-pill--' + s}>{a || s}</span>;
+  const label = paperActionLabel(action) || s;
+  return <span className={'paper-side-pill paper-side-pill--' + s}>{label}</span>;
 }
 
 function StatusPill({ status }) {

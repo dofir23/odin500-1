@@ -80,7 +80,7 @@ export function AppShell({ ssr = false, routesElement = null }) {
     <LoginGateProvider>
       <WatchlistDockProvider>
         <RouteErrorBoundary resetKey={pathname}>
-          {ssr ? routes : <Suspense fallback={<PageRouteFallback />}>{routes}</Suspense>}
+          <Suspense fallback={ssr ? null : <PageRouteFallback />}>{routes}</Suspense>
         </RouteErrorBoundary>
       </WatchlistDockProvider>
     </LoginGateProvider>

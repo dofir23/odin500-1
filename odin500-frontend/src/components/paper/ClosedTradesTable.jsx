@@ -1,3 +1,5 @@
+import { paperActionLabel } from './paperActionLabels.js';
+
 function money(v) {
   if (v == null || Number.isNaN(Number(v))) return '—';
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(
@@ -38,7 +40,7 @@ export function ClosedTradesTable({ trades, totals, loading }) {
         <tbody>
           {trades.map((t) => (
             <tr key={t.id}>
-              <td>{t.action}</td>
+              <td>{paperActionLabel(t.action)}</td>
               <td className="paper-table__sym">{t.ticker}</td>
               <td>{t.qty_closed}</td>
               <td>{money(t.avg_entry_price)}</td>

@@ -8,12 +8,21 @@ import { initAuthSessionOnLoad } from './store/apiStore.js';
 initAuthSessionOnLoad();
 
 const rootEl = document.getElementById('root');
-
-ReactDOM.hydrateRoot(
-  rootEl,
+const app = (
   <React.StrictMode>
     <BrowserRouter>
       <AppShell />
     </BrowserRouter>
   </React.StrictMode>
 );
+
+const hasSsrMarkup =
+  rootEl &&
+  (rootEl.childElementCount > 0 ||
+    (rootEl.textContent && rootEl.textContent.trim().length > 0));
+
+if (hasSsrMarkup) {
+  ReactDOM.hydrateRoot(rootEl, app);
+} else {
+  ReactDOM.createRoot(rootEl).render(app);
+}

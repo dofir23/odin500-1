@@ -22,19 +22,23 @@ export default function App() {
       'Daily market dashboard with Odin500 quant signals, charts, and index-level snapshots for U.S. equities and ETFs.',
     canonicalPath: '/market'
   });
-  const today = new Date();
-  const prior = new Date();
-  prior.setDate(today.getDate() - 100);
+  const [ticker, setTicker] = useState('AAPL');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  const [ticker, setTicker] = useState(() => {
+  useEffect(() => {
     try {
-      return localStorage.getItem('market_api_ticker') || 'AAPL';
+      const saved = localStorage.getItem('market_api_ticker');
+      if (saved) setTicker(saved);
     } catch {
-      return 'AAPL';
+      /* ignore */
     }
-  });
-  const [startDate, setStartDate] = useState(() => toDateInput(prior));
-  const [endDate, setEndDate] = useState(() => toDateInput(today));
+    const today = new Date();
+    const prior = new Date();
+    prior.setDate(today.getDate() - 100);
+    setEndDate(toDateInput(today));
+    setStartDate(toDateInput(prior));
+  }, []);
   const [executionMode, setExecutionMode] = useState('T+1');
   const [entryLong, setEntryLong] = useState(['L11']);
   const [exitLong, setExitLong] = useState(['N', 'S11', 'S12', 'S21', 'S22', 'S31', 'S32']);

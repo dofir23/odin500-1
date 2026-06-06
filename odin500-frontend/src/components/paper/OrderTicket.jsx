@@ -2,15 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { TickerSymbolCombobox } from '../TickerSymbolCombobox.jsx';
 import { ThemedDropdown } from '../ThemedDropdown.jsx';
 import { canFetchProtectedApi, fetchJsonCached } from '../../store/apiStore.js';
+import {
+  PAPER_ACTION_OPTIONS,
+  isClosingPaperAction,
+  paperActionLabel
+} from './paperActionLabels.js';
 
 const QTY_PRESETS = [10, 25, 50, 100, 500];
-
-const ACTION_OPTIONS = [
-  { id: 'BTO', label: 'BTO · Buy To Open' },
-  { id: 'STO', label: 'STO · Sell To Open' },
-  { id: 'BTC', label: 'BTC · Buy To Close' },
-  { id: 'STC', label: 'STC · Sell To Close' }
-];
 
 const ORDER_TYPE_OPTIONS = [
   { id: 'market', label: 'Market' },
@@ -67,7 +65,6 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
   const [error, setError] = useState('');
 
   const sym = ticker.trim().toUpperCase();
-  const isBuy = action === 'BTO' || action === 'BTC';
   const quantity = Number(qty);
   const held = useMemo(() => {
     const row = positions.find((p) => String(p.ticker).toUpperCase() === sym);
@@ -82,6 +79,10 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
         }
       : { long: 0, short: 0, currentPrice: null };
   }, [positions, sym]);
+
+  const isBuy = action === 'BTO' || action === 'BTC';
+  const isClose = isClosingPaperAction(action);
+  const closableQty = action === 'STC' ? held.long : action === 'BTC' ? held.short : 0;
 
   const [marketPrice, setMarketPrice] = useState(null);
   const [priceBusy, setPriceBusy] = useState(false);
@@ -175,13 +176,25 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
       setError('Enter a valid quantity');
       return;
     }
-    if (action === 'STC' && held.long < quantity) {
-      setError(`Not enough long shares to close. Open long qty: ${held.long}`);
-      return;
+    if (action === 'STC') {
+      if (held.long <= 0) {
+        setError('No long position to sell');
+        return;
+      }
+      if (held.long < quantity) {
+        setError(`Not enough long shares to close. Open long qty: ${held.long}`);
+        return;
+      }
     }
-    if (action === 'BTC' && held.short < quantity) {
-      setError(`Not enough short shares to close. Open short qty: ${held.short}`);
-      return;
+    if (action === 'BTC') {
+      if (held.short <= 0) {
+        setError('No short position to cover');
+        return;
+      }
+      if (held.short < quantity) {
+        setError(`Not enough short shares to close. Open short qty: ${held.short}`);
+        return;
+      }
     }
 
     const body = { ticker: sym, action, qty: quantity, orderType };
@@ -249,11 +262,11 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
           <ThemedDropdown
             className="paper-order__dd"
             value={action}
-            options={ACTION_OPTIONS}
+            options={PAPER_ACTION_OPTIONS}
             onChange={setAction}
             title="Order action"
             ariaLabelPrefix="Action"
-            labelFallback="BTO"
+            labelFallback="Buy"
             wideLabel
             disabled={busy}
           />
@@ -288,6 +301,15 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
         </label>
 
         <div className="paper-qty-presets" aria-label="Quick quantity">
+          {isClose && closableQty > 0 ? (
+            <button
+              type="button"
+              className="paper-qty-presets__btn paper-qty-presets__btn--all"
+              onClick={() => setQty(String(closableQty))}
+            >
+              ALL ({closableQty})
+            </button>
+          ) : null}
           {QTY_PRESETS.map((n) => (
             <button
               key={n}
@@ -343,7 +365,7 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
           disabled={busy || !sym}
           onClick={() => void handleSubmit()}
         >
-          {busy ? 'Submitting…' : `${action} ${sym || 'stock'}${submitPriceSuffix}`}
+          {busy ? 'Submitting…' : `${paperActionLabel(action)} ${sym || 'stock'}${submitPriceSuffix}`}
         </button>
       </div>
     </div>

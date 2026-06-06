@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { ProtectedLayout } from './components/ProtectedLayout.jsx';
 import { isAuthDisabled } from './store/apiStore.js';
@@ -28,12 +29,20 @@ function ProtectedRoute({ children }) {
   if (AUTH_DISABLED) return children;
   const { pathname } = useLocation();
   const allowPaperTradingShell = pathname === '/paper-trading';
+  const [authState, setAuthState] = useState('pending');
+
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    setAuthState(token || allowPaperTradingShell ? 'allowed' : 'denied');
+  }, [allowPaperTradingShell, pathname]);
+
   if (typeof window === 'undefined') {
+    return children;
+  }
+  if (authState === 'denied') {
     return <Navigate to="/login" replace />;
   }
-  const token = localStorage.getItem('auth_token');
-  if (token || allowPaperTradingShell) return children;
-  return <Navigate to="/login" replace />;
+  return children;
 }
 
 /**

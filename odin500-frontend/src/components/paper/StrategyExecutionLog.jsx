@@ -1,3 +1,6 @@
+import { paperActionLabel } from './paperActionLabels.js';
+import { formatRuleQty } from './strategyRuleUtils.js';
+
 function fmtTime(iso) {
   if (!iso) return '—';
   try {
@@ -10,7 +13,7 @@ function fmtTime(iso) {
 function ruleLabel(row) {
   const r = row?.paper_strategy_rules;
   if (!r) return row?.rule_id ? String(row.rule_id).slice(0, 8) : '—';
-  return `${r.rule_type || 'rule'} · ${r.ticker || ''} · ${r.action || ''}`;
+  return `${r.rule_type || 'rule'} · ${r.ticker || ''} · ${paperActionLabel(r.action)} ×${formatRuleQty(r)}`;
 }
 
 export function StrategyExecutionLog({ log = [], loading = false }) {

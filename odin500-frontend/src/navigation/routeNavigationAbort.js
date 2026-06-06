@@ -3,7 +3,7 @@
 let routeAbortController = new AbortController();
 
 export function resetRouteNavigationAbort() {
-  routeAbortController.abort();
+  routeAbortController.abort(new DOMException('Route navigation changed', 'AbortError'));
   routeAbortController = new AbortController();
 }
 

@@ -12,11 +12,34 @@ function ChevronDownIcon({ className }) {
 /** z-index above charts, rails, and most modals so portaled menus stay visible */
 const MENU_PORTAL_Z = 12000;
 
+function OptionTag({ tag }) {
+  if (!tag) return null;
+  const label = tag === 'auto' ? 'Auto' : tag === 'user' ? 'Yours' : 'Default';
+  const cls =
+    'wl-flyout__select-item-tag' +
+    (tag === 'auto'
+      ? ' wl-flyout__select-item-tag--auto'
+      : tag === 'user'
+        ? ' wl-flyout__select-item-tag--user'
+        : ' wl-flyout__select-item-tag--default');
+  return <span className={cls}>{label}</span>;
+}
+
+function OptionLabel({ opt }) {
+  if (!opt?.tag) return opt?.label ?? '';
+  return (
+    <span className="app-dropdown__item-row">
+      <OptionTag tag={opt.tag} />
+      <span className="app-dropdown__item-name">{opt.label}</span>
+    </span>
+  );
+}
+
 /**
  * Shared menu-style dropdown for dark/light themes.
  * @param {{
  *   value: string,
- *   options: Array<{ id: string, label: string }>,
+ *   options: Array<{ id: string, label: string, tag?: 'auto' | 'user' | 'default' }>,
  *   onChange: (next: string) => void,
  *   icon?: import('react').ReactNode,
  *   title?: string,
@@ -120,6 +143,7 @@ export function ThemedDropdown({
     () => options.find((opt) => opt.id === value)?.label ?? labelFallback,
     [options, value, labelFallback]
   );
+  const currentOption = useMemo(() => options.find((opt) => opt.id === value), [options, value]);
 
   const rootClass =
     'app-dropdown' +
@@ -167,7 +191,7 @@ export function ThemedDropdown({
               setOpen(false);
             }}
           >
-            {opt.label}
+            <OptionLabel opt={opt} />
           </button>
         </li>
       ))}
@@ -190,7 +214,16 @@ export function ThemedDropdown({
         onClick={() => !disabled && setOpen((prev) => !prev)}
       >
         {icon ? <span className="app-dropdown__icon">{icon}</span> : null}
-        <span className="app-dropdown__label">{currentLabel}</span>
+        <span className="app-dropdown__label">
+          {currentOption?.tag ? (
+            <span className="app-dropdown__item-row">
+              <OptionTag tag={currentOption.tag} />
+              <span className="app-dropdown__item-name">{currentLabel}</span>
+            </span>
+          ) : (
+            currentLabel
+          )}
+        </span>
         <ChevronDownIcon className="app-dropdown__chev" />
       </button>
       {menuPortal && menuEl && portalTarget

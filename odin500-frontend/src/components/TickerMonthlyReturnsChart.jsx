@@ -363,6 +363,9 @@ export function TickerMonthlyReturnsChart({
         />
       </div>
       <div className="ticker-monthly__head-icons">
+        {hasMonthlyHeadRange ? (
+          <div className="ticker-monthly__head-controls">{monthlyRangeControls}</div>
+        ) : null}
         <ReturnsChartToolbar
           className="ticker-monthly__toolbar-icons-bar"
           rangeControls={null}
@@ -382,9 +385,6 @@ export function TickerMonthlyReturnsChart({
           exportPreviewAlt={`${periodMode} returns chart for ${symU}`}
         />
       </div>
-      {hasMonthlyHeadRange ? (
-        <div className="ticker-monthly__head-range">{monthlyRangeControls}</div>
-      ) : null}
     </div>
   );
 

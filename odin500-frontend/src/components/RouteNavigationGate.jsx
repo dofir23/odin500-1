@@ -1,4 +1,4 @@
-import { Suspense, useLayoutEffect } from 'react';
+import { Suspense, useLayoutEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { resetRouteNavigationAbort } from '../navigation/routeNavigationAbort.js';
 import { PageRouteFallback } from './PageRouteFallback.jsx';
@@ -17,8 +17,13 @@ function RouteNavigationFallback() {
  */
 export function RouteNavigationGate({ children }) {
   const location = useLocation();
+  const isFirstNavigationRef = useRef(true);
 
   useLayoutEffect(() => {
+    if (isFirstNavigationRef.current) {
+      isFirstNavigationRef.current = false;
+      return;
+    }
     resetRouteNavigationAbort();
   }, [location.pathname, location.search, location.key]);
 

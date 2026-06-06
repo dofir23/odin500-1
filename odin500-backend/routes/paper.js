@@ -21,6 +21,7 @@ const {
   summarizeAccountMetrics
 } = require('../services/paper/pnlCalculator');
 const { runStrategiesForAccount } = require('../services/paper/strategyRunner');
+const { getWatchlistSignalLeaders } = require('../services/paper/watchlistResolver');
 
 router.use(requireAuthStrict);
 
@@ -328,6 +329,21 @@ async function assertNoOtherActiveBinding(accountId, strategyId) {
   }
 }
 
+router.get('/strategies/watchlist-signals', async (req, res) => {
+  try {
+    const watchlistKey = req.query.watchlist_key || req.query.watchlistKey;
+    if (!watchlistKey) {
+      return res.status(400).json({ error: 'watchlist_key is required' });
+    }
+    const limit = req.query.limit;
+    const data = await getWatchlistSignalLeaders(req.user.id, String(watchlistKey), { limit });
+    res.status(200).json(data);
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ error: error.message });
+  }
+});
+
 router.get('/strategies/by-account', async (req, res) => {
   try {
     const account = await loadActiveAccount(req.user.id, req);
@@ -400,6 +416,12 @@ router.patch('/strategies/:id', async (req, res) => {
     if (payload.name != null) updates.name = String(payload.name).trim() || 'Untitled Strategy';
     if (payload.description !== undefined) updates.description = payload.description;
     if (payload.is_active !== undefined) updates.is_active = !!payload.is_active;
+    if (payload.watchlist_key !== undefined) {
+      updates.watchlist_key =
+        payload.watchlist_key == null || payload.watchlist_key === ''
+          ? null
+          : String(payload.watchlist_key);
+    }
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }

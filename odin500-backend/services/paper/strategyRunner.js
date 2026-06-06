@@ -82,20 +82,36 @@ async function evaluateRule(rule) {
 }
 
 /**
- * One order per open position cycle: opens only when flat on that side; closes only when lots exist.
+ * Resolves order qty from rule + current position.
+ * Opens: respects params.max_position_qty (accumulate up to cap) or flat-only when unset.
+ * Closes: params.close_all closes entire side; otherwise min(rule qty, open qty).
  * @returns {{ ok: true, qty: number, action: string } | { ok: false, skipMessage: string }}
  */
 function resolveOrderFromRule(rule, position) {
   const action = normalizeAction(rule.action);
+  const params = parseParams(rule);
+  const closeAll = params.close_all === true;
   const ruleQty = Number(rule.qty || 0);
-  if (!Number.isFinite(ruleQty) || ruleQty <= 0) {
+
+  if (!closeAll && (!Number.isFinite(ruleQty) || ruleQty <= 0)) {
     return { ok: false, skipMessage: 'Invalid rule quantity' };
   }
 
   const longQty = Number(position?.closableLongQty || 0);
   const shortQty = Number(position?.closableShortQty || 0);
+  const maxPos = Number(params.max_position_qty);
 
   if (action === 'BTO') {
+    if (Number.isFinite(maxPos) && maxPos > 0) {
+      if (longQty >= maxPos) {
+        return { ok: false, skipMessage: 'Max long position limit reached' };
+      }
+      const buyQty = Math.min(ruleQty, maxPos - longQty);
+      if (buyQty <= 0) {
+        return { ok: false, skipMessage: 'Max long position limit reached' };
+      }
+      return { ok: true, qty: buyQty, action };
+    }
     if (longQty > 0) {
       return { ok: false, skipMessage: 'Already in long position — entry skipped' };
     }
@@ -103,6 +119,16 @@ function resolveOrderFromRule(rule, position) {
   }
 
   if (action === 'STO') {
+    if (Number.isFinite(maxPos) && maxPos > 0) {
+      if (shortQty >= maxPos) {
+        return { ok: false, skipMessage: 'Max short position limit reached' };
+      }
+      const sellQty = Math.min(ruleQty, maxPos - shortQty);
+      if (sellQty <= 0) {
+        return { ok: false, skipMessage: 'Max short position limit reached' };
+      }
+      return { ok: true, qty: sellQty, action };
+    }
     if (shortQty > 0) {
       return { ok: false, skipMessage: 'Already in short position — entry skipped' };
     }
@@ -113,14 +139,16 @@ function resolveOrderFromRule(rule, position) {
     if (longQty <= 0) {
       return { ok: false, skipMessage: 'No long position to close' };
     }
-    return { ok: true, qty: Math.min(ruleQty, longQty), action };
+    const qty = closeAll ? longQty : Math.min(ruleQty, longQty);
+    return { ok: true, qty, action };
   }
 
   if (action === 'BTC') {
     if (shortQty <= 0) {
       return { ok: false, skipMessage: 'No short position to close' };
     }
-    return { ok: true, qty: Math.min(ruleQty, shortQty), action };
+    const qty = closeAll ? shortQty : Math.min(ruleQty, shortQty);
+    return { ok: true, qty, action };
   }
 
   return { ok: false, skipMessage: `Unsupported action ${action}` };

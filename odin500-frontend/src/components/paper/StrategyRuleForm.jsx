@@ -159,25 +159,22 @@ export function StrategyRuleForm({
 
         {isClose ? (
           <div className="paper-field paper-field--span2 paper-strategy-close-qty">
-            <span className="paper-field__label">Exit quantity</span>
             <div className="paper-strategy-close-qty__row">
               <label
                 className={
-                  'paper-strategy-close-qty__option' +
-                  (form.closeAll ? ' paper-strategy-close-qty__option--active' : '')
+                  'paper-field paper-strategy-close-qty__close' +
+                  (form.closeAll ? ' paper-strategy-close-qty__close--active' : '')
                 }
               >
-                <input
-                  type="checkbox"
-                  className="paper-strategy-close-qty__check"
-                  checked={form.closeAll}
-                  onChange={(e) => update({ closeAll: e.target.checked })}
-                />
-                <span className="paper-strategy-close-qty__option-body">
-                  <span className="paper-strategy-close-qty__option-title">Close all (ALL)</span>
-                  <span className="paper-strategy-close-qty__option-sub">
-                    Flatten the full open position
-                  </span>
+                <span className="paper-field__label">Close all</span>
+                <span className="paper-strategy-close-qty__control">
+                  <input
+                    type="checkbox"
+                    className="paper-strategy-close-qty__check"
+                    checked={form.closeAll}
+                    onChange={(e) => update({ closeAll: e.target.checked })}
+                  />
+                  <span className="paper-strategy-close-qty__control-text">Close all (ALL)</span>
                 </span>
               </label>
               {!form.closeAll ? qtyField : null}

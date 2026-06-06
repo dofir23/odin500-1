@@ -1,6 +1,10 @@
-import { Suspense, useLayoutEffect, useRef } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { resetRouteNavigationAbort } from '../navigation/routeNavigationAbort.js';
+import {
+  installHistoryNavigationAbort,
+  installInternalLinkNavigationAbort,
+  resetRouteNavigationAbort
+} from '../navigation/routeNavigationAbort.js';
 import { PageRouteFallback } from './PageRouteFallback.jsx';
 
 function RouteNavigationFallback() {
@@ -13,19 +17,24 @@ function RouteNavigationFallback() {
 
 /**
  * Aborts stale route fetches on navigation and shows loading UI while lazy route chunks load.
- * Uses Suspense (works with BrowserRouter); useNavigation requires a data router.
  */
 export function RouteNavigationGate({ children }) {
   const location = useLocation();
-  const isFirstNavigationRef = useRef(true);
+  const prevKeyRef = useRef(location.key);
 
-  useLayoutEffect(() => {
-    if (isFirstNavigationRef.current) {
-      isFirstNavigationRef.current = false;
-      return;
-    }
+  if (prevKeyRef.current !== location.key) {
     resetRouteNavigationAbort();
-  }, [location.pathname, location.search, location.key]);
+    prevKeyRef.current = location.key;
+  }
+
+  useEffect(() => {
+    const offLinks = installInternalLinkNavigationAbort();
+    const offHistory = installHistoryNavigationAbort();
+    return () => {
+      offLinks();
+      offHistory();
+    };
+  }, []);
 
   return (
     <div className="route-nav-gate">

@@ -14,6 +14,7 @@ import { PositionsTable } from '../../components/paper/PositionsTable.jsx';
 import { OrdersTable } from '../../components/paper/OrdersTable.jsx';
 import { ClosedTradesTable } from '../../components/paper/ClosedTradesTable.jsx';
 import { EquityCurve } from '../../components/paper/EquityCurve.jsx';
+import { PortfolioInsightsPanel } from '../../components/paper/PortfolioInsightsPanel.jsx';
 import { ThemedDropdown } from '../../components/ThemedDropdown.jsx';
 import { PaperManageModal } from '../../components/paper/PaperManageModal.jsx';
 import { StrategyPanel } from '../../components/paper/StrategyPanel.jsx';
@@ -394,8 +395,20 @@ function PaperTradingPageContent() {
 
         <div className="paper-layout__main">
           <EquityCurve history={history} />
+          <PortfolioInsightsPanel
+            account={account}
+            positions={positions}
+            pendingCount={pendingCount}
+            closedTradesCount={closedTrades.length}
+            strategyActive={strategyActive}
+            showStrategyTab={showStrategyTab}
+            loading={accountLoading || positionsLoading}
+            onSetupStrategy={() => setWizardOpen(true)}
+          />
+        </div>
+      </div>
 
-          <section className="paper-card paper-blotter">
+      <section className="paper-card paper-blotter">
             <div className="paper-card__head paper-card__head--tabs">
               <div className="paper-tabs" role="tablist" aria-label="Holdings and orders">
                 <button
@@ -500,8 +513,6 @@ function PaperTradingPageContent() {
               )}
             </div>
           </section>
-        </div>
-      </div>
     </div>
   );
 }

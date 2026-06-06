@@ -21,6 +21,12 @@ import {
   TickerLightweightChart
 } from '../components/TickerLightweightChart.jsx';
 import {fetchJsonCached, getAuthToken, canFetchProtectedApi} from '../store/apiStore.js';
+import {
+  getRouteNavigationEpoch,
+  isAbortError,
+  isRouteNavigationStale,
+  yieldToMain
+} from '../navigation/routeNavigationAbort.js';
 import { rowDateToTimeKey } from '../utils/chartData.js';
 import { readRowSignal, toSignalBucket } from '../utils/odinSignalTreemap.js';
 import { toDateInput } from '../utils/misc.js';
@@ -829,6 +835,8 @@ export default function TickerPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const epochAtStart = getRouteNavigationEpoch();
+    const stale = () => isRouteNavigationStale(cancelled, epochAtStart);
     if (!canFetchProtectedApi()) {
       setError('Sign in to load ticker data.');
       setMetaBusy(false);
@@ -864,7 +872,7 @@ export default function TickerPage() {
       const seedStartIso = toIso(seedStart365);
 
       const clearBusyWhenVisible = () => {
-        if (!cancelled) setMetaBusy(false);
+        if (!stale()) setMetaBusy(false);
       };
 
       const tasks = [];
@@ -875,13 +883,13 @@ export default function TickerPage() {
       };
 
       const patchSymReturns = (data) => {
-        if (cancelled || !data) return;
+        if (stale() || !data) return;
         setReturnsSym((prev) => mergeTickerReturns(prev, data));
         const asOf = data.asOfDate || seedEnd;
         setAsOfDate(String(asOf).slice(0, 10));
       };
       const patchSpyReturns = (data) => {
-        if (cancelled || !data) return;
+        if (stale() || !data) return;
         setReturnsSpy((prev) => mergeTickerReturns(prev, data));
       };
 
@@ -893,7 +901,7 @@ export default function TickerPage() {
           ttlMs: 5 * 60 * 1000
         })
           .then(async (resCore) => {
-            if (cancelled) return;
+            if (stale()) return;
             const h = resCore?.headers || null;
             setTickerReturnsDebug({
               source: h?.['x-ticker-returns-source'] || (resCore?.fromCache ? 'frontend-cache' : 'unknown'),
@@ -926,7 +934,7 @@ export default function TickerPage() {
                     limit: 400
                   })
                 ]);
-                if (cancelled) return;
+                if (stale()) return;
                 setStatsRows(symStatsRows);
                 setStatsRowsSpy(spyStatsRows);
                 setTailRows(symStatsRows.slice(-8));
@@ -937,7 +945,7 @@ export default function TickerPage() {
             clearBusyWhenVisible();
           })
           .catch((e) => {
-            if (!cancelled) {
+            if (!stale()) {
               setReturnsSym(null);
               setError((prev) => prev || e?.message || 'Failed to load returns');
             }
@@ -952,12 +960,12 @@ export default function TickerPage() {
           ttlMs: 5 * 60 * 1000
         })
           .then((res) => {
-            if (cancelled) return;
+            if (stale()) return;
             patchSpyReturns(res.data);
             clearBusyWhenVisible();
           })
           .catch(() => {
-            if (!cancelled) setReturnsSpy(null);
+            if (!stale()) setReturnsSpy(null);
           })
       );
 
@@ -969,7 +977,7 @@ export default function TickerPage() {
           ttlMs: 5 * 60 * 1000
         })
           .then((res) => {
-            if (cancelled) return;
+            if (stale()) return;
             patchSymReturns(res.data);
             clearBusyWhenVisible();
           })
@@ -985,7 +993,7 @@ export default function TickerPage() {
           ttlMs: 5 * 60 * 1000
         })
           .then((res) => {
-            if (cancelled) return;
+            if (stale()) return;
             patchSymReturns(res.data);
             clearBusyWhenVisible();
           })
@@ -999,7 +1007,7 @@ export default function TickerPage() {
           ttlMs: 5 * 60 * 1000
         })
           .then((res) => {
-            if (cancelled) return;
+            if (stale()) return;
             patchSymReturns(res.data);
             clearBusyWhenVisible();
           })
@@ -1022,14 +1030,14 @@ export default function TickerPage() {
           })
         ])
           .then(([symStatsRows, spyStatsRows]) => {
-            if (cancelled) return;
+            if (stale()) return;
             setStatsRows(symStatsRows);
             setStatsRowsSpy(spyStatsRows);
             setTailRows(symStatsRows.slice(-8));
             clearBusyWhenVisible();
           })
           .catch(() => {
-            if (!cancelled) {
+            if (!stale()) {
               setStatsRows([]);
               setStatsRowsSpy([]);
               setTailRows([]);
@@ -1038,7 +1046,7 @@ export default function TickerPage() {
       );
 
       await Promise.allSettled(tasks);
-      if (!cancelled) {
+      if (!stale()) {
         setMetaBusy(false);
         setApiTimings((prev) => ({ ...prev, coreMs: Math.round(performance.now() - coreStartedAt) }));
       }
@@ -1052,6 +1060,8 @@ export default function TickerPage() {
   /** Lazy metadata load so chart/returns render first. */
   useEffect(() => {
     let cancelled = false;
+    const epochAtStart = getRouteNavigationEpoch();
+    const stale = () => isRouteNavigationStale(cancelled, epochAtStart);
     if (!canFetchProtectedApi()) {
       setDetailRows([]);
       return () => {
@@ -1068,12 +1078,12 @@ export default function TickerPage() {
             body: { index: 'sp500', period: 'last-1-year' },
             ttlMs: 30 * 60 * 1000
           });
-          if (cancelled) return;
+          if (stale()) return;
           const d = detailsRes.data;
           setDetailRows(Array.isArray(d?.data) ? d.data : []);
           setApiTimings((prev) => ({ ...prev, metaMs: Math.round(performance.now() - metaStartedAt) }));
         } catch {
-          if (!cancelled) setDetailRows([]);
+          if (!stale()) setDetailRows([]);
         }
       })();
     }, 350);
@@ -1086,6 +1096,8 @@ export default function TickerPage() {
   /** Second (and final) ticker-returns request on load: long table window for page symbol + active section benchmark. */
   useEffect(() => {
     let cancelled = false;
+    const epochAtStart = getRouteNavigationEpoch();
+    const stale = () => isRouteNavigationStale(cancelled, epochAtStart);
     if (!canFetchProtectedApi()) {
       setLongRangeTickerReturns(null);
       setLongRangeBenchReturns(null);
@@ -1124,7 +1136,7 @@ export default function TickerPage() {
             ttlMs: 5 * 60 * 1000
           })
         ]);
-        if (cancelled) return;
+        if (stale()) return;
         const h = symRes?.headers || null;
         setTickerReturnsDebug({
           source: h?.['x-ticker-returns-source'] || (symRes?.fromCache ? 'frontend-cache' : 'unknown'),
@@ -1141,12 +1153,12 @@ export default function TickerPage() {
           pickTickerReturnsFromPayload(benchRes.data, benchU) || (benchRes.data?.ticker ? benchRes.data : null)
         );
       } catch {
-        if (!cancelled) {
+        if (!stale()) {
           setLongRangeTickerReturns(null);
           setLongRangeBenchReturns(null);
         }
       } finally {
-        if (!cancelled) setLongRangeBusy(false);
+        if (!stale()) setLongRangeBusy(false);
       }
     })();
 
@@ -1157,6 +1169,8 @@ export default function TickerPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const epochAtStart = getRouteNavigationEpoch();
+    const stale = () => isRouteNavigationStale(cancelled, epochAtStart);
     if (!canFetchProtectedApi()) {
       setOhlcTickerBounds(null);
       return () => {
@@ -1170,14 +1184,14 @@ export default function TickerPage() {
           method: 'GET',
           ttlMs: 60 * 60 * 1000
         });
-        if (cancelled) return;
+        if (stale()) return;
         if (data?.success && data.min_date && data.max_date) {
           setOhlcTickerBounds({ min: String(data.min_date).slice(0, 10), max: String(data.max_date).slice(0, 10) });
         } else {
           setOhlcTickerBounds(null);
         }
       } catch {
-        if (!cancelled) setOhlcTickerBounds(null);
+        if (!stale()) setOhlcTickerBounds(null);
       }
     })();
     return () => {
@@ -1187,6 +1201,8 @@ export default function TickerPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const epochAtStart = getRouteNavigationEpoch();
+    const stale = () => isRouteNavigationStale(cancelled, epochAtStart);
     if (!canFetchProtectedApi()) {
       setChartLoading(false);
       setOhlcRows([]);
@@ -1205,17 +1221,16 @@ export default function TickerPage() {
           body: { ticker: sym, start_date: start, end_date: end },
           ttlMs: 2 * 60 * 1000
         });
-        if (cancelled) return;
+        if (stale()) return;
         const rows = Array.isArray(ohlcRes.data?.data) ? ohlcRes.data.data : [];
         setOhlcRows(sortRowsAsc(rows));
         setApiTimings((prev) => ({ ...prev, chartMs: Math.round(performance.now() - chartStartedAt) }));
       } catch (e) {
-        if (!cancelled) {
-          setError(e.message || 'Failed to load chart');
-          setOhlcRows([]);
-        }
+        if (isAbortError(e) || stale()) return;
+        setError(e.message || 'Failed to load chart');
+        setOhlcRows([]);
       } finally {
-        if (!cancelled) setChartLoading(false);
+        if (!stale()) setChartLoading(false);
       }
     })();
 
@@ -1230,6 +1245,8 @@ export default function TickerPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const epochAtStart = getRouteNavigationEpoch();
+    const stale = () => isRouteNavigationStale(cancelled, epochAtStart);
     setCompanyOverviewExpanded(false);
     if (!COMPANY_PROFILE_DATA_KEY) {
       console.log(
@@ -1245,12 +1262,12 @@ export default function TickerPage() {
       try {
         const symbol = String(sym || '').toUpperCase().trim();
         const payload = await fetchCompanyOverviewOnce(symbol);
-        if (cancelled) return;
+        if (stale()) return;
         setCompanyOverview(payload && typeof payload === 'object' ? payload : null);
       } catch {
-        if (!cancelled) setCompanyOverview(null);
+        if (!stale()) setCompanyOverview(null);
       } finally {
-        if (!cancelled) setCompanyOverviewBusy(false);
+        if (!stale()) setCompanyOverviewBusy(false);
       }
     })();
     return () => {
@@ -1260,21 +1277,23 @@ export default function TickerPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const epochAtStart = getRouteNavigationEpoch();
+    const stale = () => isRouteNavigationStale(cancelled, epochAtStart);
     const symbol = String(sym || '').toUpperCase().trim();
     (async () => {
       setTickerNewsBusy(true);
       setTickerNewsError('');
       try {
         const rows = await fetchTickerNews(symbol, 10);
-        if (cancelled) return;
+        if (stale()) return;
         setTickerNewsItems(rows.length ? rows : FALLBACK_TICKER_NEWS);
       } catch (e) {
-        if (!cancelled) {
+        if (!stale()) {
           setTickerNewsError(e?.message || 'Failed to load ticker headlines.');
           setTickerNewsItems(FALLBACK_TICKER_NEWS);
         }
       } finally {
-        if (!cancelled) setTickerNewsBusy(false);
+        if (!stale()) setTickerNewsBusy(false);
       }
     })();
     return () => {
@@ -1686,6 +1705,8 @@ export default function TickerPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const epochAtStart = getRouteNavigationEpoch();
+    const stale = () => isRouteNavigationStale(cancelled, epochAtStart);
     if (!canFetchProtectedApi()) return () => {};
     const indexOpt =
       RELATIVE_INDEX_OPTIONS.find((x) => x.key === relativeIndexKey) || RELATIVE_INDEX_OPTIONS[0];
@@ -1718,7 +1739,7 @@ export default function TickerPage() {
           }
         }
       } finally {
-        if (!cancelled) setRelativeCompareBusy(false);
+        if (!stale()) setRelativeCompareBusy(false);
       }
     })();
     return () => {

@@ -511,6 +511,7 @@ export async function fetchJsonCached({
   }
 
   if (memoryStore.inFlight.has(reqKey)) {
+    if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
     return memoryStore.inFlight.get(reqKey);
   }
 
@@ -549,6 +550,7 @@ export async function fetchJsonCached({
     }
 
     const rawText = await response.text();
+    if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
     let payload;
     try {
       payload = rawText ? JSON.parse(rawText) : null;
@@ -580,9 +582,21 @@ export async function fetchJsonCached({
 
   memoryStore.inFlight.set(reqKey, promise);
 
+  const dropInFlight = () => {
+    if (memoryStore.inFlight.get(reqKey) === promise) {
+      memoryStore.inFlight.delete(reqKey);
+    }
+  };
+  if (signal.aborted) {
+    dropInFlight();
+    throw new DOMException('Aborted', 'AbortError');
+  }
+  signal.addEventListener('abort', dropInFlight, { once: true });
+
   try {
     return await promise;
   } finally {
-    memoryStore.inFlight.delete(reqKey);
+    signal.removeEventListener('abort', dropInFlight);
+    dropInFlight();
   }
 }

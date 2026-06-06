@@ -1,4 +1,4 @@
-import { fmtPctSigned } from '../../utils/formatDisplayNumber.js';
+import { fmtAbsSigned, fmtPctSigned } from '../../utils/formatDisplayNumber.js';
 
 function money(v) {
   if (v == null || Number.isNaN(Number(v))) return '—';
@@ -11,6 +11,36 @@ function toneClass(v) {
   if (Number(v) > 0) return 'paper-tone-up';
   if (Number(v) < 0) return 'paper-tone-down';
   return '';
+}
+
+function positionCostBasis(p) {
+  const netQty = Number(p.net_qty) || 0;
+  if (netQty > 0 && p.avg_long_cost != null) return Number(p.avg_long_cost);
+  if (netQty < 0 && p.avg_short_cost != null) return Number(p.avg_short_cost);
+  if (Number(p.long_qty) > 0 && !Number(p.short_qty) && p.avg_long_cost != null) return Number(p.avg_long_cost);
+  if (Number(p.short_qty) > 0 && !Number(p.long_qty) && p.avg_short_cost != null) return Number(p.avg_short_cost);
+  return null;
+}
+
+function positionChangePerShare(p) {
+  const price = Number(p.current_price);
+  if (!Number.isFinite(price)) return null;
+  const cost = positionCostBasis(p);
+  if (cost == null || !Number.isFinite(cost)) return null;
+  const netQty = Number(p.net_qty) || 0;
+  if (netQty > 0) return price - cost;
+  if (netQty < 0) return cost - price;
+  return null;
+}
+
+function positionChangePct(p) {
+  if (p.unrealized_pnl_pct != null && Number.isFinite(Number(p.unrealized_pnl_pct))) {
+    return Number(p.unrealized_pnl_pct);
+  }
+  const cost = positionCostBasis(p);
+  const change = positionChangePerShare(p);
+  if (cost == null || change == null || cost <= 0) return null;
+  return (change / cost) * 100;
 }
 
 export function PositionsTable({ positions, loading }) {
@@ -29,7 +59,7 @@ export function PositionsTable({ positions, loading }) {
 
   return (
     <div className="paper-table-wrap">
-      <table className="paper-table">
+      <table className="paper-table paper-table--positions">
         <thead>
           <tr>
             <th>Symbol</th>
@@ -38,37 +68,53 @@ export function PositionsTable({ positions, loading }) {
             <th>Net qty</th>
             <th>Avg long</th>
             <th>Avg short</th>
-            <th>Last</th>
+            <th>Last price</th>
+            <th>Cost basis</th>
+            <th>Change</th>
+            <th>Chg %</th>
             <th title="Long MV minus short liability">Net market value</th>
-            <th>Unrealized P&L</th>
+            <th>Unrealized P&amp;L</th>
           </tr>
         </thead>
         <tbody>
-          {positions.map((p) => (
-            <tr key={p.id || p.ticker}>
-              <td className="paper-table__sym">{p.ticker}</td>
-              <td>{p.long_qty ?? 0}</td>
-              <td>{p.short_qty ?? 0}</td>
-              <td>{p.net_qty ?? 0}</td>
-              <td>{money(p.avg_long_cost)}</td>
-              <td>{money(p.avg_short_cost)}</td>
-              <td>{money(p.current_price)}</td>
-              <td className={toneClass(p.market_value)}>
-                {money(p.market_value)}
-                {Number(p.short_qty) > 0 && Number(p.long_qty) > 0 ? (
-                  <span style={{ display: 'block', fontSize: '0.7rem', opacity: 0.85 }}>
-                    L {money(p.long_market_value)} · S −{money(p.short_market_value)}
+          {positions.map((p) => {
+            const lastPrice = p.current_price;
+            const costBasis = positionCostBasis(p);
+            const changePerShare = positionChangePerShare(p);
+            const changePct = positionChangePct(p);
+            return (
+              <tr key={p.id || p.ticker}>
+                <td className="paper-table__sym">{p.ticker}</td>
+                <td>{p.long_qty ?? 0}</td>
+                <td>{p.short_qty ?? 0}</td>
+                <td>{p.net_qty ?? 0}</td>
+                <td>{money(p.avg_long_cost)}</td>
+                <td>{money(p.avg_short_cost)}</td>
+                <td>{money(lastPrice)}</td>
+                <td>{money(costBasis)}</td>
+                <td className={toneClass(changePerShare)}>
+                  {changePerShare != null ? fmtAbsSigned(changePerShare) : '—'}
+                </td>
+                <td className={toneClass(changePct)}>
+                  {changePct != null ? fmtPctSigned(changePct) : '—'}
+                </td>
+                <td className={toneClass(p.market_value)}>
+                  {money(p.market_value)}
+                  {Number(p.short_qty) > 0 && Number(p.long_qty) > 0 ? (
+                    <span className="paper-table__sub">
+                      L {money(p.long_market_value)} · S −{money(p.short_market_value)}
+                    </span>
+                  ) : null}
+                </td>
+                <td className={toneClass(p.unrealized_pnl)}>
+                  {money(p.unrealized_pnl)}
+                  <span className="paper-table__sub">
+                    {changePct != null ? fmtPctSigned(changePct) : ''}
                   </span>
-                ) : null}
-              </td>
-              <td className={toneClass(p.unrealized_pnl)}>
-                {money(p.unrealized_pnl)}
-                <span style={{ marginLeft: '0.35rem', fontSize: '0.75rem' }}>
-                  {p.unrealized_pnl_pct != null ? fmtPctSigned(p.unrealized_pnl_pct) : ''}
-                </span>
-              </td>
-            </tr>
-          ))}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

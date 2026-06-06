@@ -28,6 +28,12 @@ import {
 import { useWatchlistDock } from '../context/WatchlistDockContext.jsx';
 import { useGeneralNewsFeed } from '../hooks/useGeneralNewsFeed.js';
 import {fetchJsonCached, getAuthToken, canFetchProtectedApi} from '../store/apiStore.js';
+import {
+  getRouteNavigationEpoch,
+  isAbortError,
+  isRouteNavigationStale,
+  yieldToMain
+} from '../navigation/routeNavigationAbort.js';
 import { rowDateToTimeKey } from '../utils/chartData.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
@@ -83,15 +89,15 @@ const COMPARE_ROWS = [
 
 /** Route slug → backend `index` body + UI label */
 export const INDEX_ROUTE_CHOICES = [
-  { slug: 'sp500', apiIndex: 'sp500', ticker: 'SPY', returnsTicker: 'SPX', label: 'S&P 500' },
+  { slug: 'sp500', apiIndex: 'sp500', ticker: 'SPX', returnsTicker: 'SPX', label: 'S&P 500' },
   { slug: 'dow-jones', apiIndex: 'Dow Jones', returnsTicker: 'DJI', label: 'Dow Jones' },
   { slug: 'nasdaq-100', apiIndex: 'Nasdaq 100', ticker: 'NDX', returnsTicker: 'NDX', label: 'Nasdaq 100' }
 ];
 
 /** Header “Data mode” link targets for index routes (ticker page symbol). */
 const INDEX_HEADER_TICKER_BY_SLUG = {
-  sp500: 'SPX',
-  'dow-jones': 'DJI',
+  sp500: 'SPY',
+  'dow-jones': 'DIA',
   'nasdaq-100': 'QQQ'
 };
 const INDEX_ROUTE_DROPDOWN_OPTIONS = INDEX_ROUTE_CHOICES.map((opt) => ({ id: opt.slug, label: opt.label }));
@@ -901,6 +907,8 @@ export default function IndexPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const epochAtStart = getRouteNavigationEpoch();
+    const stale = () => isRouteNavigationStale(cancelled, epochAtStart);
     if (!canFetchProtectedApi()) {
       setError('Sign in to load index data.');
       setMetaBusy(false);
@@ -935,8 +943,10 @@ export default function IndexPage() {
               ttlMs: 10 * 60 * 1000
             })
           ]);
-          if (cancelled) return;
+          if (stale()) return;
           const retData = retRes.data && typeof retRes.data === 'object' ? retRes.data : {};
+          await yieldToMain();
+          if (stale()) return;
           const ohlcSorted = sortRowsAsc(ohlcRowsFromPayload(ohlcLongRes.data));
           const syntheticCloseSeries = ohlcSorted
             .map((r) => {
@@ -974,7 +984,7 @@ export default function IndexPage() {
             body: { ticker: BENCHMARK },
             ttlMs: 15 * 60 * 1000
           });
-          if (cancelled) return;
+          if (stale()) return;
           setReturnsSpy(retSpy.data);
 
           const u = encodeURIComponent(ticker);
@@ -1009,6 +1019,9 @@ export default function IndexPage() {
               ttlMs: 10 * 60 * 1000
             })
           ]);
+          if (stale()) return;
+          await yieldToMain();
+          if (stale()) return;
           setTailRows(sortRowsAsc(ohlcRowsFromPayload(tailRes.data)));
           setStatsRows(sortRowsAsc(ohlcRowsFromPayload(statsSymRes.data)));
           setStatsRowsSpy(sortRowsAsc(ohlcRowsFromPayload(statsSpyRes.data)));
@@ -1019,7 +1032,7 @@ export default function IndexPage() {
             body: { index: activeMeta.apiIndex },
             ttlMs: 10 * 60 * 1000
           });
-          if (cancelled) return;
+          if (stale()) return;
           const d = idxRes.data && typeof idxRes.data === 'object' ? idxRes.data : {};
           const asOf = d?.asOfDate || new Date().toISOString().slice(0, 10);
           setAsOfDate(asOf);
@@ -1033,8 +1046,9 @@ export default function IndexPage() {
               method: 'GET',
               ttlMs: 10 * 60 * 1000
             });
-            if (cancelled) return;
-            const ohlcSorted = sortRowsAsc(ohlcRowsFromPayload(ohlcLongRes.data));
+          if (stale()) return;
+          await yieldToMain();
+          const ohlcSorted = sortRowsAsc(ohlcRowsFromPayload(ohlcLongRes.data));
             series = ohlcSorted
               .map((r) => {
                 const date = rowDateToTimeKey(r);
@@ -1073,7 +1087,7 @@ export default function IndexPage() {
             body: { ticker: BENCHMARK },
             ttlMs: 15 * 60 * 1000
           });
-          if (cancelled) return;
+          if (stale()) return;
           setReturnsSpy(retSpy.data);
 
           if (symForOhlc) {
@@ -1109,10 +1123,16 @@ export default function IndexPage() {
                 ttlMs: 10 * 60 * 1000
               })
             ]);
+            if (stale()) return;
+            await yieldToMain();
+            if (stale()) return;
             setTailRows(sortRowsAsc(ohlcRowsFromPayload(tailRes.data)));
             setStatsRows(sortRowsAsc(ohlcRowsFromPayload(statsSymRes.data)));
             setStatsRowsSpy(sortRowsAsc(ohlcRowsFromPayload(statsSpyRes.data)));
           } else {
+            if (stale()) return;
+            await yieldToMain();
+            if (stale()) return;
             const baseRows = sortRowsAsc(closeSeriesToChartRows(series));
             const tail = baseRows.slice(-8);
             setTailRows(tail);
@@ -1134,22 +1154,21 @@ export default function IndexPage() {
               method: 'GET',
               ttlMs: 10 * 60 * 1000
             });
-            if (cancelled) return;
+            if (stale()) return;
             setStatsRowsSpy(sortRowsAsc(ohlcRowsFromPayload(statsSpyRes.data)));
           }
         }
       } catch (e) {
-        if (!cancelled) {
-          setError(e.message || 'Failed to load index');
-          setIndexPayload(null);
-          setFullCloseSeries([]);
-          setReturnsSpy(null);
-          setStatsRows([]);
-          setStatsRowsSpy([]);
-          setTailRows([]);
-        }
+        if (isAbortError(e) || stale()) return;
+        setError(e.message || 'Failed to load index');
+        setIndexPayload(null);
+        setFullCloseSeries([]);
+        setReturnsSpy(null);
+        setStatsRows([]);
+        setStatsRowsSpy([]);
+        setTailRows([]);
       } finally {
-        if (!cancelled) setMetaBusy(false);
+        if (!stale()) setMetaBusy(false);
       }
     })();
 
@@ -1160,6 +1179,8 @@ export default function IndexPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const epochAtStart = getRouteNavigationEpoch();
+    const stale = () => isRouteNavigationStale(cancelled, epochAtStart);
     if (!canFetchProtectedApi()) {
       setOhlcTickerBounds(null);
       return () => {
@@ -1187,14 +1208,14 @@ export default function IndexPage() {
           method: 'GET',
           ttlMs: 60 * 60 * 1000
         });
-        if (cancelled) return;
+        if (stale()) return;
         if (data?.success && data.min_date && data.max_date) {
           setOhlcTickerBounds({ min: String(data.min_date).slice(0, 10), max: String(data.max_date).slice(0, 10) });
         } else {
           setOhlcTickerBounds(null);
         }
       } catch {
-        if (!cancelled) setOhlcTickerBounds(null);
+        if (!stale()) setOhlcTickerBounds(null);
       }
     })();
     return () => {
@@ -1616,6 +1637,8 @@ export default function IndexPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const epochAtStart = getRouteNavigationEpoch();
+    const stale = () => isRouteNavigationStale(cancelled, epochAtStart);
     if (!canFetchProtectedApi()) return () => {};
     const keys = [relativeLeftKey, relativeRightKey].filter(Boolean);
     const missing = keys.filter((k) => !relativeSeriesByKey[k]);
@@ -1626,15 +1649,15 @@ export default function IndexPage() {
         for (const key of missing) {
           const option = RELATIVE_STRENGTH_OPTIONS.find((o) => o.key === key);
           const payload = await loadRelativeSeries(option);
-          if (cancelled || !payload) continue;
+          if (stale() || !payload) continue;
           setRelativeSeriesByKey((prev) => ({ ...prev, [key]: payload }));
         }
       }
       catch (e) {
-        console.error(e);
+        if (!isAbortError(e)) console.error(e);
       }
        finally {
-        if (!cancelled) setRelativeBusy(false);
+        if (!stale()) setRelativeBusy(false);
       }
     })();
     return () => {
@@ -1644,6 +1667,8 @@ export default function IndexPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const epochAtStart = getRouteNavigationEpoch();
+    const stale = () => isRouteNavigationStale(cancelled, epochAtStart);
     if (!canFetchProtectedApi()) {
       setIndexTickersRows([]);
       setIndexTickersBusy(false);
@@ -1660,7 +1685,7 @@ export default function IndexPage() {
           body: { index: activeMeta.apiIndex, period: 'last-date' },
           ttlMs: 5 * 60 * 1000
         });
-        if (cancelled) return;
+        if (stale()) return;
         const rows = Array.isArray(data?.data) ? data.data : [];
         const filtered =
           isSectorDataRoute && activeSector
@@ -1675,9 +1700,9 @@ export default function IndexPage() {
           .filter((r) => r.symbol);
         setIndexTickersRows(mapped);
       } catch {
-        if (!cancelled) setIndexTickersRows([]);
+        if (!stale()) setIndexTickersRows([]);
       } finally {
-        if (!cancelled) setIndexTickersBusy(false);
+        if (!stale()) setIndexTickersBusy(false);
       }
     })();
     return () => {
@@ -1914,16 +1939,34 @@ export default function IndexPage() {
           </div>
         </div>
 
-        <div className="ticker-page__header-metrics ticker-page__header-metrics--index" role="presentation">
-          <div className="ticker-page__header-metric ticker-page__header-metric--index-price">
+        <div className="ticker-page__header-metrics" role="presentation">
+          <div className="ticker-page__header-metric">
             <div className="ticker-page__metric-price-line">
               <span className="ticker-page__sym">{displaySym}</span>
               <span className="ticker-page__px ticker-page__px--hero">{fmtPrice(headerClose)}</span>
               <span className="ticker-page__ccy">USD</span>
             </div>
+            <div className="ticker-page__index-metric-footer">
+              <div className="ticker-page__metric-change">
+                {headerChgPct != null && Number.isFinite(headerChgPct) ? (
+                  <span className={'ticker-num ' + pctClass(headerChgPct)}>
+                    {headerChgAbs != null && Number.isFinite(headerChgAbs) ? (
+                      <>{fmtAbsSigned(headerChgAbs)} </>
+                    ) : null}
+                    ({fmtPctSigned(headerChgPct)})
+                  </span>
+                ) : (
+                  <span className="ticker-page__metric-change--muted">—</span>
+                )}
+              </div>
+              <p className="ticker-page__metric-label ticker-page__metric-label--last-updated">
+                Last Updated • {lastUpdatedFmt}
+              </p>
+            </div>
           </div>
 
-          <div className="ticker-page__header-metric ticker-page__header-metric--index-etf">
+          
+          <div className="ticker-page__header-metric">
             <div className="ticker-page__metric-value-row">
               <span className="ticker-page__metric-value">Related ETF</span>
               {/* <DataInfoTip align="start">
@@ -1948,25 +1991,7 @@ export default function IndexPage() {
             )}
           </div>
 
-          <div className="ticker-page__index-metric-footer">
-            <div className="ticker-page__metric-change">
-              {headerChgPct != null && Number.isFinite(headerChgPct) ? (
-                <span className={'ticker-num ' + pctClass(headerChgPct)}>
-                  {headerChgAbs != null && Number.isFinite(headerChgAbs) ? (
-                    <>{fmtAbsSigned(headerChgAbs)} </>
-                  ) : null}
-                  ({fmtPctSigned(headerChgPct)})
-                </span>
-              ) : (
-                <span className="ticker-page__metric-change--muted">—</span>
-              )}
-            </div>
-            <p className="ticker-page__metric-label ticker-page__metric-label--last-updated">
-              Last Updated • {lastUpdatedFmt}
-            </p>
-          </div>
-
-          <div className="ticker-page__header-metric ticker-page__header-metric--index-extra">
+          <div className="ticker-page__header-metric">
             <div className="ticker-page__metric-value-row">
               <span className="ticker-page__metric-value">{isSectorDataRoute ? 'S&P 500' : ""}</span>
             </div>

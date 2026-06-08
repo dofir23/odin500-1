@@ -106,7 +106,7 @@ export function usePaperAccount() {
   }, [refetch, activeAccountId]);
 
   const createAccount = useCallback(
-    async ({ name, starting_capital }) => {
+    async ({ name, starting_capital, activate = true }) => {
       const res = await fetchWithAuth(apiUrl('/api/paper/accounts'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -114,8 +114,10 @@ export function usePaperAccount() {
       });
       const created = await parseJson(res);
       await loadAccounts();
-      if (created?.id) setActiveAccountId(created.id);
-      await refetch();
+      if (activate && created?.id) {
+        setActiveAccountId(created.id);
+        await refetch(created.id);
+      }
       return created;
     },
     [loadAccounts, refetch]

@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { PageRouteFallback } from './components/PageRouteFallback.jsx';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary.jsx';
 import { LoginGateProvider } from './context/LoginGateContext.jsx';
+import { EngagementProvider } from './context/EngagementContext.jsx';
 import { WatchlistDockProvider } from './context/WatchlistDockContext.jsx';
 import { createAppRoutes } from './appRoutes.jsx';
 import { lazyWithRetry } from './utils/lazyWithRetry.js';
@@ -78,11 +79,13 @@ export function AppShell({ ssr = false, routesElement = null }) {
   const routes = routesElement ?? <ClientAppRoutes />;
   return (
     <LoginGateProvider>
-      <WatchlistDockProvider>
-        <RouteErrorBoundary resetKey={pathname}>
-          <Suspense fallback={ssr ? null : <PageRouteFallback />}>{routes}</Suspense>
-        </RouteErrorBoundary>
-      </WatchlistDockProvider>
+      <EngagementProvider>
+        <WatchlistDockProvider>
+          <RouteErrorBoundary resetKey={pathname}>
+            <Suspense fallback={ssr ? null : <PageRouteFallback />}>{routes}</Suspense>
+          </RouteErrorBoundary>
+        </WatchlistDockProvider>
+      </EngagementProvider>
     </LoginGateProvider>
   );
 }

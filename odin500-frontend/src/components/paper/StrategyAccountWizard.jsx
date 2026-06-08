@@ -64,7 +64,7 @@ export function StrategyAccountWizard({
     setError('');
     try {
       const displayName = accName ? accName : "Strategy Account";
-      const account = await createAccount({ name: displayName });
+      const account = await createAccount({ name: displayName, activate: false });
       const strategy = await createStrategy({ name: stratName, description: null });
       for (const rule of pendingRules) {
         const { _localId, ...payload } = rule;
@@ -137,7 +137,7 @@ export function StrategyAccountWizard({
       footer={footer}
     >
       {step === 0 ? (
-        <>
+        <div data-tour="paper-wizard-step-account">
           <p className="paper-modal-msg">
             Create a dedicated paper portfolio with automated rules (price or Odin signals).
           </p>
@@ -153,10 +153,10 @@ export function StrategyAccountWizard({
             placeholder="e.g. Tech momentum"
             disabled={busy}
           />
-        </>
+        </div>
       ) : null}
       {step === 1 ? (
-        <>
+        <div data-tour="paper-wizard-step-strategy">
           <label className="wl-manage-label" htmlFor="paper-wizard-strategy-name">
             Strategy name
           </label>
@@ -169,10 +169,10 @@ export function StrategyAccountWizard({
             placeholder="e.g. AAPL long on L2"
             disabled={busy}
           />
-        </>
+        </div>
       ) : null}
       {step === 2 ? (
-        <>
+        <div data-tour="paper-wizard-step-rules">
           <p className="paper-modal-msg">Add one or more rules. The strategy runs on the server schedule (~5 min).</p>
           <ul className="paper-strategy-rules-list">
             {pendingRules.map((r) => (
@@ -189,7 +189,7 @@ export function StrategyAccountWizard({
             ))}
           </ul>
           <StrategyRuleForm busy={busy} onSubmit={addPendingRule} submitLabel="Add to list" />
-        </>
+        </div>
       ) : null}
       {error ? <p className="wl-manage-err">{error}</p> : null}
     </PaperManageModal>

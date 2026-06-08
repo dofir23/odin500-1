@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiUrl } from '../utils/apiOrigin.js';
 import { fetchWithAuth, canFetchProtectedApi } from '../store/apiStore.js';
 
@@ -23,6 +23,7 @@ export function usePaperStrategy(accountId) {
   const [automatedAccountIds, setAutomatedAccountIds] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const strategyFetchGenRef = useRef(0);
 
   const strategyActive = useMemo(() => {
     return !!(binding?.is_active && strategy && strategy.is_active !== false);
@@ -50,6 +51,7 @@ export function usePaperStrategy(accountId) {
       setLoading(false);
       return;
     }
+    const fetchGen = ++strategyFetchGenRef.current;
     setLoading(true);
     setError('');
     try {
@@ -58,16 +60,20 @@ export function usePaperStrategy(accountId) {
         { method: 'GET' }
       );
       const data = await parseJson(res);
+      if (fetchGen !== strategyFetchGenRef.current) return;
       setStrategy(data.strategy || null);
       setBinding(data.binding || null);
       setRules(data.rules || []);
     } catch (err) {
+      if (fetchGen !== strategyFetchGenRef.current) return;
       setError(err?.message || 'Failed to load strategy');
       setStrategy(null);
       setBinding(null);
       setRules([]);
     } finally {
-      setLoading(false);
+      if (fetchGen === strategyFetchGenRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -84,9 +90,13 @@ export function usePaperStrategy(accountId) {
     setExecutionLog(data.log || []);
   }, []);
 
-  const refetch = useCallback(async () => {
-    await Promise.all([loadByAccount(accountId), loadExecutionLog(accountId), loadAutomatedAccounts()]);
-  }, [accountId, loadByAccount, loadExecutionLog, loadAutomatedAccounts]);
+  const refetch = useCallback(
+    async (accountIdOverride) => {
+      const id = accountIdOverride !== undefined && accountIdOverride !== null ? accountIdOverride : accountId;
+      await Promise.all([loadByAccount(id), loadExecutionLog(id), loadAutomatedAccounts()]);
+    },
+    [accountId, loadByAccount, loadExecutionLog, loadAutomatedAccounts]
+  );
 
   useEffect(() => {
     void loadAutomatedAccounts();

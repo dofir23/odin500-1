@@ -176,7 +176,7 @@ export function StrategyWatchlistPanel({
   }
 
   return (
-    <section className="paper-strategy-section paper-strategy-wl">
+    <section className="paper-strategy-section paper-strategy-wl" data-tour="paper-strategy-watchlist">
       <h4 className="paper-strategy-section__title">Watchlist signals</h4>
       <p className="paper-strategy-muted paper-strategy-wl__intro">
         Pick a watchlist to see the strongest long and short Odin signals. Add tickers to your strategy

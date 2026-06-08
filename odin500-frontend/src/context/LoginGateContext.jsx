@@ -54,8 +54,8 @@ export function LoginGateProvider({ children }) {
   }, [navigate]);
 
   const value = useMemo(
-    () => ({ isLoggedIn, requireLogin, showLoginRequired }),
-    [isLoggedIn, requireLogin, showLoginRequired]
+    () => ({ isLoggedIn, requireLogin, showLoginRequired, loginModalOpen: open }),
+    [isLoggedIn, requireLogin, showLoginRequired, open]
   );
 
   return (

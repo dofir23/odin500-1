@@ -20,6 +20,8 @@ import { PaperManageModal } from '../../components/paper/PaperManageModal.jsx';
 import { StrategyPanel } from '../../components/paper/StrategyPanel.jsx';
 import { StrategyAccountWizard } from '../../components/paper/StrategyAccountWizard.jsx';
 import { usePaperStrategy } from '../../hooks/usePaperStrategy.js';
+import { ProductTourProvider, useProductTourContext } from '../../context/ProductTourContext.jsx';
+import { isTourSkipped, TOUR_IDS } from '../../engagement/tourStorage.js';
 import '../../styles/paper-trading.css';
 
 function PaperTradingPageContent() {
@@ -71,6 +73,18 @@ function PaperTradingPageContent() {
   const [newAccountName, setNewAccountName] = useState('');
   const [modalBusy, setModalBusy] = useState(false);
   const [modalError, setModalError] = useState('');
+  const { startPaperStrategyManageTour, registerManageTourPrepare } = useProductTourContext();
+
+  useEffect(() => {
+    registerManageTourPrepare(() => {
+      setTab('strategy');
+      window.requestAnimationFrame(() => {
+        document
+          .querySelector('[data-tour="paper-strategy-panel-intro"]')
+          ?.scrollIntoView({ behavior: 'auto', block: 'start' });
+      });
+    });
+  }, [registerManageTourPrepare]);
 
   const pendingCount = useMemo(() => orders.filter((o) => o.status === 'pending').length, [orders]);
 
@@ -201,7 +215,15 @@ function PaperTradingPageContent() {
         <div>
           <div className="paper-header__title-row">
             <h1 className="paper-header__title">Paper Trading</h1>
-            
+            {strategy ? (
+              <button
+                type="button"
+                className="paper-btn paper-btn--ghost paper-header__tour-btn"
+                onClick={() => startPaperStrategyManageTour()}
+              >
+                Take tour
+              </button>
+            ) : null}
           </div>
           <p className="paper-header__sub">
             Simulate trades with $100,000 virtual capital. Market orders fill at the latest Odin daily close with
@@ -209,17 +231,19 @@ function PaperTradingPageContent() {
           </p>
         </div>
         <div className="paper-header__actions">
-          <ThemedDropdown
-            className="paper-header__account-dd"
-            value={selectedAccountId}
-            options={accountOptions}
-            onChange={setActiveAccountId}
-            title="Paper account"
-            ariaLabelPrefix="Paper account"
-            labelFallback="Select account"
-            wideLabel
-            disabled={accountLoading || accountOptions.length === 0}
-          />
+          <div data-tour="paper-account-dd">
+            <ThemedDropdown
+              className="paper-header__account-dd"
+              value={selectedAccountId}
+              options={accountOptions}
+              onChange={setActiveAccountId}
+              title="Paper account"
+              ariaLabelPrefix="Paper account"
+              labelFallback="Select account"
+              wideLabel
+              disabled={accountLoading || accountOptions.length === 0}
+            />
+          </div>
           <div className="paper-header__btn-row">
             <button type="button" className="paper-btn paper-btn--ghost" onClick={openCreateModal}>
               New account
@@ -227,6 +251,7 @@ function PaperTradingPageContent() {
             <button
               type="button"
               className="paper-btn paper-btn--ghost"
+              data-tour="paper-new-strategy-account"
               onClick={() => setWizardOpen(true)}
             >
               New strategy account
@@ -377,8 +402,10 @@ function PaperTradingPageContent() {
         onComplete={async ({ accountId }) => {
           setActiveAccountId(accountId);
           setTab('strategy');
-          await refetchStrategy();
-          await refetchAccount();
+          await Promise.all([refetchAccount(accountId), refetchStrategy(accountId)]);
+          if (!isTourSkipped(TOUR_IDS.PAPER_STRATEGY_MANAGE)) {
+            window.setTimeout(() => startPaperStrategyManageTour(), 750);
+          }
         }}
       />
 
@@ -412,11 +439,13 @@ function PaperTradingPageContent() {
 
       <section className="paper-card paper-blotter">
         <div className="paper-card__head paper-card__head--tabs">
-          <div className="paper-tabs paper-tabs--scroll" role="tablist" aria-label="Holdings and orders">
+          <div className="paper-blotter-tabs-row" data-tour="paper-blotter-tabs-row">
+            <div className="paper-tabs paper-tabs--scroll" role="tablist" aria-label="Holdings and orders">
                 <button
                   type="button"
                   role="tab"
                   aria-selected={tab === 'positions'}
+                  data-tour="paper-tab-positions"
                   className={'paper-tabs__btn' + (tab === 'positions' ? ' paper-tabs__btn--active' : '')}
                   onClick={() => setTab('positions')}
                 >
@@ -453,6 +482,7 @@ function PaperTradingPageContent() {
                     type="button"
                     role="tab"
                     aria-selected={tab === 'strategy'}
+                    data-tour="paper-tab-strategy"
                     className={'paper-tabs__btn' + (tab === 'strategy' ? ' paper-tabs__btn--active' : '')}
                     onClick={() => setTab('strategy')}
                   >
@@ -475,7 +505,8 @@ function PaperTradingPageContent() {
                   </button>
                 )}
               </div>
-            </div>
+          </div>
+        </div>
             <div className="paper-card__body">
               {tab === 'strategy' ? (
                 <StrategyPanel
@@ -539,5 +570,9 @@ export default function PaperTradingPage() {
     return null;
   }
 
-  return <PaperTradingPageContent />;
+  return (
+    <ProductTourProvider>
+      <PaperTradingPageContent />
+    </ProductTourProvider>
+  );
 }

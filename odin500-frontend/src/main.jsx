@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { AppShell } from './appRouter.jsx';
 import './index.css';
+import './styles/engagement.css';
 import { initAuthSessionOnLoad } from './store/apiStore.js';
 
 initAuthSessionOnLoad();

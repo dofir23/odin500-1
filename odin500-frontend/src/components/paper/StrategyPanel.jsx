@@ -131,8 +131,7 @@ export function StrategyPanel({
 
 
       <div className="paper-strategy-panel__head">
-
-        <div>
+        <div data-tour="paper-strategy-panel-intro">
 
           <h3 className="paper-strategy-panel__title">
 
@@ -178,7 +177,7 @@ export function StrategyPanel({
         </div>
 
         <div className="paper-strategy-panel__actions">
-
+          <div className="paper-strategy-run-controls" data-tour="paper-strategy-controls">
           <button
 
             type="button"
@@ -224,7 +223,7 @@ export function StrategyPanel({
             {busy ? 'Running…' : 'Run now'}
 
           </button>
-
+          </div>
         </div>
 
       </div>
@@ -257,10 +256,8 @@ export function StrategyPanel({
 
 
 
-      <section className="paper-strategy-section">
-
+      <section className="paper-strategy-section" data-tour="paper-strategy-rules">
         <h4 className="paper-strategy-section__title">Rules</h4>
-
         <StrategyRulesList
 
           rules={rules}
@@ -333,8 +330,7 @@ export function StrategyPanel({
 
 
 
-      <section className="paper-strategy-section">
-
+      <section className="paper-strategy-section" data-tour="paper-strategy-log">
         <h4 className="paper-strategy-section__title">Execution log</h4>
 
         <StrategyExecutionLog log={executionLog} />

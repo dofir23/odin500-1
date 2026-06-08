@@ -63,6 +63,11 @@
   gap: 0.65rem;
 }
 
+.paper-header__tour-btn {
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.75rem;
+}
+
 .paper-header__title {
   margin: 0;
   font-size: 24px;
@@ -937,6 +942,11 @@
   padding: 0.65rem 0.85rem;
 }
 
+.paper-blotter-tabs-row {
+  width: 100%;
+  min-width: 0;
+}
+
 .paper-card__head--tabs .paper-tabs {
   width: 100%;
 }
@@ -1669,6 +1679,11 @@
     gap: 0.4rem;
   }
 
+  .paper-header__tour-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
   .paper-header__btn-row .paper-btn {
     flex: 1 1 100%;
     min-width: 100%;
@@ -1754,6 +1769,12 @@
 }
 
 .paper-strategy-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.paper-strategy-run-controls {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;

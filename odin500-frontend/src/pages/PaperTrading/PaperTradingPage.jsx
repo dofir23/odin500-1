@@ -526,7 +526,8 @@ function PaperTradingPageContent() {
                     await patchStrategy(strategy.id, { is_active: active });
                   }}
                   onRunOnce={() => runOnce(activeAccountId)}
-                  onRefetch={async () => {
+                  onRefetch={(opts) => refetchStrategy(undefined, opts)}
+                  onRefetchBlotter={async () => {
                     await Promise.all([refetchStrategy(), refetchAccount(), refetchOrders()]);
                   }}
                 />

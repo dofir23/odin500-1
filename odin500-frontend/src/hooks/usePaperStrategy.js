@@ -43,7 +43,8 @@ export function usePaperStrategy(accountId) {
     return ids;
   }, []);
 
-  const loadByAccount = useCallback(async (id) => {
+  const loadByAccount = useCallback(async (id, opts = {}) => {
+    const silent = opts.silent === true;
     if (!canFetchProtectedApi() || !id) {
       setStrategy(null);
       setBinding(null);
@@ -52,7 +53,7 @@ export function usePaperStrategy(accountId) {
       return;
     }
     const fetchGen = ++strategyFetchGenRef.current;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError('');
     try {
       const res = await fetchWithAuth(
@@ -71,7 +72,7 @@ export function usePaperStrategy(accountId) {
       setBinding(null);
       setRules([]);
     } finally {
-      if (fetchGen === strategyFetchGenRef.current) {
+      if (fetchGen === strategyFetchGenRef.current && !silent) {
         setLoading(false);
       }
     }
@@ -91,9 +92,9 @@ export function usePaperStrategy(accountId) {
   }, []);
 
   const refetch = useCallback(
-    async (accountIdOverride) => {
+    async (accountIdOverride, opts = {}) => {
       const id = accountIdOverride !== undefined && accountIdOverride !== null ? accountIdOverride : accountId;
-      await Promise.all([loadByAccount(id), loadExecutionLog(id), loadAutomatedAccounts()]);
+      await Promise.all([loadByAccount(id, opts), loadExecutionLog(id), loadAutomatedAccounts()]);
     },
     [accountId, loadByAccount, loadExecutionLog, loadAutomatedAccounts]
   );
@@ -168,7 +169,9 @@ export function usePaperStrategy(accountId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch)
     });
-    return parseJson(res);
+    const data = await parseJson(res);
+    setStrategy((prev) => (prev && prev.id === strategyId ? { ...prev, ...data } : prev));
+    return data;
   }, []);
 
   const runOnce = useCallback(async (id) => {

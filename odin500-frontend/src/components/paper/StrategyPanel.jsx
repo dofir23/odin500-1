@@ -40,13 +40,17 @@ export function StrategyPanel({
 
   onRunOnce,
 
-  onRefetch
+  onRefetch,
+
+  onRefetchBlotter
 
 }) {
 
   const [busy, setBusy] = useState(false);
 
   const [runMsg, setRunMsg] = useState('');
+
+  const [wlSaveError, setWlSaveError] = useState('');
 
   const [editingRule, setEditingRule] = useState(null);
 
@@ -90,7 +94,7 @@ export function StrategyPanel({
 
 
 
-  async function wrap(fn) {
+  async function wrap(fn, { refetch = onRefetch, silent = true } = {}) {
 
     setBusy(true);
 
@@ -100,11 +104,30 @@ export function StrategyPanel({
 
       await fn();
 
-      await onRefetch?.();
+      if (refetch) {
+        if (silent) await refetch({ silent: true });
+        else await refetch();
+      }
 
     } finally {
 
       setBusy(false);
+
+    }
+
+  }
+
+  async function handleWatchlistKeyChange(key) {
+
+    setWlSaveError('');
+
+    try {
+
+      await onPatchStrategy?.({ watchlist_key: key });
+
+    } catch (err) {
+
+      setWlSaveError(err?.message || 'Failed to save watchlist');
 
     }
 
@@ -204,17 +227,23 @@ export function StrategyPanel({
 
             onClick={() =>
 
-              void wrap(async () => {
+              void wrap(
 
-                const out = await onRunOnce();
+                async () => {
 
-                setRunMsg(
+                  const out = await onRunOnce();
 
-                  `Run complete — triggered: ${out?.triggered ?? 0}, failed: ${out?.failed ?? 0}`
+                  setRunMsg(
 
-                );
+                    `Run complete — triggered: ${out?.triggered ?? 0}, failed: ${out?.failed ?? 0}`
 
-              })
+                  );
+
+                },
+
+                { refetch: onRefetchBlotter, silent: false }
+
+              )
 
             }
 
@@ -242,11 +271,9 @@ export function StrategyPanel({
 
         busy={busy}
 
-        onWatchlistKeyChange={(key) =>
+        saveError={wlSaveError}
 
-          void wrap(() => onPatchStrategy?.({ watchlist_key: key }))
-
-        }
+        onWatchlistKeyChange={(key) => void handleWatchlistKeyChange(key)}
 
         onAddRule={(payload) => void wrap(() => onAddRule(payload))}
 

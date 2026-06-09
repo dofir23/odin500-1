@@ -29,11 +29,66 @@ function WatchlistKindTag({ kind }) {
 }
 
 function LeaderTable({ title, rows, side, rules, busy, onAddRule, onAddToForm }) {
+  const [selected, setSelected] = useState(() => new Set());
+  const checkAllRef = useRef(null);
   const existing = new Set((rules || []).map(ruleTickerKey));
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [rows]);
+
+  const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.symbol));
+  const someSelected = rows.some((r) => selected.has(r.symbol));
+  const checkedCount = rows.filter((r) => selected.has(r.symbol)).length;
+
+  useEffect(() => {
+    const el = checkAllRef.current;
+    if (el) el.indeterminate = someSelected && !allSelected;
+  }, [someSelected, allSelected]);
+
+  function toggleAll(checked) {
+    if (checked) {
+      setSelected(new Set(rows.map((r) => r.symbol)));
+    } else {
+      setSelected(new Set());
+    }
+  }
+
+  function toggleOne(symbol, checked) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(symbol);
+      else next.delete(symbol);
+      return next;
+    });
+  }
+
+  async function addRulesForChecked() {
+    const checked = rows.filter((r) => selected.has(r.symbol));
+    if (!checked.length) return;
+    await onAddRule(checked, side);
+  }
+
+  function addFormForChecked() {
+    const syms = rows.filter((r) => selected.has(r.symbol)).map((r) => r.symbol);
+    if (!syms.length) return;
+    onAddToForm(syms);
+  }
 
   return (
     <div className="paper-strategy-wl__col">
       <div className="paper-strategy-wl__col-head">
+        <label className="paper-strategy-wl__check-all" title="Select all">
+          <input
+            ref={checkAllRef}
+            type="checkbox"
+            className="paper-strategy-wl__checkbox"
+            checked={allSelected}
+            disabled={busy || rows.length === 0}
+            onChange={(e) => toggleAll(e.target.checked)}
+            aria-label={`Select all ${side} signals`}
+          />
+        </label>
         <h5
           className={
             'paper-strategy-wl__col-title' +
@@ -44,51 +99,61 @@ function LeaderTable({ title, rows, side, rules, busy, onAddRule, onAddToForm })
         >
           {title}
         </h5>
-        {rows.length > 0 ? (
+        <div className="paper-strategy-wl__col-actions">
           <button
             type="button"
             className="paper-btn paper-btn--ghost paper-btn--sm"
-            disabled={busy}
-            onClick={() => onAddRule(rows, side)}
+            disabled={busy || checkedCount === 0}
+            onClick={() => void addRulesForChecked()}
+            title="Add checked tickers as strategy rules"
           >
-            Add all
+            + Add rule
           </button>
-        ) : null}
+          <button
+            type="button"
+            className="paper-btn paper-btn--ghost paper-btn--sm"
+            disabled={busy || checkedCount === 0}
+            onClick={addFormForChecked}
+            title="Add checked tickers to the rule form"
+          >
+            + Form
+          </button>
+        </div>
       </div>
       {rows.length === 0 ? (
         <p className="paper-strategy-muted">No {side} signals in this watchlist.</p>
       ) : (
-        <ul className="paper-strategy-wl__list">
-          {rows.map((row) => {
-            const hasRule = existing.has(row.symbol);
-            return (
-              <li key={row.symbol} className="paper-strategy-wl__row">
-                <span className="paper-strategy-wl__sym">{row.symbol}</span>
-                <span className="paper-strategy-wl__bucket">{row.bucket}</span>
-                <div className="paper-strategy-wl__row-actions">
-                  <button
-                    type="button"
-                    className="paper-btn paper-btn--ghost paper-btn--sm"
-                    disabled={busy}
-                    onClick={() => onAddToForm([row.symbol])}
-                    title="Add ticker to rule form"
-                  >
-                    Form
-                  </button>
-                  <button
-                    type="button"
-                    className="paper-btn paper-btn--ghost paper-btn--sm"
-                    disabled={busy || hasRule}
-                    onClick={() => onAddRule([row], side, true)}
-                    title={hasRule ? 'Rule already exists for this ticker' : 'Add as strategy rule'}
-                  >
-                    {hasRule ? 'Added' : '+ Rule'}
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="paper-strategy-wl__list-scroll">
+          <ul className="paper-strategy-wl__list">
+            {rows.map((row) => {
+              const hasRule = existing.has(row.symbol);
+              const isChecked = selected.has(row.symbol);
+              return (
+                <li key={row.symbol} className="paper-strategy-wl__row">
+                  <label className="paper-strategy-wl__row-check">
+                    <input
+                      type="checkbox"
+                      className="paper-strategy-wl__checkbox"
+                      checked={isChecked}
+                      disabled={busy}
+                      onChange={(e) => toggleOne(row.symbol, e.target.checked)}
+                      aria-label={`Select ${row.symbol}`}
+                    />
+                  </label>
+                  <span className="paper-strategy-wl__sym">{row.symbol}</span>
+                  <span className="paper-strategy-wl__bucket">{row.bucket}</span>
+                  {hasRule ? (
+                    <span className="paper-strategy-wl__has-rule" title="Rule already exists">
+                      Rule
+                    </span>
+                  ) : (
+                    <span className="paper-strategy-wl__has-rule paper-strategy-wl__has-rule--empty" aria-hidden />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </div>
   );
@@ -98,6 +163,7 @@ export function StrategyWatchlistPanel({
   savedWatchlistKey = '',
   rules = [],
   busy = false,
+  saveError = '',
   onWatchlistKeyChange,
   onAddRule,
   onAddTickersToForm
@@ -126,7 +192,9 @@ export function StrategyWatchlistPanel({
     setSignalsError('');
     try {
       const res = await fetchWithAuth(
-        apiUrl(`/api/paper/strategies/watchlist-signals?watchlist_key=${encodeURIComponent(key)}`),
+        apiUrl(
+          `/api/paper/strategies/watchlist-signals?watchlist_key=${encodeURIComponent(key)}&limit=all`
+        ),
         { method: 'GET' }
       );
       const payload = await res.json().catch(() => ({}));
@@ -161,13 +229,14 @@ export function StrategyWatchlistPanel({
   function pickWatchlist(key) {
     setSelectedKey(key);
     setDdOpen(false);
-    onWatchlistKeyChange?.(key);
+    if (key !== savedWatchlistKey) {
+      onWatchlistKeyChange?.(key);
+    }
   }
 
-  async function handleAddRules(rows, side, single = false) {
-    const list = single ? rows : rows;
+  async function handleAddRules(rows, side) {
     const existing = new Set((rules || []).map(ruleTickerKey));
-    for (const row of list) {
+    for (const row of rows) {
       const sym = String(row.symbol || row).trim().toUpperCase();
       if (!sym || existing.has(sym)) continue;
       await onAddRule?.(buildWatchlistQuickRule(sym, side));
@@ -179,8 +248,8 @@ export function StrategyWatchlistPanel({
     <section className="paper-strategy-section paper-strategy-wl" data-tour="paper-strategy-watchlist">
       <h4 className="paper-strategy-section__title">Watchlist signals</h4>
       <p className="paper-strategy-muted paper-strategy-wl__intro">
-        Pick a watchlist to see the strongest long and short Odin signals. Add tickers to your strategy
-        rules in one click.
+        Pick a watchlist to see long and short Odin signals. Check tickers, then use + Add rule or + Form
+        to apply them in bulk.
       </p>
 
       <div className="paper-strategy-wl__picker" ref={ddRef}>
@@ -228,6 +297,7 @@ export function StrategyWatchlistPanel({
       </div>
 
       {optionsError ? <p className="paper-strategy-err">{optionsError}</p> : null}
+      {saveError ? <p className="paper-strategy-err">{saveError}</p> : null}
       {signalsError ? <p className="paper-strategy-err">{signalsError}</p> : null}
 
       {signalsLoading ? (
@@ -235,7 +305,7 @@ export function StrategyWatchlistPanel({
       ) : (
         <div className="paper-strategy-wl__grid">
           <LeaderTable
-            title="Top 10 long"
+            title="Long signals"
             rows={leaders.longs}
             side="long"
             rules={rules}
@@ -244,7 +314,7 @@ export function StrategyWatchlistPanel({
             onAddToForm={(syms) => onAddTickersToForm?.(syms)}
           />
           <LeaderTable
-            title="Top 10 short"
+            title="Short signals"
             rows={leaders.shorts}
             side="short"
             rules={rules}

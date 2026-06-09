@@ -336,7 +336,10 @@ router.get('/strategies/watchlist-signals', async (req, res) => {
       return res.status(400).json({ error: 'watchlist_key is required' });
     }
     const limit = req.query.limit;
-    const data = await getWatchlistSignalLeaders(req.user.id, String(watchlistKey), { limit });
+    const { data, cacheHit } = await getWatchlistSignalLeaders(req.user.id, String(watchlistKey), {
+      limit
+    });
+    res.set('X-Cache-Hit', cacheHit ? '1' : '0');
     res.status(200).json(data);
   } catch (error) {
     const status = error.status || 500;

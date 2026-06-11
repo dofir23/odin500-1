@@ -44,12 +44,27 @@ async function evaluateRule(rule) {
       return { shouldTrade: false, message: `No signal for ${ticker}` };
     }
     if (type === 'signal_bucket') {
-      const want = String(params.bucket || rule.threshold_value || '')
-        .trim()
-        .toUpperCase();
-      const normalizedWant = VALID_BUCKETS.has(want) ? want : normalizeSignalBucket(want);
+      const rawList = Array.isArray(params.buckets)
+        ? params.buckets
+        : params.bucket != null && params.bucket !== ''
+          ? [params.bucket]
+          : rule.threshold_value != null && rule.threshold_value !== ''
+            ? [rule.threshold_value]
+            : [];
+      const wants = [
+        ...new Set(
+          rawList
+            .map((b) => {
+              const s = String(b || '')
+                .trim()
+                .toUpperCase();
+              return VALID_BUCKETS.has(s) ? s : normalizeSignalBucket(s);
+            })
+            .filter((b) => b && b !== 'N')
+        )
+      ];
       return {
-        shouldTrade: normalizedWant === bucket,
+        shouldTrade: wants.length > 0 && wants.includes(bucket),
         price: null,
         signalBucket: bucket
       };

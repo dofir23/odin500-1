@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { FigmaDataTable } from '../components/FigmaDataTable.jsx';
 import { FigmaPagination } from '../components/FigmaPagination.jsx';
 import { ReturnsChartToolbarIconButton } from '../components/ReturnsChartToolbar.jsx';
 import { ReturnsChartIcoDownload } from '../components/returnsChartToolbarIcons.jsx';
 import { ThemedDropdown } from '../components/ThemedDropdown.jsx';
 import { TickerSymbolCombobox } from '../components/TickerSymbolCombobox.jsx';
-import {fetchJsonCached, getAuthToken, canFetchProtectedApi} from '../store/apiStore.js';
+import { fetchJsonCached, canFetchProtectedApi } from '../store/apiStore.js';
+import { useSsrPageData } from '../context/SsrPageDataContext.jsx';
+import { fetchPublicOhlcPreview, normalizePreviewRows } from '../utils/historicalDataPreview.js';
 import { rowDateToTimeKey } from '../utils/chartData.js';
 import {
   buildHistoricalDataHref,
@@ -348,19 +350,36 @@ function sortHistoricalRows(rows, headerKey, dir) {
   return [...rows].sort((a, b) => compareHistoricalRows(a, b, headerKey, dir));
 }
 
+function buildHistoricalSeoDescription(sym, previewMeta) {
+  const name = String(previewMeta?.company_name || '').trim();
+  const label = name ? `${name} (${sym})` : sym;
+  const rangeBit =
+    previewMeta?.min_date && previewMeta?.max_date
+      ? ` Daily OHLC from ${previewMeta.min_date} through ${previewMeta.max_date}.`
+      : '';
+  let closeBit = '';
+  if (previewMeta?.latest_close != null && previewMeta?.latest_date) {
+    closeBit = ` Latest close ${fmtPrice(previewMeta.latest_close)} on ${previewMeta.latest_date}.`;
+  }
+  return `${label} historical OHLC preview, date-range tables, and CSV export.${rangeBit}${closeBit} View ${sym} charts and signals on Odin500.`;
+}
+
 export default function HistoricalDataPage() {
   const { symbol: symbolParam } = useParams();
   const navigate = useNavigate();
+  const ssrData = useSsrPageData();
   const sym = useMemo(
     () => sanitizeTickerPageInput(symbolParam) || DEFAULT_TICKER,
     [symbolParam]
   );
 
-  usePageSeo({
-    title: `${sym} Historical OHLC Data & CSV Export | Odin500`,
-    description: `Query and export historical OHLC data for ${sym} by date range — daily, weekly, monthly, quarterly, and annual tables with CSV download.`,
-    canonicalPath: buildHistoricalDataHref(sym)
-  });
+  const ssrPreview = ssrData?.historicalDataPreview;
+  const ssrPreviewForSym = ssrPreview?.symbol === sym ? ssrPreview : null;
+
+  const [previewMeta, setPreviewMeta] = useState(ssrPreviewForSym);
+  const [rows, setRows] = useState(() =>
+    ssrPreviewForSym ? normalizePreviewRows(ssrPreviewForSym) : []
+  );
 
   useEffect(() => {
     if (!symbolParam) return;
@@ -382,10 +401,29 @@ export default function HistoricalDataPage() {
     [navigate]
   );
   /** @type {[OhlcFrequency, function]} */
+  const seoTitle = useMemo(() => {
+    const name = String(previewMeta?.company_name || '').trim();
+    const label = name ? `${name} (${sym})` : sym;
+    return `${label} Historical OHLC Data & CSV Export | Odin500`;
+  }, [sym, previewMeta?.company_name]);
+
+  const seoDescription = useMemo(
+    () =>
+      previewMeta
+        ? buildHistoricalSeoDescription(sym, previewMeta)
+        : `Query and export historical OHLC data for ${sym} by date range — daily, weekly, monthly, quarterly, and annual tables with CSV download.`,
+    [sym, previewMeta]
+  );
+
+  usePageSeo({
+    title: seoTitle,
+    description: seoDescription,
+    canonicalPath: buildHistoricalDataHref(sym)
+  });
+
   const [frequency, setFrequency] = useState('daily');
   const [startDate, setStartDate] = useState(defaultStartDate);
   const [endDate, setEndDate] = useState(todayIsoDate);
-  const [rows, setRows] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
@@ -403,11 +441,54 @@ export default function HistoricalDataPage() {
     setStartDate((s) => clampDailyStartDate(s, endDate));
   }, [frequency, endDate]);
 
+  useEffect(() => {
+    if (ssrPreview?.symbol === sym) {
+      setPreviewMeta(ssrPreview);
+      setRows(normalizePreviewRows(ssrPreview));
+      return;
+    }
+    if (!canFetchProtectedApi()) {
+      setPreviewMeta(null);
+      setRows([]);
+    }
+  }, [sym, ssrPreview]);
+
+  useEffect(() => {
+    if (canFetchProtectedApi()) return;
+    if (ssrPreview?.symbol === sym) return;
+    let cancelled = false;
+    (async () => {
+      setBusy(true);
+      setError('');
+      try {
+        const data = await fetchPublicOhlcPreview(sym);
+        if (cancelled) return;
+        if (data?.rows?.length) {
+          setPreviewMeta(data);
+          setRows(normalizePreviewRows(data));
+        } else {
+          setPreviewMeta(null);
+          setRows([]);
+          setError('Sign in to load historical data.');
+        }
+      } catch {
+        if (!cancelled) {
+          setPreviewMeta(null);
+          setRows([]);
+          setError('Sign in to load historical data.');
+        }
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sym]);
+
   const runQuery = useCallback(async () => {
     const symQuery = sym;
     if (!canFetchProtectedApi()) {
-      setError('Sign in to load historical data.');
-      setRows([]);
       return;
     }
     if (!startDate || !endDate) {
@@ -479,6 +560,7 @@ export default function HistoricalDataPage() {
   }, [sym, startDate, endDate, frequency]);
 
   useEffect(() => {
+    if (!canFetchProtectedApi()) return;
     void runQuery();
   }, [runQuery]);
 
@@ -571,6 +653,43 @@ export default function HistoricalDataPage() {
             </span>
             <span className="historical-data__head-label">Historical Data</span>
           </h1>
+          {previewMeta ? (
+            <section className="historical-data__seo-intro" aria-label={`${sym} overview`}>
+              <p className="historical-data__seo-lead">
+                {previewMeta.company_name ? (
+                  <>
+                    <strong>{previewMeta.company_name}</strong> ({sym})
+                  </>
+                ) : (
+                  sym
+                )}
+                {previewMeta.min_date && previewMeta.max_date ? (
+                  <>
+                    {' '}
+                    daily OHLC from {previewMeta.min_date} through {previewMeta.max_date}.
+                  </>
+                ) : null}
+                {previewMeta.latest_close != null && previewMeta.latest_date ? (
+                  <>
+                    {' '}
+                    Latest close: {fmtPrice(previewMeta.latest_close)} on {previewMeta.latest_date}.
+                  </>
+                ) : null}
+              </p>
+              <p className="historical-data__seo-cta">
+                <Link to={`/ticker/${encodeURIComponent(sym)}`} className="historical-data__primary-link">
+                  View {sym} charts, signals &amp; analytics
+                </Link>
+                {!canFetchProtectedApi() ? (
+                  <span className="historical-data__seo-note">
+                    {' '}
+                    Preview shows the latest {previewMeta.rows?.length || previewMeta.preview_limit || 30} daily
+                    bars. Sign in for full date-range queries and CSV export.
+                  </span>
+                ) : null}
+              </p>
+            </section>
+          ) : null}
         </header>
 
         <section className="historical-data__controls" aria-label="Historical data filters">

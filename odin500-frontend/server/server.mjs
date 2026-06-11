@@ -8,7 +8,11 @@ import compression from 'compression';
 import express from 'express';
 import sirv from 'sirv';
 import { injectAppIntoRoot, injectSeoIntoTemplate } from './buildSeoHead.mjs';
-import { resolveRequestMetadata } from './routeMetadata.mjs';
+import { resolveRequestMetadata, enrichHistoricalDataMetadata } from './routeMetadata.mjs';
+import {
+  fetchHistoricalDataPreview,
+  parseHistoricalDataSymbol
+} from '../src/ssr/fetchHistoricalDataPreview.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -87,7 +91,14 @@ async function sendSsrHtml(req, res, next) {
   if (!wantsHtmlDocument(req)) return next();
 
   const requestUrl = req.originalUrl || req.url;
-  const meta = resolveRequestMetadata(req.path);
+  let meta = resolveRequestMetadata(req.path);
+  const histSymbol = parseHistoricalDataSymbol(req.path);
+  if (histSymbol) {
+    const preview = await fetchHistoricalDataPreview(histSymbol);
+    if (preview) {
+      meta = enrichHistoricalDataMetadata(meta, preview);
+    }
+  }
 
   try {
     const render = await getRenderApp();

@@ -26,49 +26,49 @@ export const ROUTE_METADATA = {
     jsonLd: HOMEPAGE_JSON_LD
   },
   '/market': {
-    title: 'Stock Market Dashboard, Heatmap & Trading Signals | Odin500',
+    title: 'Odin500 - Stock Market Dashboard, Heatmap & Trading Signals ',
     description:
       'Live U.S. stock market dashboard with sector heatmap, index snapshots, OHLC analytics, and trading signals for active traders.',
     canonical: `${SITE_ORIGIN}/market`
   },
   '/odin-signals': {
-    title: 'Stock Signal Screener Treemap | Trading Signals | Odin500',
+    title: 'Odin500 | Stock Signal Screener Treemap | Trading Signals ',
     description:
       'Explore stock trading signals with an interactive treemap and filters to find bullish and bearish setups across U.S. equities.',
     canonical: `${SITE_ORIGIN}/odin-signals`
   },
   '/news': {
-    title: 'Stock Market News by Ticker | Odin500',
+    title: 'Odin500 | Stock Market News by Ticker  ',
     description:
       'Read market news and ticker-specific headlines for U.S. stocks and ETFs with quick symbol-level context for traders.',
     canonical: `${SITE_ORIGIN}/news`
   },
   '/heatmap': {
-    title: 'Stock Heatmap | Sector & Industry Performance | Odin500',
+    title: 'Odin500 | Stock Heatmap | Sector & Industry Performance ',
     description:
       'Interactive stock heatmap of U.S. equities by sector and industry with price change, market cap weighting, and drill-down ticker lists.',
     canonical: `${SITE_ORIGIN}/heatmap`
   },
   '/market-movers': {
-    title: 'Top Gainers and Losers Today | Market Movers | Odin500',
+    title: 'Odin500 | Top Gainers and Losers Today | Market Movers ',
     description:
       'Track top gaining and losing stocks today with sortable market-movers tables and performance charts for U.S. equities.',
     canonical: `${SITE_ORIGIN}/market-movers`
   },
   '/statistic-data': {
-    title: 'Stock Statistics Tables | Returns & OHLC Analytics | Odin500',
+    title: 'Odin500 | Stock Statistics Tables | Returns & OHLC Analytics ',
     description:
       'Download stock statistics and returns across daily, weekly, monthly, quarterly, and annual horizons with OHLC-based analytics.',
     canonical: `${SITE_ORIGIN}/statistic-data`
   },
   '/historical-data': {
-    title: 'OHLC Historical Data Download for Stocks | Odin500',
+    title: 'Odin500 | OHLC Historical Data Download for Stocks ',
     description:
       'Search ticker historical data and export OHLC price history for U.S. stocks and ETFs, including open, high, low, close, and date.',
     canonical: `${SITE_ORIGIN}/historical-data`
   },
   '/relative-performance/ticker/aapl': {
-    title: 'Ticker Relative Performance vs Index | Odin500',
+    title: 'Odin500 | Ticker Relative Performance vs Index ',
     description:
       'Compare ticker performance versus indices and sectors with excess return charts and period-by-period relative strength tables.',
     canonical: `${SITE_ORIGIN}/relative-performance/ticker/aapl`
@@ -92,19 +92,19 @@ export const ROUTE_METADATA = {
     canonical: `${SITE_ORIGIN}/accounts`
   },
   '/indices/sp500': {
-    title: 'S&P 500 Index Data, Returns & Signals | Odin500',
+    title: 'Odin500 | S&P 500 Index Data, Returns & Signals ',
     description:
       'Analyze S&P 500 index returns, signals, historical data, and constituent-level context for U.S. market research.',
     canonical: `${SITE_ORIGIN}/indices/sp500`
   },
   '/indices/dow-jones': {
-    title: 'Dow Jones Index Data, Returns & Signals | Odin500',
+    title: 'Odin500 | Dow Jones Index Data, Returns & Signals ',
     description:
       'Track Dow Jones index returns, OHLC trends, and signal context with chart-ready analytics for traders and investors.',
     canonical: `${SITE_ORIGIN}/indices/dow-jones`
   },
   '/indices/nasdaq-100': {
-    title: 'Nasdaq 100 Index Data, Returns & Signals | Odin500',
+    title: 'Odin500 | Nasdaq 100 Index Data, Returns & Signals ',
     description:
       'View Nasdaq 100 returns, trend signals, and historical index analytics with constituent-aware market context.',
     canonical: `${SITE_ORIGIN}/indices/nasdaq-100`
@@ -264,6 +264,39 @@ export function resolveDynamicRouteMetadata(pathname) {
   }
 
   return null;
+}
+
+/**
+ * Enrich historical-data meta with company name, date range, and latest close when preview is available.
+ * @param {{ title: string, description: string, canonical: string, noindex?: boolean, jsonLd?: object }} meta
+ * @param {{ symbol?: string, company_name?: string | null, min_date?: string, max_date?: string, latest_date?: string, latest_close?: number | null }} preview
+ */
+export function enrichHistoricalDataMetadata(meta, preview) {
+  if (!preview?.symbol) return meta;
+
+  const sym = String(preview.symbol).toUpperCase();
+  const name = String(preview.company_name || '').trim();
+  const label = name ? `${name} (${sym})` : sym;
+
+  const rangeBit =
+    preview.min_date && preview.max_date
+      ? ` Daily OHLC from ${preview.min_date} through ${preview.max_date}.`
+      : '';
+
+  let closeBit = '';
+  if (preview.latest_close != null && preview.latest_date) {
+    const close = Number(preview.latest_close);
+    const closeStr = Number.isFinite(close) ? close.toFixed(2) : String(preview.latest_close);
+    closeBit = ` Latest close $${closeStr} on ${preview.latest_date}.`;
+  }
+
+  const titleSuffix = name ? `${name} (${sym})` : sym;
+
+  return {
+    ...meta,
+    title: `${titleSuffix} Historical OHLC Data & CSV Export | Odin500`,
+    description: `${label} historical OHLC preview, date-range tables, and CSV export.${rangeBit}${closeBit} View ${sym} charts and signals on Odin500.`
+  };
 }
 
 /**

@@ -31,6 +31,11 @@ import Pricing from './pages/Pricing.jsx';
 import AboutPage from './pages/AboutPage.jsx';
 import AccountsPage from './pages/AccountsPage.jsx';
 import PaperTradingPage from './pages/PaperTrading/PaperTradingPage.jsx';
+import { SsrPageDataProvider } from './context/SsrPageDataContext.jsx';
+import {
+  fetchHistoricalDataPreview,
+  parseHistoricalDataSymbol
+} from './ssr/fetchHistoricalDataPreview.js';
 
 const eagerPages = {
   App,
@@ -71,9 +76,20 @@ const ssrRoutes = createAppRoutes(eagerPages);
 export async function render(url) {
   const pathname = String(url || '/').split('?')[0].split('#')[0] || '/';
 
+  let ssrPageData = null;
+  const histSymbol = parseHistoricalDataSymbol(pathname);
+  if (histSymbol) {
+    const preview = await fetchHistoricalDataPreview(histSymbol);
+    if (preview) {
+      ssrPageData = { historicalDataPreview: preview };
+    }
+  }
+
   return renderToString(
     <StaticRouter location={pathname}>
-      <AppShell ssr routesElement={ssrRoutes} />
+      <SsrPageDataProvider value={ssrPageData}>
+        <AppShell ssr routesElement={ssrRoutes} />
+      </SsrPageDataProvider>
     </StaticRouter>
   );
 }

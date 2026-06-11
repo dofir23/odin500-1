@@ -20411,6 +20411,56 @@ html[data-theme='light'] .about-legal-item {
   font-size: 13px;
 }
 
+.historical-data__seo-intro {
+  margin-top: 10px;
+  max-width: 72ch;
+}
+
+.historical-data__seo-lead {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.historical-data__seo-lead strong {
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+.historical-data__seo-cta {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.historical-data__primary-link {
+  color: #38bdf8;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.historical-data__primary-link:hover {
+  color: #7dd3fc;
+  text-decoration: underline;
+}
+
+.historical-data__seo-note {
+  color: #94a3b8;
+}
+
+[data-theme='light'] .historical-data__seo-lead {
+  color: #475569;
+}
+
+[data-theme='light'] .historical-data__seo-lead strong {
+  color: #0f172a;
+}
+
+[data-theme='light'] .historical-data__seo-note {
+  color: #64748b;
+}
+
 .historical-data__toolbar {
   min-width: 0;
 }

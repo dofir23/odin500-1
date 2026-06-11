@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { fmtAbsSigned, fmtPctSigned } from '../../utils/formatDisplayNumber.js';
+import { ClosePositionModal, getClosableLegs } from './ClosePositionModal.jsx';
 
 function money(v) {
   if (v == null || Number.isNaN(Number(v))) return '—';
@@ -43,7 +45,22 @@ function positionChangePct(p) {
   return (change / cost) * 100;
 }
 
-export function PositionsTable({ positions, loading }) {
+export function PositionsTable({ positions, loading, onPlaceOrder }) {
+  const [closePosition, setClosePosition] = useState(null);
+  const [closeBusy, setCloseBusy] = useState(false);
+
+  async function handleCloseConfirm(orderInput) {
+    if (!onPlaceOrder) {
+      throw new Error('Order placement is unavailable');
+    }
+    setCloseBusy(true);
+    try {
+      await onPlaceOrder(orderInput);
+    } finally {
+      setCloseBusy(false);
+    }
+  }
+
   if (loading && !positions?.length) {
     return <p className="paper-empty">Loading positions…</p>;
   }
@@ -58,65 +75,92 @@ export function PositionsTable({ positions, loading }) {
   }
 
   return (
-    <div className="paper-table-wrap">
-      <table className="paper-table paper-table--positions">
-        <thead>
-          <tr>
-            <th>Symbol</th>
-            <th>Long qty</th>
-            <th>Short qty</th>
-            <th>Net qty</th>
-            <th>Avg long</th>
-            <th>Avg short</th>
-            <th>Last price</th>
-            <th>Cost basis</th>
-            <th>Change</th>
-            <th>Chg %</th>
-            <th title="Long MV minus short liability">Net market value</th>
-            <th>Unrealized P&amp;L</th>
-          </tr>
-        </thead>
-        <tbody>
-          {positions.map((p) => {
-            const lastPrice = p.current_price;
-            const costBasis = positionCostBasis(p);
-            const changePerShare = positionChangePerShare(p);
-            const changePct = positionChangePct(p);
-            return (
-              <tr key={p.id || p.ticker}>
-                <td className="paper-table__sym">{p.ticker}</td>
-                <td>{p.long_qty ?? 0}</td>
-                <td>{p.short_qty ?? 0}</td>
-                <td>{p.net_qty ?? 0}</td>
-                <td>{money(p.avg_long_cost)}</td>
-                <td>{money(p.avg_short_cost)}</td>
-                <td>{money(lastPrice)}</td>
-                <td>{money(costBasis)}</td>
-                <td className={toneClass(changePerShare)}>
-                  {changePerShare != null ? fmtAbsSigned(changePerShare) : '—'}
-                </td>
-                <td className={toneClass(changePct)}>
-                  {changePct != null ? fmtPctSigned(changePct) : '—'}
-                </td>
-                <td className={toneClass(p.market_value)}>
-                  {money(p.market_value)}
-                  {Number(p.short_qty) > 0 && Number(p.long_qty) > 0 ? (
+    <>
+      <div className="paper-table-wrap">
+        <table className="paper-table paper-table--positions">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Long qty</th>
+              <th>Short qty</th>
+              <th>Net qty</th>
+              <th>Avg long</th>
+              <th>Avg short</th>
+              <th>Last price</th>
+              <th>Cost basis</th>
+              <th>Change</th>
+              <th>Chg %</th>
+              <th title="Long MV minus short liability">Net market value</th>
+              <th>Unrealized P&amp;L</th>
+              <th aria-label="Actions" />
+            </tr>
+          </thead>
+          <tbody>
+            {positions.map((p) => {
+              const lastPrice = p.current_price;
+              const costBasis = positionCostBasis(p);
+              const changePerShare = positionChangePerShare(p);
+              const changePct = positionChangePct(p);
+              const closableLegs = getClosableLegs(p);
+              const canClose = closableLegs.length > 0 && onPlaceOrder;
+              return (
+                <tr key={p.id || p.ticker}>
+                  <td className="paper-table__sym">{p.ticker}</td>
+                  <td>{p.long_qty ?? 0}</td>
+                  <td>{p.short_qty ?? 0}</td>
+                  <td>{p.net_qty ?? 0}</td>
+                  <td>{money(p.avg_long_cost)}</td>
+                  <td>{money(p.avg_short_cost)}</td>
+                  <td>{money(lastPrice)}</td>
+                  <td>{money(costBasis)}</td>
+                  <td className={toneClass(changePerShare)}>
+                    {changePerShare != null ? fmtAbsSigned(changePerShare) : '—'}
+                  </td>
+                  <td className={toneClass(changePct)}>
+                    {changePct != null ? fmtPctSigned(changePct) : '—'}
+                  </td>
+                  <td className={toneClass(p.market_value)}>
+                    {money(p.market_value)}
+                    {Number(p.short_qty) > 0 && Number(p.long_qty) > 0 ? (
+                      <span className="paper-table__sub">
+                        L {money(p.long_market_value)} · S −{money(p.short_market_value)}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className={toneClass(p.unrealized_pnl)}>
+                    {money(p.unrealized_pnl)}
                     <span className="paper-table__sub">
-                      L {money(p.long_market_value)} · S −{money(p.short_market_value)}
+                      {changePct != null ? fmtPctSigned(changePct) : ''}
                     </span>
-                  ) : null}
-                </td>
-                <td className={toneClass(p.unrealized_pnl)}>
-                  {money(p.unrealized_pnl)}
-                  <span className="paper-table__sub">
-                    {changePct != null ? fmtPctSigned(changePct) : ''}
-                  </span>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+                  </td>
+                  <td className="paper-table__actions">
+                    {canClose ? (
+                      <button
+                        type="button"
+                        className="paper-close-pos-btn"
+                        onClick={() => setClosePosition(p)}
+                        title={`Close ${p.ticker} position`}
+                      >
+                        Close
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <ClosePositionModal
+        open={closePosition != null}
+        position={closePosition}
+        onClose={() => {
+          if (!closeBusy) setClosePosition(null);
+        }}
+        onConfirm={handleCloseConfirm}
+        busy={closeBusy}
+      />
+    </>
   );
 }

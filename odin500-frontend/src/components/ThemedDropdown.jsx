@@ -39,7 +39,7 @@ function OptionLabel({ opt }) {
  * Shared menu-style dropdown for dark/light themes.
  * @param {{
  *   value: string,
- *   options: Array<{ id: string, label: string, tag?: 'auto' | 'user' | 'default' }>,
+ *   options: Array<{ id: string, label: string, tag?: 'auto' | 'user' | 'default', disabled?: boolean, disabledTitle?: string }>,
  *   onChange: (next: string) => void,
  *   icon?: import('react').ReactNode,
  *   title?: string,
@@ -185,8 +185,16 @@ export function ThemedDropdown({
             type="button"
             role="menuitemradio"
             aria-checked={value === opt.id}
-            className={'app-dropdown__item' + (value === opt.id ? ' app-dropdown__item--active' : '')}
+            aria-disabled={opt.disabled || undefined}
+            disabled={opt.disabled}
+            title={opt.disabled ? opt.disabledTitle || opt.label : undefined}
+            className={
+              'app-dropdown__item' +
+              (value === opt.id ? ' app-dropdown__item--active' : '') +
+              (opt.disabled ? ' app-dropdown__item--disabled' : '')
+            }
             onClick={() => {
+              if (opt.disabled) return;
               onChange(opt.id);
               setOpen(false);
             }}

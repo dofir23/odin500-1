@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { ModalCloseIcon } from '../ModalCloseIcon.jsx';
 
 /**
  * Centered modal shell — same pattern as watchlist create (`wl-manage-overlay` / `wl-manage-modal`).
  */
-export function PaperManageModal({ open, title, titleId, onClose, children, footer }) {
+export function PaperManageModal({ open, title, titleId, onClose, children, footer, modalClassName = '' }) {
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (e) => {
@@ -23,7 +24,7 @@ export function PaperManageModal({ open, title, titleId, onClose, children, foot
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="wl-manage-modal"
+        className={'wl-manage-modal' + (modalClassName ? ` ${modalClassName}` : '')}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -34,7 +35,7 @@ export function PaperManageModal({ open, title, titleId, onClose, children, foot
             {title}
           </h3>
           <button type="button" className="wl-manage-modal__close" onClick={onClose} aria-label="Close">
-            <span aria-hidden>×</span>
+            <ModalCloseIcon className="wl-manage-modal__close-icon" />
           </button>
         </div>
         <div className="wl-manage-modal__body">{children}</div>

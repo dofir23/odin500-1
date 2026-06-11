@@ -28,7 +28,29 @@ function WatchlistKindTag({ kind }) {
   );
 }
 
-function LeaderTable({ title, rows, side, rules, busy, onAddRule, onAddToForm }) {
+function IcoRuleExists() {
+  return (
+    <svg
+      className="paper-strategy-wl__rule-tick"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="10" fill="currentColor" fillOpacity="0.18" />
+      <path
+        d="M8 12.5l2.5 2.5 5.5-6"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function LeaderTable({ title, rows, side, rules, busy, onAddRule, onAddToForm, onScrollToRules }) {
   const [selected, setSelected] = useState(() => new Set());
   const checkAllRef = useRef(null);
   const existing = new Set((rules || []).map(ruleTickerKey));
@@ -67,6 +89,7 @@ function LeaderTable({ title, rows, side, rules, busy, onAddRule, onAddToForm })
     const checked = rows.filter((r) => selected.has(r.symbol));
     if (!checked.length) return;
     await onAddRule(checked, side);
+    onScrollToRules?.();
   }
 
   function addFormForChecked() {
@@ -143,11 +166,11 @@ function LeaderTable({ title, rows, side, rules, busy, onAddRule, onAddToForm })
                   <span className="paper-strategy-wl__sym">{row.symbol}</span>
                   <span className="paper-strategy-wl__bucket">{row.bucket}</span>
                   {hasRule ? (
-                    <span className="paper-strategy-wl__has-rule" title="Rule already exists">
-                      Rule
+                    <span className="paper-strategy-wl__rule-tick-wrap" title="Rule already exists" aria-label="Rule exists">
+                      <IcoRuleExists />
                     </span>
                   ) : (
-                    <span className="paper-strategy-wl__has-rule paper-strategy-wl__has-rule--empty" aria-hidden />
+                    <span className="paper-strategy-wl__rule-tick-wrap paper-strategy-wl__rule-tick-wrap--empty" aria-hidden />
                   )}
                 </li>
               );
@@ -166,7 +189,8 @@ export function StrategyWatchlistPanel({
   saveError = '',
   onWatchlistKeyChange,
   onAddRule,
-  onAddTickersToForm
+  onAddTickersToForm,
+  onScrollToRules
 }) {
   const { options, loading: optionsLoading, error: optionsError } = useWatchlistOptions();
   const [selectedKey, setSelectedKey] = useState('');
@@ -246,11 +270,13 @@ export function StrategyWatchlistPanel({
 
   return (
     <section className="paper-strategy-section paper-strategy-wl" data-tour="paper-strategy-watchlist">
-      <h4 className="paper-strategy-section__title">Watchlist signals</h4>
-      <p className="paper-strategy-muted paper-strategy-wl__intro">
-        Pick a watchlist to see long and short Odin signals. Check tickers, then use + Add rule or + Form
-        to apply them in bulk.
-      </p>
+      <div className="paper-strategy-section__head">
+        <h4 className="paper-strategy-section__title">Watchlist signals</h4>
+        <p className="paper-strategy-section__desc">
+          Pick a watchlist to see long and short Odin signals. Check tickers, then use + Add rule or + Form
+          to create a rule in the modal.
+        </p>
+      </div>
 
       <div className="paper-strategy-wl__picker" ref={ddRef}>
         <span className="paper-field__label">Watchlist</span>
@@ -312,6 +338,7 @@ export function StrategyWatchlistPanel({
             busy={busy}
             onAddRule={handleAddRules}
             onAddToForm={(syms) => onAddTickersToForm?.(syms)}
+            onScrollToRules={onScrollToRules}
           />
           <LeaderTable
             title="Short signals"
@@ -321,6 +348,7 @@ export function StrategyWatchlistPanel({
             busy={busy}
             onAddRule={handleAddRules}
             onAddToForm={(syms) => onAddTickersToForm?.(syms)}
+            onScrollToRules={onScrollToRules}
           />
         </div>
       )}

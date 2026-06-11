@@ -27,8 +27,17 @@ export function AccountSummary({ account, loading }) {
   }
 
   const equity = account?.equity ?? account?.cash_balance;
-  const totalReturn = account?.total_return ?? 0;
-  const totalReturnPct = account?.total_return_pct ?? 0;
+  const starting = Number(account?.starting_capital) || 100_000;
+  const totalReturn =
+    account?.total_return != null
+      ? Number(account.total_return)
+      : equity != null
+        ? Number(equity) - starting
+        : 0;
+  const totalReturnPct =
+    starting > 0 && Number.isFinite(totalReturn)
+      ? (totalReturn / starting) * 100
+      : Number(account?.total_return_pct ?? 0);
   const openPnl = account?.unrealized_pnl_total ?? 0;
   const closedPnl = account?.realized_pnl_total ?? 0;
   return (
@@ -45,7 +54,7 @@ export function AccountSummary({ account, loading }) {
         <span className="paper-stat__label">Total return</span>
         <strong className={`paper-stat__value ${toneClass(totalReturn)}`}>
           {money(totalReturn)}
-          <span>{fmtPctSigned(totalReturnPct)}</span>
+          <span>{fmtPctSigned(totalReturnPct, { decimals: 2 })}</span>
         </strong>
       </article>
       <article className="paper-stat">

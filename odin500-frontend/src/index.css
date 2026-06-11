@@ -1241,11 +1241,24 @@ backdrop-filter: blur(12px);
   color: #e2e8f0;
 }
 
+.wl-manage-modal__close-icon {
+  width: 1.35em;
+  height: 1.35em;
+  display: block;
+}
+
+.np-export-modal__close .wl-manage-modal__close-icon {
+  width: 1.35em;
+  height: 1.35em;
+}
+
 .wl-manage-modal__body {
   padding: 16px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+  /* scrollbar-width: thin;
+    scrollbar-color: var(--paper-scroll-thumb) #FFFFFF08; */
 }
 
 .wl-manage-modal__foot {
@@ -7588,6 +7601,7 @@ button:disabled {
   font-weight: 600;
   padding: 8px 36px 8px 10px;
   line-height: 1.25;
+  min-height: 42px;
 }
 
 .ticker-symbol-search__checklist {

@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import { PaperManageModal } from './PaperManageModal.jsx';
 import { StrategyRuleForm } from './StrategyRuleForm.jsx';
-import { StrategyRulesList } from './StrategyRulesList.jsx';
 import { ruleSummary } from './strategyRuleUtils.js';
+
+const WIZARD_STEPS = [
+  { key: 'account', label: 'Portfolio' },
+  { key: 'strategy', label: 'Strategy' },
+  { key: 'rules', label: 'Rules' }
+];
 
 export function StrategyAccountWizard({
   open,
@@ -43,28 +48,61 @@ export function StrategyAccountWizard({
         _localId: `${Date.now()}-${r.length + i}`
       }))
     ]);
+    setError('');
+  }
+
+  function validateStep(targetStep) {
+    if (targetStep >= 1 && !accountName.trim()) {
+      setError('Enter a portfolio name');
+      return false;
+    }
+    if (targetStep >= 2 && !strategyName.trim()) {
+      setError('Enter a strategy name');
+      return false;
+    }
+    return true;
+  }
+
+  function goNext() {
+    if (step === 0) {
+      if (!validateStep(1)) return;
+      setError('');
+      setStep(1);
+      return;
+    }
+    if (step === 1) {
+      if (!validateStep(2)) return;
+      setError('');
+      setStep(2);
+    }
+  }
+
+  function goBack() {
+    setError('');
+    setStep((s) => Math.max(0, s - 1));
   }
 
   async function finish() {
     const accName = accountName.trim();
     const stratName = strategyName.trim();
     if (!accName) {
-      setError('Enter an account name');
+      setError('Enter a portfolio name');
+      setStep(0);
       return;
     }
     if (!stratName) {
       setError('Enter a strategy name');
+      setStep(1);
       return;
     }
     if (!pendingRules.length) {
-      setError('Add at least one rule');
+      setError('Add at least one rule before creating the account');
       return;
     }
     setBusy(true);
     setError('');
     try {
-      const displayName = accName ? accName : "Strategy Account";
-      const account = await createAccount({ name: displayName, activate: false });
+      const account = await createAccount({ name: accName, activate: false });
       const strategy = await createStrategy({ name: stratName, description: null });
       for (const rule of pendingRules) {
         const { _localId, ...payload } = rule;
@@ -80,52 +118,40 @@ export function StrategyAccountWizard({
     }
   }
 
+  const accountFormId = 'paper-wizard-step-account-form';
+  const strategyFormId = 'paper-wizard-step-strategy-form';
+
   const footer = (
-    <>
-      <button type="button" className="wl-manage-btn wl-manage-btn--ghost" onClick={handleClose} disabled={busy}>
+    <div className="paper-strategy-wizard__actions">
+      <button type="button" className="paper-btn paper-btn--danger" onClick={handleClose} disabled={busy}>
         Cancel
       </button>
       {step > 0 ? (
-        <button
-          type="button"
-          className="wl-manage-btn wl-manage-btn--ghost"
-          onClick={() => setStep((s) => s - 1)}
-          disabled={busy}
-        >
+        <button type="button" className="paper-btn paper-btn--ghost" onClick={goBack} disabled={busy}>
           Back
         </button>
       ) : null}
       {step < 2 ? (
         <button
-          type="button"
-          className="wl-manage-btn wl-manage-btn--primary"
+          type="submit"
+          form={step === 0 ? accountFormId : strategyFormId}
+          className="paper-btn paper-btn--submit-entry"
           disabled={busy}
-          onClick={() => {
-            if (step === 0 && !accountName.trim()) {
-              setError('Enter an account name');
-              return;
-            }
-            if (step === 1 && !strategyName.trim()) {
-              setError('Enter a strategy name');
-              return;
-            }
-            setError('');
-            setStep((s) => s + 1);
-          }}
         >
           Next
         </button>
       ) : (
         <button
           type="button"
-          className="wl-manage-btn wl-manage-btn--primary"
-          disabled={busy}
+          className="paper-btn paper-btn--submit-entry"
+          disabled={busy || pendingRules.length === 0}
+          title={pendingRules.length === 0 ? 'Add at least one rule first' : undefined}
           onClick={() => void finish()}
         >
           {busy ? 'Creating…' : 'Create strategy account'}
         </button>
       )}
-    </>
+    </div>
   );
 
   return (
@@ -133,65 +159,146 @@ export function StrategyAccountWizard({
       open={open}
       title="New strategy account"
       titleId="paper-strategy-wizard-title"
+      modalClassName={'paper-strategy-wizard' + (step === 2 ? ' paper-strategy-wizard--rules' : '')}
       onClose={handleClose}
       footer={footer}
     >
+      <nav className="paper-strategy-wizard__steps" aria-label="Setup progress">
+        {WIZARD_STEPS.map((s, i) => (
+          <div
+            key={s.key}
+            className={
+              'paper-strategy-wizard__step-indicator' +
+              (i === step ? ' paper-strategy-wizard__step-indicator--active' : '') +
+              (i < step ? ' paper-strategy-wizard__step-indicator--done' : '')
+            }
+          >
+            <span className="paper-strategy-wizard__step-num">{i + 1}</span>
+            <span className="paper-strategy-wizard__step-label">{s.label}</span>
+          </div>
+        ))}
+      </nav>
+
       {step === 0 ? (
-        <div data-tour="paper-wizard-step-account">
-          <p className="paper-modal-msg">
-            Create a dedicated paper portfolio with automated rules (price or Odin signals).
+        <form
+          id={accountFormId}
+          className="paper-strategy-wizard__panel"
+          data-tour="paper-wizard-step-account"
+          onSubmit={(e) => {
+            e.preventDefault();
+            goNext();
+          }}
+        >
+          <p className="paper-strategy-wizard__intro">
+            Create a dedicated paper portfolio that runs automated rules on a server schedule (~5 min).
           </p>
-          <label className="wl-manage-label" htmlFor="paper-wizard-account-name">
-            Portfolio name
+          <label className="paper-field" htmlFor="paper-wizard-account-name">
+            <span className="paper-field__label">Portfolio name</span>
+            <input
+              id="paper-wizard-account-name"
+              type="text"
+              className="paper-input paper-strategy-wizard__input"
+              value={accountName}
+              onChange={(e) => {
+                setAccountName(e.target.value);
+                setError('');
+              }}
+              placeholder="e.g. Tech momentum"
+              disabled={busy}
+              autoFocus
+            />
           </label>
-          <input
-            id="paper-wizard-account-name"
-            type="text"
-            className="wl-manage-input"
-            value={accountName}
-            onChange={(e) => setAccountName(e.target.value)}
-            placeholder="e.g. Tech momentum"
-            disabled={busy}
-          />
-        </div>
+          <p className="paper-strategy-wizard__hint">Press Enter to continue</p>
+        </form>
       ) : null}
+
       {step === 1 ? (
-        <div data-tour="paper-wizard-step-strategy">
-          <label className="wl-manage-label" htmlFor="paper-wizard-strategy-name">
-            Strategy name
+        <form
+          id={strategyFormId}
+          className="paper-strategy-wizard__panel"
+          data-tour="paper-wizard-step-strategy"
+          onSubmit={(e) => {
+            e.preventDefault();
+            goNext();
+          }}
+        >
+          <p className="paper-strategy-wizard__intro">
+            Name the strategy that will control trades for{' '}
+            <strong>{accountName.trim() || 'this portfolio'}</strong>.
+          </p>
+          <label className="paper-field" htmlFor="paper-wizard-strategy-name">
+            <span className="paper-field__label">Strategy name</span>
+            <input
+              id="paper-wizard-strategy-name"
+              type="text"
+              className="paper-input paper-strategy-wizard__input"
+              value={strategyName}
+              onChange={(e) => {
+                setStrategyName(e.target.value);
+                setError('');
+              }}
+              placeholder="e.g. AAPL long on L2"
+              disabled={busy}
+              autoFocus
+            />
           </label>
-          <input
-            id="paper-wizard-strategy-name"
-            type="text"
-            className="wl-manage-input"
-            value={strategyName}
-            onChange={(e) => setStrategyName(e.target.value)}
-            placeholder="e.g. AAPL long on L2"
-            disabled={busy}
-          />
-        </div>
+          <p className="paper-strategy-wizard__hint">Press Enter to continue</p>
+        </form>
       ) : null}
+
       {step === 2 ? (
-        <div data-tour="paper-wizard-step-rules">
-          <p className="paper-modal-msg">Add one or more rules. The strategy runs on the server schedule (~5 min).</p>
-          <ul className="paper-strategy-rules-list">
-            {pendingRules.map((r) => (
-              <li key={r._localId} className="paper-strategy-rules-list__item">
-                <span>{ruleSummary(r)}</span>
-                <button
-                  type="button"
-                  className="paper-btn paper-btn--ghost paper-btn--sm"
-                  onClick={() => setPendingRules((list) => list.filter((x) => x._localId !== r._localId))}
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-          <StrategyRuleForm busy={busy} onSubmit={addPendingRule} submitLabel="Add to list" />
+        <div className="paper-strategy-wizard__panel" data-tour="paper-wizard-step-rules">
+          <div className="paper-strategy-wizard__summary-card">
+            <span className="paper-strategy-wizard__summary-label">Setup summary</span>
+            <p className="paper-strategy-wizard__summary-text">
+              <strong>{accountName.trim()}</strong> · {strategyName.trim()}
+            </p>
+          </div>
+
+          <section className="paper-strategy-wizard__section">
+            <h4 className="paper-strategy-wizard__section-title">Rules added</h4>
+            {pendingRules.length ? (
+              <div className="paper-strategy-wizard__rules-scroll">
+                <ul className="paper-strategy-rules-list">
+                  {pendingRules.map((r) => (
+                    <li key={r._localId} className="paper-strategy-rules-list__item">
+                      <span className="paper-strategy-rules-list__summary">{ruleSummary(r)}</span>
+                      <button
+                        type="button"
+                        className="paper-btn paper-btn--ghost paper-btn--sm"
+                        disabled={busy}
+                        onClick={() =>
+                          setPendingRules((list) => list.filter((x) => x._localId !== r._localId))
+                        }
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="paper-strategy-muted paper-strategy-wizard__empty">
+                No rules yet — add at least one below.
+              </p>
+            )}
+          </section>
+
+          <section className="paper-strategy-wizard__section">
+            <h4 className="paper-strategy-wizard__section-title">Add rule</h4>
+            <StrategyRuleForm
+              formId="paper-wizard-add-rule-form"
+              variant="modal"
+              busy={busy}
+              existingRules={pendingRules}
+              onSubmit={addPendingRule}
+              submitLabel="Add to list"
+            />
+          </section>
         </div>
       ) : null}
-      {error ? <p className="wl-manage-err">{error}</p> : null}
+
+      {error ? <p className="paper-strategy-err paper-strategy-wizard__err">{error}</p> : null}
     </PaperManageModal>
   );
 }

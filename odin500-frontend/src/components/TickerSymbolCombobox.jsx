@@ -420,6 +420,7 @@ export function TickerSymbolCombobox({
                     >
                       <input
                         type="checkbox"
+                        className="paper-strategy-wl__checkbox"
                         checked={checked}
                         onChange={() => toggleSymbol(sym)}
                       />

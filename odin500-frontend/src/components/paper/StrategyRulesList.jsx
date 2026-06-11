@@ -1,10 +1,15 @@
 import { ruleSummary } from './strategyRuleUtils.js';
 
+const RULES_SCROLL_THRESHOLD = 10;
+
 export function StrategyRulesList({ rules = [], onEdit, onDelete, busy = false, editingRuleId = null }) {
   if (!rules.length) {
     return <p className="paper-strategy-muted">No rules yet. Add at least one rule to automate trades.</p>;
   }
-  return (
+
+  const scrollable = rules.length > RULES_SCROLL_THRESHOLD;
+
+  const list = (
     <ul className="paper-strategy-rules-list">
       {rules.map((rule) => (
         <li
@@ -45,5 +50,15 @@ export function StrategyRulesList({ rules = [], onEdit, onDelete, busy = false, 
         </li>
       ))}
     </ul>
+  );
+
+  if (!scrollable) {
+    return list;
+  }
+
+  return (
+    <div className="paper-strategy-rules-list-scroll" role="region" aria-label="Strategy rules">
+      {list}
+    </div>
   );
 }

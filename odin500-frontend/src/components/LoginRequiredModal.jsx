@@ -1,4 +1,5 @@
 ﻿import { createElement } from 'react';
+import { ModalCloseIcon } from './ModalCloseIcon.jsx';
 
 const D = 'di' + 'v';
 
@@ -27,7 +28,7 @@ export function LoginRequiredModal({ open, onClose, onLogin, onSignup }) {
         createElement(
           'button',
           { type: 'button', className: 'wl-manage-modal__close', onClick: onClose, 'aria-label': 'Close' },
-          '×'
+          createElement(ModalCloseIcon, { className: 'wl-manage-modal__close-icon' })
         )
       ),
       createElement(

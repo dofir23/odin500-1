@@ -532,7 +532,11 @@ function PaperTradingPageContent() {
                   }}
                 />
               ) : tab === 'positions' ? (
-                <PositionsTable positions={positions} loading={positionsLoading} />
+                <PositionsTable
+                  positions={positions}
+                  loading={positionsLoading}
+                  onPlaceOrder={handlePlaceOrder}
+                />
               ) : tab === 'closed' ? (
                 <ClosedTradesTable trades={closedTrades} totals={closedTotals} loading={closedLoading} />
               ) : (

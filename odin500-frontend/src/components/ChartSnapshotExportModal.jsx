@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom';
+import { ModalCloseIcon } from './ModalCloseIcon.jsx';
 
 /**
  * Preview + download modal for chart PNG exports (shared np-export-modal styles).
@@ -47,7 +48,7 @@ export function ChartSnapshotExportModal({
             {title}
           </h2>
           <button type="button" className="np-export-modal__close" onClick={onClose} aria-label="Close">
-            ×
+            <ModalCloseIcon className="wl-manage-modal__close-icon" />
           </button>
         </div>
         <div className="np-export-modal__body">

@@ -36,6 +36,7 @@ import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
 import { formatRelativePerfPct } from '../utils/marketCalculations.js';
 import { fmtAbsSigned, fmtPctSigned, fmtPrice, fmtVolumeCompact } from '../utils/formatDisplayNumber.js';
 import { sectorFieldToEtfSlug } from '../utils/sectorEtfMatch.js';
+import { ModalCloseIcon } from '../components/ModalCloseIcon.jsx';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { ReturnsChartClickableHeading } from '../components/ReturnsChartClickableTitle.jsx';
 import { ReturnsChartPieIcon } from '../components/returnsChartToolbarIcons.jsx';
@@ -2041,7 +2042,7 @@ export default function TickerPage() {
                         onClick={() => setIsCustomRangePopupOpen(false)}
                         aria-label="Close custom range"
                       >
-                        ×
+                        <ModalCloseIcon className="wl-manage-modal__close-icon" />
                       </button>
                     </div>
                     <div className="wl-manage-modal__body ticker-custom-range-popup__body">

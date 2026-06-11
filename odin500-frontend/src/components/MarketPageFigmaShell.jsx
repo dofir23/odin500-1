@@ -375,7 +375,7 @@ return (
 
 const SUMMARY_RETURNS_DEFS = [
   { key: 'SPX', label: 'S&P 500' },
-  { key: 'INDU', label: 'Dow Jones' },
+  { key: 'DJI', label: 'Dow Jones' },
   { key: 'NDX', label: 'Nasdaq-100' },
   { key: 'XLK', label: 'Technology' },
   { key: 'XLE', label: 'Energy' },

@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { TickerSymbolCombobox } from '../TickerSymbolCombobox.jsx';
 import { ThemedDropdown } from '../ThemedDropdown.jsx';
+import { SignalBucketMultiSelect } from './SignalBucketMultiSelect.jsx';
 import { isClosingPaperAction, isOpeningPaperAction } from './paperActionLabels.js';
 import {
-  RULE_TYPE_OPTIONS,
-  SIGNAL_BUCKETS,
-  ACTION_OPTIONS,
+  buildActionOptions,
   buildRulePayload,
   buildRulePayloads,
+  buildRuleTypeOptions,
+  coalesceActionForRuleType,
+  getDisabledSignalBuckets,
+  getExitSignalRestrictions,
   ruleToForm,
   validateRuleForm
 } from './strategyRuleUtils.js';
@@ -20,7 +23,7 @@ const EMPTY = {
   maxPositionQty: '10',
   closeAll: false,
   threshold_value: '',
-  signalBucket: 'L1'
+  signalBuckets: []
 };
 
 export function StrategyRuleForm({
@@ -29,11 +32,16 @@ export function StrategyRuleForm({
   submitLabel = 'Add rule',
   editingRule = null,
   onCancelEdit,
-  tickerSeed = null
+  tickerSeed = null,
+  existingRules = [],
+  variant = 'inline',
+  formId,
+  hideActions = false
 }) {
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState('');
   const isEditing = Boolean(editingRule?.id);
+  const excludeRuleId = editingRule?.id ?? editingRule?._localId ?? null;
 
   useEffect(() => {
     if (editingRule) {
@@ -43,6 +51,73 @@ export function StrategyRuleForm({
     }
     setError('');
   }, [editingRule?.id]);
+
+  const showBucket = form.uiRuleType === 'signal_bucket';
+
+  const ruleTypeOptions = useMemo(
+    () => buildRuleTypeOptions(existingRules, form.tickers, form.action, excludeRuleId),
+    [existingRules, form.tickers, form.action, excludeRuleId]
+  );
+
+  const actionOptions = useMemo(
+    () => buildActionOptions(form.uiRuleType, form.signalBuckets),
+    [form.uiRuleType, form.signalBuckets]
+  );
+
+  useEffect(() => {
+    setForm((f) => {
+      const nextAction = coalesceActionForRuleType(f.uiRuleType, f.signalBuckets, f.action);
+      if (nextAction === f.action) return f;
+      const next = { ...f, action: nextAction };
+      if (isOpeningPaperAction(nextAction)) {
+        next.closeAll = false;
+        if (!next.maxPositionQty) next.maxPositionQty = '10';
+      }
+      if (isClosingPaperAction(nextAction)) {
+        next.maxPositionQty = '';
+      }
+      return next;
+    });
+  }, [form.uiRuleType, form.signalBuckets]);
+
+  const disabledBuckets = useMemo(
+    () => getDisabledSignalBuckets(existingRules, form.tickers, form.action, excludeRuleId),
+    [existingRules, form.tickers, form.action, excludeRuleId]
+  );
+
+  const exitRestrictions = useMemo(
+    () =>
+      isClosingPaperAction(form.action)
+        ? getExitSignalRestrictions(existingRules, form.tickers, form.action, excludeRuleId)
+        : { blockedRuleTypes: new Set(), blockedBuckets: new Set() },
+    [existingRules, form.tickers, form.action, excludeRuleId]
+  );
+
+  const blockedRuleTypeKey = useMemo(
+    () => [...exitRestrictions.blockedRuleTypes].sort().join(','),
+    [exitRestrictions]
+  );
+
+  useEffect(() => {
+    if (!showBucket || !form.signalBuckets?.length) return;
+    const pruned = form.signalBuckets.filter((b) => !disabledBuckets.has(b));
+    if (pruned.length !== form.signalBuckets.length) {
+      setForm((f) => ({ ...f, signalBuckets: pruned }));
+    }
+  }, [disabledBuckets, form.signalBuckets, showBucket]);
+
+  useEffect(() => {
+    if (!blockedRuleTypeKey) return;
+    const blocked = new Set(blockedRuleTypeKey.split(',').filter(Boolean));
+    if (!blocked.has(form.uiRuleType)) return;
+    const fallback = ruleTypeOptions.find((o) => !o.disabled);
+    if (!fallback || fallback.id === form.uiRuleType) return;
+    setForm((f) => ({
+      ...f,
+      uiRuleType: fallback.id,
+      signalBuckets: fallback.id === 'signal_bucket' ? f.signalBuckets : []
+    }));
+  }, [blockedRuleTypeKey, form.uiRuleType, ruleTypeOptions]);
 
   useEffect(() => {
     if (!tickerSeed?.symbols?.length) return;
@@ -59,18 +134,28 @@ export function StrategyRuleForm({
 
   const showThreshold =
     form.uiRuleType === 'price_above' || form.uiRuleType === 'price_below';
-  const showBucket = form.uiRuleType === 'signal_bucket';
   const isOpen = isOpeningPaperAction(form.action);
   const isClose = isClosingPaperAction(form.action);
+  const editTicker = form.tickers[0] || '';
 
   function update(patch) {
     setForm((f) => {
       const next = { ...f, ...patch };
-      if (patch.action) {
-        if (isOpeningPaperAction(patch.action)) {
+      if (patch.uiRuleType !== undefined || patch.signalBuckets !== undefined) {
+        next.action = coalesceActionForRuleType(
+          next.uiRuleType,
+          next.signalBuckets,
+          next.action
+        );
+      }
+      const actionChanged =
+        patch.action !== undefined ||
+        (patch.uiRuleType !== undefined || patch.signalBuckets !== undefined);
+      if (actionChanged) {
+        if (isOpeningPaperAction(next.action)) {
           next.closeAll = false;
         }
-        if (isClosingPaperAction(patch.action)) {
+        if (isClosingPaperAction(next.action)) {
           next.maxPositionQty = '';
         }
       }
@@ -81,7 +166,7 @@ export function StrategyRuleForm({
 
   function handleSubmit(e) {
     e.preventDefault();
-    const err = validateRuleForm(form);
+    const err = validateRuleForm(form, { existingRules, excludeRuleId });
     if (err) {
       setError(err);
       return;
@@ -118,9 +203,24 @@ export function StrategyRuleForm({
     </label>
   );
 
+  const isModal = variant === 'modal';
+  const showInlineActions = !hideActions;
+
+  const submitBtnClass =
+    'paper-btn' +
+    (isEditing
+      ? ' paper-btn--submit-entry'
+      : isOpeningPaperAction(form.action)
+        ? ' paper-btn--submit-entry'
+        : ' paper-btn--submit-exit');
+
   return (
-    <form className="paper-strategy-rule-form" onSubmit={handleSubmit}>
-      {isEditing ? (
+    <form
+      id={formId}
+      className={'paper-strategy-rule-form' + (isModal ? ' paper-strategy-rule-form--modal' : '')}
+      onSubmit={handleSubmit}
+    >
+      {isEditing && !isModal ? (
         <p className="paper-strategy-muted paper-strategy-rule-form__hint">
           Editing rule for <strong>{editingRule.ticker}</strong>
         </p>
@@ -129,17 +229,28 @@ export function StrategyRuleForm({
         <label className="paper-field">
           <span className="paper-field__label">Rule type</span>
           <ThemedDropdown
+            className="paper-strategy-rule-form__dd"
+            wideLabel
             value={form.uiRuleType}
-            options={RULE_TYPE_OPTIONS}
-            onChange={(id) => update({ uiRuleType: id })}
+            options={ruleTypeOptions}
+            onChange={(id) =>
+              update({
+                uiRuleType: id,
+                signalBuckets: id === 'signal_bucket' ? form.signalBuckets : []
+              })
+            }
             ariaLabelPrefix="Rule type"
             labelFallback="Rule type"
           />
         </label>
-        <label className="paper-field paper-field--span2">
+        <label className="paper-field">
           <span className="paper-field__label">Tickers</span>
           <TickerSymbolCombobox
             multiple={!isEditing}
+            symbol={editTicker}
+            onSymbolChange={(sym) =>
+              update({ tickers: sym ? [String(sym).trim().toUpperCase()] : [] })
+            }
             symbols={form.tickers}
             onSymbolsChange={(symbols) => update({ tickers: symbols })}
             inputId="paper-strategy-ticker"
@@ -149,8 +260,9 @@ export function StrategyRuleForm({
         <label className="paper-field">
           <span className="paper-field__label">Action</span>
           <ThemedDropdown
+            className="paper-strategy-rule-form__dd"
             value={form.action}
-            options={ACTION_OPTIONS}
+            options={actionOptions}
             onChange={(id) => update({ action: id })}
             ariaLabelPrefix="Action"
             labelFallback="Action"
@@ -212,16 +324,13 @@ export function StrategyRuleForm({
           </label>
         ) : null}
         {showBucket ? (
-          <label className="paper-field">
-            <span className="paper-field__label">Signal bucket</span>
-            <ThemedDropdown
-              value={form.signalBucket}
-              options={SIGNAL_BUCKETS.map((b) => ({ id: b, label: b }))}
-              onChange={(id) => update({ signalBucket: id })}
-              ariaLabelPrefix="Signal bucket"
-              labelFallback="Bucket"
-            />
-          </label>
+          <SignalBucketMultiSelect
+            selected={form.signalBuckets}
+            disabledBuckets={disabledBuckets}
+            exitBlockedBuckets={exitRestrictions.blockedBuckets}
+            busy={busy}
+            onChange={(signalBuckets) => update({ signalBuckets })}
+          />
         ) : null}
       </div>
       {isOpen ? (
@@ -237,16 +346,18 @@ export function StrategyRuleForm({
         </p>
       ) : null}
       {error ? <p className="paper-strategy-err">{error}</p> : null}
-      <div className="paper-strategy-rule-form__actions">
-        {isEditing ? (
-          <button type="button" className="paper-btn paper-btn--ghost" disabled={busy} onClick={handleCancel}>
-            Cancel
+      {showInlineActions ? (
+        <div className="paper-strategy-rule-form__actions">
+          {isEditing ? (
+            <button type="button" className="paper-btn paper-btn--danger" disabled={busy} onClick={handleCancel}>
+              Cancel
+            </button>
+          ) : null}
+          <button type="submit" className={submitBtnClass} disabled={busy}>
+            {busy ? 'Saving…' : isEditing ? 'Save changes' : submitLabel}
           </button>
-        ) : null}
-        <button type="submit" className="paper-btn paper-btn--ghost" disabled={busy}>
-          {busy ? 'Saving…' : isEditing ? 'Save changes' : submitLabel}
-        </button>
-      </div>
+        </div>
+      ) : null}
     </form>
   );
 }

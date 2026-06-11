@@ -36,6 +36,7 @@ import {
 } from '../navigation/routeNavigationAbort.js';
 import { rowDateToTimeKey } from '../utils/chartData.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { ModalCloseIcon } from '../components/ModalCloseIcon.jsx';
 import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
 import { formatRelativePerfPct } from '../utils/marketCalculations.js';
 import { fmtAbsSigned, fmtNumber, fmtPctSigned, fmtPrice, fmtVolumeCompact } from '../utils/formatDisplayNumber.js';
@@ -2103,7 +2104,7 @@ export default function IndexPage() {
                         onClick={() => setIsCustomRangePopupOpen(false)}
                         aria-label="Close custom range"
                       >
-                        ×
+                        <ModalCloseIcon className="wl-manage-modal__close-icon" />
                       </button>
                     </div>
                     <div className="wl-manage-modal__body ticker-custom-range-popup__body">

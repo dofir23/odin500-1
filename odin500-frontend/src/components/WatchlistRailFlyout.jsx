@@ -9,6 +9,7 @@ import {
   resolveTickerSymbolsBatched
 } from '../utils/watchlistCsv.js';
 import { WatchlistTickerMultiselect } from './WatchlistTickerMultiselect.jsx';
+import { ModalCloseIcon } from './ModalCloseIcon.jsx';
 import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 
 /**
@@ -1036,7 +1037,7 @@ export function WatchlistRailFlyout({ open, onClose, docked = false }) {
                 {createFromCopy ? 'Watchlist Copy' : 'Create watchlist'}
               </h3>
               <button type="button" className="wl-manage-modal__close" onClick={closeManageUi} aria-label="Close">
-                <IcoClose className="wl-flyout__iconbtn-svg" />
+                <ModalCloseIcon className="wl-manage-modal__close-icon" />
               </button>
             </div>
             <div className="wl-manage-modal__body">
@@ -1115,7 +1116,7 @@ export function WatchlistRailFlyout({ open, onClose, docked = false }) {
                 Delete watchlist
               </h3>
               <button type="button" className="wl-manage-modal__close" onClick={closeManageUi} aria-label="Close">
-                <IcoClose className="wl-flyout__iconbtn-svg" />
+                <ModalCloseIcon className="wl-manage-modal__close-icon" />
               </button>
             </div>
             <div className="wl-manage-modal__body">
@@ -1168,7 +1169,7 @@ export function WatchlistRailFlyout({ open, onClose, docked = false }) {
                 Update watchlist
               </h3>
               <button type="button" className="wl-manage-modal__close" onClick={closeManageUi} aria-label="Close">
-                <IcoClose className="wl-flyout__iconbtn-svg" />
+                <ModalCloseIcon className="wl-manage-modal__close-icon" />
               </button>
             </div>
             <div className="wl-manage-modal__body">
@@ -1220,7 +1221,7 @@ export function WatchlistRailFlyout({ open, onClose, docked = false }) {
                 Edit watchlist
               </h3>
               <button type="button" className="wl-manage-modal__close" onClick={closeManageUi} aria-label="Close">
-                <IcoClose className="wl-flyout__iconbtn-svg" />
+                <ModalCloseIcon className="wl-manage-modal__close-icon" />
               </button>
             </div>
             <div className="wl-manage-modal__body">

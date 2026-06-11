@@ -37,6 +37,7 @@ const tickerReportRoutes = require('./routes/tickerReportRoutes');
 const { startSnapshotRefresher } = require('./services/snapshotRefresher');
 const { startTickerReturnsPrewarmer, waitForTickerReturnsWarmup } = require('./services/tickerReturnsPrewarmer');
 const { startPaperJobs } = require('./services/paperJobRunner');
+const { getPublicOhlcPreview } = require('./controllers/marketController');
 
 const app = express();
 
@@ -70,6 +71,9 @@ app.get('/api/public/supabase-config', (req, res) => {
         anonKey: process.env.SUPABASE_KEY || ''
     });
 });
+
+/** Read-only daily OHLC slice for SEO crawlers and SSR (no auth). */
+app.get('/api/public/market/ohlc-preview', getPublicOhlcPreview);
 
 app.get('/', (req, res) => {
     res.send('Trading App Backend is running!');

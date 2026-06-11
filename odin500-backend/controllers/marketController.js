@@ -33,6 +33,7 @@
 
 // module.exports = { getStockData };
 const bigquery = require('../config/bigquery');
+const tickersDb = require('../config/supabaseTickers');
 const analyticsData = require('../analyticsData');
 const { makeCacheKey, getCache, setCache } = require('../utils/cache');
 const { warmTickerReturnsInBackground } = require('../services/tickerReturnsPrewarmer');
@@ -57,6 +58,8 @@ const MA200_TABLE_FQN =
 
 const OHLC_MAX_LIMIT = 500;
 const OHLC_DEFAULT_LIMIT = 100;
+const PUBLIC_OHLC_PREVIEW_DEFAULT = 30;
+const PUBLIC_OHLC_PREVIEW_MAX = 60;
 /** When start_date + end_date are set, max rows per request (full series up to this cap). Override via OHLC_RANGE_MAX_ROWS. */
 const OHLC_RANGE_MAX_ROWS = Number(process.env.OHLC_RANGE_MAX_ROWS || 25000);
 /** Upper bound on OFFSET for range queries (abuse guard). */
@@ -1315,8 +1318,90 @@ const getIndexConstituentLeaders = async (req, res) => {
     }
 };
 
+/**
+ * GET /api/public/market/ohlc-preview?symbol=AAPL&limit=30
+ * Public, read-only slice of daily OHLC for SEO crawlers (no auth).
+ */
+const getPublicOhlcPreview = async (req, res) => {
+    const symbol = (req.query.symbol || '').toString().trim();
+    if (!symbol) {
+        return res.status(400).json({ error: 'Symbol is required' });
+    }
+    const sym = symbol.toUpperCase();
+    if (!/^[A-Z0-9.-]{1,20}$/.test(sym)) {
+        return res.status(400).json({ error: 'Invalid symbol' });
+    }
+
+    let limit = PUBLIC_OHLC_PREVIEW_DEFAULT;
+    if (req.query.limit != null && req.query.limit !== '') {
+        const n = parseInt(req.query.limit, 10);
+        if (!Number.isNaN(n) && n > 0) {
+            limit = Math.min(n, PUBLIC_OHLC_PREVIEW_MAX);
+        }
+    }
+
+    try {
+        const cacheKey = makeCacheKey('market:public-ohlc-preview:v1', { sym, limit });
+        const cached = await getCache(cacheKey);
+        if (cached) {
+            res.set('X-Cache-Hit', '1');
+            res.set('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+            return res.status(200).json({ ...cached, cache_hit: true });
+        }
+
+        const ohlcQuery = `
+            SELECT Date, Open, High, Low, Close
+            FROM \`${TABLE_FQN}\`
+            WHERE Ticker = @symbol
+            ORDER BY Date DESC
+            LIMIT @limit
+        `;
+
+        const [{ data: tickerRow }, dateRow, [rows]] = await Promise.all([
+            tickersDb.from('tickers').select('company_name').eq('symbol', sym).maybeSingle(),
+            _fetchDateRange(sym),
+            bigquery.query({ query: ohlcQuery, params: { symbol: sym, limit } })
+        ]);
+
+        const min_date = dateRow?.min_date ? rowDateKeyFromBQ(dateRow.min_date) : '';
+        const max_date = dateRow?.max_date ? rowDateKeyFromBQ(dateRow.max_date) : '';
+        const company_name = String(tickerRow?.company_name || '').trim() || null;
+
+        const latest = rows?.[0];
+        const latest_date = latest ? rowDateKeyFromBQ(latest.Date) : '';
+        const latest_close = latest ? Number(latest.Close) : null;
+
+        const payload = {
+            symbol: sym,
+            company_name,
+            min_date,
+            max_date,
+            latest_date,
+            latest_close: Number.isFinite(latest_close) ? latest_close : null,
+            rows: (rows || []).map((r) => ({
+                date: rowDateKeyFromBQ(r.Date),
+                open: Number(r.Open),
+                high: Number(r.High),
+                low: Number(r.Low),
+                close: Number(r.Close)
+            })),
+            preview_limit: limit,
+            cache_hit: false
+        };
+
+        await setCache(cacheKey, payload, OHLC_CACHE_TTL_SECS);
+        res.set('X-Cache-Hit', '0');
+        res.set('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+        res.status(200).json(payload);
+    } catch (error) {
+        console.error('getPublicOhlcPreview error:', error);
+        res.status(500).json({ error: 'Failed to fetch OHLC preview' });
+    }
+};
+
 module.exports = {
     getStockData,
+    getPublicOhlcPreview,
     getOhlcTickerBounds,
     getMonthlyOHLC,
     getWeeklyOHLC,

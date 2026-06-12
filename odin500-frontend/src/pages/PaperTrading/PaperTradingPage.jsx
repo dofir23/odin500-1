@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Loader2, RotateCcw, Trash2 } from 'lucide-react';
+import { PaperAccountCreateMenu } from '../../components/paper/PaperAccountCreateMenu.jsx';
 import { apiUrl } from '../../utils/apiOrigin.js';
 import { fetchWithAuth } from '../../store/apiStore.js';
 import { useLoginGateOptional } from '../../context/LoginGateContext.jsx';
@@ -13,8 +15,12 @@ import { OrderTicket } from '../../components/paper/OrderTicket.jsx';
 import { PositionsTable } from '../../components/paper/PositionsTable.jsx';
 import { OrdersTable } from '../../components/paper/OrdersTable.jsx';
 import { ClosedTradesTable } from '../../components/paper/ClosedTradesTable.jsx';
-import { EquityCurve } from '../../components/paper/EquityCurve.jsx';
+import { PaperPerformanceChart } from '../../components/paper/PaperPerformanceChart.jsx';
 import { PortfolioInsightsPanel } from '../../components/paper/PortfolioInsightsPanel.jsx';
+import { PortfolioInsightsTab } from '../../components/paper/PortfolioInsightsTab.jsx';
+import { ClosedTradesAnalytics } from '../../components/paper/ClosedTradesAnalytics.jsx';
+import { usePaperPortfolioAnalytics } from '../../hooks/usePaperPortfolioAnalytics.js';
+import { exportClosedTradesCsv, exportPositionsCsv } from '../../utils/paperPortfolioExport.js';
 import { ThemedDropdown } from '../../components/ThemedDropdown.jsx';
 import { PaperManageModal } from '../../components/paper/PaperManageModal.jsx';
 import { StrategyPanel } from '../../components/paper/StrategyPanel.jsx';
@@ -64,9 +70,16 @@ function PaperTradingPageContent() {
     patchStrategy,
     runOnce
   } = usePaperStrategy(activeAccountId);
-  const [tab, setTab] = useState('positions');
+  const [tab, setTab] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('tab') || 'positions';
+    } catch {
+      return 'positions';
+    }
+  });
   const [wizardOpen, setWizardOpen] = useState(false);
   const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [modal, setModal] = useState(null);
@@ -74,17 +87,15 @@ function PaperTradingPageContent() {
   const [modalBusy, setModalBusy] = useState(false);
   const [modalError, setModalError] = useState('');
   const { startPaperStrategyManageTour, registerManageTourPrepare } = useProductTourContext();
-
-  useEffect(() => {
-    registerManageTourPrepare(() => {
-      setTab('strategy');
-      window.requestAnimationFrame(() => {
-        document
-          .querySelector('[data-tour="paper-strategy-panel-intro"]')
-          ?.scrollIntoView({ behavior: 'auto', block: 'start' });
-      });
-    });
-  }, [registerManageTourPrepare]);
+  const {
+    summaries: portfolioSummaries,
+    compareHistory,
+    sectors,
+    sectorEquity,
+    loading: analyticsLoading,
+    error: analyticsError,
+    refetch: refetchAnalytics
+  } = usePaperPortfolioAnalytics({ accountId: activeAccountId, enabled: true });
 
   const pendingCount = useMemo(() => orders.filter((o) => o.status === 'pending').length, [orders]);
 
@@ -129,6 +140,7 @@ function PaperTradingPageContent() {
   }
 
   const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
     try {
       const endpoint = activeAccountId
         ? `/api/paper/portfolio/history?account_id=${encodeURIComponent(activeAccountId)}`
@@ -138,16 +150,33 @@ function PaperTradingPageContent() {
       if (res.ok) setHistory(payload.history || []);
     } catch {
       setHistory([]);
+    } finally {
+      setHistoryLoading(false);
     }
   }, [activeAccountId]);
+
+  const goToTab = useCallback((nextTab) => {
+    setTab(nextTab);
+  }, []);
+
+  useEffect(() => {
+    registerManageTourPrepare(() => {
+      goToTab('strategy');
+      window.requestAnimationFrame(() => {
+        document
+          .querySelector('[data-tour="paper-strategy-panel-intro"]')
+          ?.scrollIntoView({ behavior: 'auto', block: 'start' });
+      });
+    });
+  }, [registerManageTourPrepare, goToTab]);
 
   useEffect(() => {
     void loadHistory();
   }, [loadHistory]);
 
   const handleOrderPlaced = useCallback(async () => {
-    await Promise.all([refetchAccount(), refetchPositions(), refetchClosed(), loadHistory()]);
-  }, [refetchAccount, refetchPositions, refetchClosed, loadHistory]);
+    await Promise.all([refetchAccount(), refetchPositions(), refetchClosed(), loadHistory(), refetchAnalytics()]);
+  }, [refetchAccount, refetchPositions, refetchClosed, loadHistory, refetchAnalytics]);
 
   const handlePlaceOrder = useCallback(
     async (input) => {
@@ -245,37 +274,52 @@ function PaperTradingPageContent() {
             />
           </div>
           <div className="paper-header__btn-row">
-            <button type="button" className="paper-btn paper-btn--ghost" onClick={openCreateModal}>
-              New account
-            </button>
             <button
               type="button"
-              className="paper-btn paper-btn--ghost"
-              data-tour="paper-new-strategy-account"
-              onClick={() => setWizardOpen(true)}
+              className="paper-btn paper-btn--accent"
+              onClick={() => goToTab('insights')}
+              title="Compare portfolios, sectors, and download reports"
             >
-              New strategy account
+              Portfolio insights
             </button>
+            <PaperAccountCreateMenu
+              disabled={accountLoading}
+              onManualAccount={openCreateModal}
+              onStrategyAccount={() => setWizardOpen(true)}
+            />
             <button
               type="button"
-              className="paper-btn paper-btn--ghost paper-btn--danger"
+              className="paper-btn paper-btn--icon paper-btn--ghost paper-btn--danger"
               disabled={resetting || accountLoading}
               onClick={openResetModal}
+              aria-label={resetting ? 'Resetting portfolio' : 'Reset portfolio'}
+              title="Reset portfolio to $100,000 and clear all positions"
             >
-              {resetting ? 'Resetting…' : 'Reset portfolio'}
+              {resetting ? (
+                <Loader2 className="paper-btn__icon paper-btn__icon--spin" aria-hidden />
+              ) : (
+                <RotateCcw className="paper-btn__icon" aria-hidden />
+              )}
             </button>
             <button
               type="button"
-              className="paper-btn paper-btn--danger"
+              className="paper-btn paper-btn--icon paper-btn--danger"
               disabled={
                 deletingAccount || accountLoading || !selectedAccountId || (accounts?.length ?? 0) <= 1
               }
+              aria-label={deletingAccount ? 'Deleting account' : 'Delete account'}
               title={
-                (accounts?.length ?? 0) <= 1 ? 'Keep at least one paper trading account' : undefined
+                (accounts?.length ?? 0) <= 1
+                  ? 'Keep at least one paper trading account'
+                  : 'Permanently delete this paper account'
               }
               onClick={openDeleteModal}
             >
-              {deletingAccount ? 'Deleting…' : 'Delete account'}
+              {deletingAccount ? (
+                <Loader2 className="paper-btn__icon paper-btn__icon--spin" aria-hidden />
+              ) : (
+                <Trash2 className="paper-btn__icon" aria-hidden />
+              )}
             </button>
           </div>
         </div>
@@ -401,7 +445,7 @@ function PaperTradingPageContent() {
         bindStrategy={bindStrategy}
         onComplete={async ({ accountId }) => {
           setActiveAccountId(accountId);
-          setTab('strategy');
+          goToTab('strategy');
           await Promise.all([refetchAccount(accountId), refetchStrategy(accountId)]);
           if (!isTourSkipped(TOUR_IDS.PAPER_STRATEGY_MANAGE)) {
             window.setTimeout(() => startPaperStrategyManageTour(), 750);
@@ -423,7 +467,7 @@ function PaperTradingPageContent() {
         </aside>
 
         <div className="paper-layout__main">
-          <EquityCurve history={history} />
+          <PaperPerformanceChart history={history} loading={historyLoading} />
           <PortfolioInsightsPanel
             account={account}
             positions={positions}
@@ -433,6 +477,9 @@ function PaperTradingPageContent() {
             showStrategyTab={showStrategyTab}
             loading={accountLoading || positionsLoading}
             onSetupStrategy={() => setWizardOpen(true)}
+            sectors={sectors}
+            sectorEquity={sectorEquity}
+            sectorsLoading={analyticsLoading}
           />
         </div>
       </div>
@@ -447,7 +494,7 @@ function PaperTradingPageContent() {
                   aria-selected={tab === 'positions'}
                   data-tour="paper-tab-positions"
                   className={'paper-tabs__btn' + (tab === 'positions' ? ' paper-tabs__btn--active' : '')}
-                  onClick={() => setTab('positions')}
+                  onClick={() => goToTab('positions')}
                 >
                   Positions
                   <span className="paper-tabs__count">{positions.length}</span>
@@ -457,7 +504,7 @@ function PaperTradingPageContent() {
                   role="tab"
                   aria-selected={tab === 'orders'}
                   className={'paper-tabs__btn' + (tab === 'orders' ? ' paper-tabs__btn--active' : '')}
-                  onClick={() => setTab('orders')}
+                  onClick={() => goToTab('orders')}
                 >
                   Orders
                   <span className="paper-tabs__count">{orders.length}</span>
@@ -472,10 +519,20 @@ function PaperTradingPageContent() {
                   role="tab"
                   aria-selected={tab === 'closed'}
                   className={'paper-tabs__btn' + (tab === 'closed' ? ' paper-tabs__btn--active' : '')}
-                  onClick={() => setTab('closed')}
+                  onClick={() => goToTab('closed')}
                 >
                   Closed trades
                   <span className="paper-tabs__count">{closedTrades.length}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === 'insights'}
+                  className={'paper-tabs__btn' + (tab === 'insights' ? ' paper-tabs__btn--active' : '')}
+                  onClick={() => goToTab('insights')}
+                  title="Compare all portfolios and download reports"
+                >
+                  Insights
                 </button>
                 {showStrategyTab ? (
                   <button
@@ -484,7 +541,7 @@ function PaperTradingPageContent() {
                     aria-selected={tab === 'strategy'}
                     data-tour="paper-tab-strategy"
                     className={'paper-tabs__btn' + (tab === 'strategy' ? ' paper-tabs__btn--active' : '')}
-                    onClick={() => setTab('strategy')}
+                    onClick={() => goToTab('strategy')}
                   >
                     Strategy
                     {strategyActive ? (
@@ -538,7 +595,33 @@ function PaperTradingPageContent() {
                   onPlaceOrder={handlePlaceOrder}
                 />
               ) : tab === 'closed' ? (
-                <ClosedTradesTable trades={closedTrades} totals={closedTotals} loading={closedLoading} />
+                <>
+                  <ClosedTradesAnalytics trades={closedTrades} loading={closedLoading} />
+                  <div className="paper-closed-export">
+                    <button
+                      type="button"
+                      className="paper-btn paper-btn--ghost"
+                      onClick={() => exportClosedTradesCsv(closedTrades, selectedAccountLabel)}
+                    >
+                      Download closed trades (CSV)
+                    </button>
+                  </div>
+                  <ClosedTradesTable trades={closedTrades} totals={closedTotals} loading={closedLoading} />
+                </>
+              ) : tab === 'insights' ? (
+                <PortfolioInsightsTab
+                  summaries={portfolioSummaries}
+                  compareHistory={compareHistory}
+                  sectors={sectors}
+                  sectorEquity={sectorEquity}
+                  loading={analyticsLoading}
+                  error={analyticsError}
+                  activeAccountId={activeAccountId}
+                  activeAccountName={selectedAccountLabel}
+                  onSelectAccount={setActiveAccountId}
+                  onExportPositions={() => exportPositionsCsv(positions, selectedAccountLabel)}
+                  onExportClosedTrades={() => exportClosedTradesCsv(closedTrades, selectedAccountLabel)}
+                />
               ) : (
                 <OrdersTable
                   orders={orders}

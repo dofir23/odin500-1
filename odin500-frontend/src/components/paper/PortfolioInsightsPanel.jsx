@@ -57,7 +57,10 @@ function allocationRows(positions, equity) {
  *   strategyActive: boolean,
  *   showStrategyTab: boolean,
  *   loading?: boolean,
- *   onSetupStrategy?: () => void
+ *   onSetupStrategy?: () => void,
+ *   sectors?: Array<{ sector: string, weight_pct: number, market_value: number }>,
+ *   sectorEquity?: number,
+ *   sectorsLoading?: boolean
  * }} props
  */
 export function PortfolioInsightsPanel({
@@ -68,7 +71,10 @@ export function PortfolioInsightsPanel({
   strategyActive,
   showStrategyTab,
   loading = false,
-  onSetupStrategy
+  onSetupStrategy,
+  sectors = [],
+  sectorEquity = 0,
+  sectorsLoading = false
 }) {
   const equity = Number(account?.equity) || 0;
   const cash = Number(account?.cash_balance) || 0;
@@ -150,6 +156,31 @@ export function PortfolioInsightsPanel({
                 <span>Cash {fmtPctSigned(cashPct, { decimals: 1 })}</span>
               </div>
             </div>
+
+            {sectorsLoading ? (
+              <div className="paper-insights__block">
+                <div className="paper-skeleton" style={{ minHeight: '4rem' }} aria-busy="true" />
+              </div>
+            ) : sectors.length ? (
+              <div className="paper-insights__block">
+                <h3 className="paper-insights__h">By sector</h3>
+                <p className="paper-insights__sector-hint">How your money is spread across industries.</p>
+                <ul className="paper-insights__alloc">
+                  {sectors.slice(0, 5).map((row) => (
+                    <li key={row.sector} className="paper-insights__alloc-row">
+                      <span className="paper-insights__alloc-sym">{row.sector}</span>
+                      <span className="paper-insights__alloc-bar-wrap">
+                        <span
+                          className="paper-insights__alloc-bar paper-insights__alloc-bar--sector"
+                          style={{ width: `${Math.min(100, row.weight_pct)}%` }}
+                        />
+                      </span>
+                      <span className="paper-insights__alloc-pct">{row.weight_pct.toFixed(1)}%</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             {allocation.length ? (
               <div className="paper-insights__block">

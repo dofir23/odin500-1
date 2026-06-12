@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { fmtAbsSigned, fmtPctSigned } from '../../utils/formatDisplayNumber.js';
-import { ClosePositionModal, getClosableLegs } from './ClosePositionModal.jsx';
+import { PositionOrderModal, getClosableLegs } from './ClosePositionModal.jsx';
 
 function money(v) {
   if (v == null || Number.isNaN(Number(v))) return '—';
@@ -46,18 +46,18 @@ function positionChangePct(p) {
 }
 
 export function PositionsTable({ positions, loading, onPlaceOrder }) {
-  const [closePosition, setClosePosition] = useState(null);
-  const [closeBusy, setCloseBusy] = useState(false);
+  const [orderModal, setOrderModal] = useState(null);
+  const [orderBusy, setOrderBusy] = useState(false);
 
-  async function handleCloseConfirm(orderInput) {
+  async function handleOrderConfirm(orderInput) {
     if (!onPlaceOrder) {
       throw new Error('Order placement is unavailable');
     }
-    setCloseBusy(true);
+    setOrderBusy(true);
     try {
       await onPlaceOrder(orderInput);
     } finally {
-      setCloseBusy(false);
+      setOrderBusy(false);
     }
   }
 
@@ -102,7 +102,8 @@ export function PositionsTable({ positions, loading, onPlaceOrder }) {
               const changePerShare = positionChangePerShare(p);
               const changePct = positionChangePct(p);
               const closableLegs = getClosableLegs(p);
-              const canClose = closableLegs.length > 0 && onPlaceOrder;
+              const canTrade = Boolean(onPlaceOrder);
+              const canClose = closableLegs.length > 0 && canTrade;
               return (
                 <tr key={p.id || p.ticker}>
                   <td className="paper-table__sym">{p.ticker}</td>
@@ -134,15 +135,27 @@ export function PositionsTable({ positions, loading, onPlaceOrder }) {
                     </span>
                   </td>
                   <td className="paper-table__actions">
-                    {canClose ? (
-                      <button
-                        type="button"
-                        className="paper-close-pos-btn"
-                        onClick={() => setClosePosition(p)}
-                        title={`Close ${p.ticker} position`}
-                      >
-                        Close
-                      </button>
+                    {canTrade ? (
+                      <div className="paper-pos-actions">
+                        <button
+                          type="button"
+                          className="paper-pos-action-btn paper-pos-action-btn--buy"
+                          onClick={() => setOrderModal({ position: p, mode: 'buy' })}
+                          title={`Buy or short more ${p.ticker}`}
+                        >
+                          Buy
+                        </button>
+                        {canClose ? (
+                          <button
+                            type="button"
+                            className="paper-pos-action-btn paper-pos-action-btn--close"
+                            onClick={() => setOrderModal({ position: p, mode: 'close' })}
+                            title={`Close ${p.ticker} position`}
+                          >
+                            Close
+                          </button>
+                        ) : null}
+                      </div>
                     ) : null}
                   </td>
                 </tr>
@@ -152,14 +165,15 @@ export function PositionsTable({ positions, loading, onPlaceOrder }) {
         </table>
       </div>
 
-      <ClosePositionModal
-        open={closePosition != null}
-        position={closePosition}
+      <PositionOrderModal
+        open={orderModal != null}
+        position={orderModal?.position ?? null}
+        mode={orderModal?.mode ?? 'close'}
         onClose={() => {
-          if (!closeBusy) setClosePosition(null);
+          if (!orderBusy) setOrderModal(null);
         }}
-        onConfirm={handleCloseConfirm}
-        busy={closeBusy}
+        onConfirm={handleOrderConfirm}
+        busy={orderBusy}
       />
     </>
   );

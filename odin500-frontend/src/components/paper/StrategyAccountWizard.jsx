@@ -53,11 +53,11 @@ export function StrategyAccountWizard({
 
   function validateStep(targetStep) {
     if (targetStep >= 1 && !accountName.trim()) {
-      setError('Enter a portfolio name');
+      setError('Portfolio name is required');
       return false;
     }
     if (targetStep >= 2 && !strategyName.trim()) {
-      setError('Enter a strategy name');
+      setError('Strategy name is required');
       return false;
     }
     return true;
@@ -208,7 +208,7 @@ export function StrategyAccountWizard({
               autoFocus
             />
           </label>
-          <p className="paper-strategy-wizard__hint">Press Enter to continue</p>
+
         </form>
       ) : null}
 
@@ -242,7 +242,6 @@ export function StrategyAccountWizard({
               autoFocus
             />
           </label>
-          <p className="paper-strategy-wizard__hint">Press Enter to continue</p>
         </form>
       ) : null}
 

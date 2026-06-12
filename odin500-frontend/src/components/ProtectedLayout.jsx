@@ -98,7 +98,7 @@ function ProtectedLayoutShell() {
     const scroller = mainScrollRef.current;
     if (scroller) scroller.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     if (typeof window !== 'undefined') window.scrollTo(0, 0);
-  }, [location.pathname, location.search]);
+  }, [location.pathname]);
 
   const toggleTheme = () => {
     setTheme((t) => (t === 'dark' ? 'light' : 'dark'));

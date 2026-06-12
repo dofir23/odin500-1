@@ -22,6 +22,11 @@ const {
 } = require('../services/paper/pnlCalculator');
 const { runStrategiesForAccount } = require('../services/paper/strategyRunner');
 const { getWatchlistSignalLeaders } = require('../services/paper/watchlistResolver');
+const {
+  getAccountsSummary,
+  getSectorAllocation,
+  getCompareHistory
+} = require('../services/paper/portfolioAnalytics');
 
 router.use(requireAuthStrict);
 
@@ -33,6 +38,15 @@ async function loadActiveAccount(userId, req) {
 router.get('/accounts', async (req, res) => {
   try {
     const accounts = await listAccountsForUser(req.user.id);
+    res.status(200).json({ accounts });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/accounts/summary', async (req, res) => {
+  try {
+    const accounts = await getAccountsSummary(req.user.id);
     res.status(200).json({ accounts });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -176,6 +190,25 @@ router.get('/portfolio/history', async (req, res) => {
       cash_balance: row.cash
     }));
     res.status(200).json({ history });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/portfolio/compare-history', async (req, res) => {
+  try {
+    const accounts = await getCompareHistory(req.user.id);
+    res.status(200).json({ accounts });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/portfolio/sectors', async (req, res) => {
+  try {
+    const account = await loadActiveAccount(req.user.id, req);
+    const payload = await getSectorAllocation(req.user.id, account.id);
+    res.status(200).json(payload);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

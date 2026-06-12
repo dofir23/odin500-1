@@ -12,7 +12,7 @@ export const RULE_TYPE_OPTIONS = [
   { id: 'signal_side_long', label: 'Odin signal: Long (L1–L3)' },
   { id: 'signal_side_short', label: 'Odin signal: Short (S1–S3)' },
   { id: 'signal_side_neutral', label: 'Odin signal: Neutral (N)' },
-  { id: 'signal_bucket', label: 'Odin signal: Exact bucket' }
+  { id: 'signal_bucket', label: 'Odin signal: Exact Signals' }
 ];
 
 export const SIGNAL_BUCKETS = ['L1', 'L2', 'L3', 'S1', 'S2', 'S3', 'N'];

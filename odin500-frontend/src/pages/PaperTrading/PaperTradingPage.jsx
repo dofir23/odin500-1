@@ -274,14 +274,6 @@ function PaperTradingPageContent() {
             />
           </div>
           <div className="paper-header__btn-row">
-            <button
-              type="button"
-              className="paper-btn paper-btn--accent"
-              onClick={() => goToTab('insights')}
-              title="Compare portfolios, sectors, and download reports"
-            >
-              Portfolio insights
-            </button>
             <PaperAccountCreateMenu
               disabled={accountLoading}
               onManualAccount={openCreateModal}

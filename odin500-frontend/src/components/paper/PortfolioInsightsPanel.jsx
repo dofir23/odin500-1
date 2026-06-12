@@ -165,17 +165,20 @@ export function PortfolioInsightsPanel({
               <div className="paper-insights__block">
                 <h3 className="paper-insights__h">By sector</h3>
                 <p className="paper-insights__sector-hint">How your money is spread across industries.</p>
-                <ul className="paper-insights__alloc">
+                <ul className="paper-insights__alloc paper-insights__alloc--sector">
                   {sectors.slice(0, 5).map((row) => (
                     <li key={row.sector} className="paper-insights__alloc-row">
-                      <span className="paper-insights__alloc-sym">{row.sector}</span>
+                      <span className="paper-insights__alloc-sym" title={row.sector}>
+                        {row.sector}
+                      </span>
                       <span className="paper-insights__alloc-bar-wrap">
                         <span
-                          className="paper-insights__alloc-bar paper-insights__alloc-bar--sector"
+                          className="paper-insights__alloc-bar"
                           style={{ width: `${Math.min(100, row.weight_pct)}%` }}
                         />
                       </span>
                       <span className="paper-insights__alloc-pct">{row.weight_pct.toFixed(1)}%</span>
+                      <span className="paper-insights__alloc-pnl">{money(row.market_value)}</span>
                     </li>
                   ))}
                 </ul>

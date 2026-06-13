@@ -412,6 +412,31 @@ function ohlcRowsFromPayload(payload) {
   return [];
 }
 
+/** Normalize GET /api/market/ohlc rows for the main chart (real O/H/L/C). */
+function normalizeOhlcApiRows(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((r) => {
+      const d = rowDateToTimeKey(r);
+      const open = pickNum(r, ['Open', 'open']);
+      const high = pickNum(r, ['High', 'high']);
+      const low = pickNum(r, ['Low', 'low']);
+      const close = pickNum(r, ['Close', 'close', 'Adj_Close', 'adj_close']);
+      if (!d || close == null || !Number.isFinite(close)) return null;
+      const vol = pickNum(r, ['Volume', 'volume', 'VOLUME']);
+      return {
+        Date: d,
+        Open: open ?? close,
+        High: high ?? close,
+        Low: low ?? close,
+        Close: close,
+        Volume: vol ?? 0,
+        signal: r.signal != null ? String(r.signal) : 'N'
+      };
+    })
+    .filter(Boolean);
+}
+
 /** Map index-returns `syntheticCloseSeries` to OHLC-shaped rows for Lightweight Charts. */
 function closeSeriesToChartRows(series) {
   if (!Array.isArray(series)) return [];
@@ -757,7 +782,7 @@ export default function IndexPage() {
   const [asOfDate, setAsOfDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const [indexPayload, setIndexPayload] = useState(null);
-  const [fullCloseSeries, setFullCloseSeries] = useState([]);
+  const [fullChartRows, setFullChartRows] = useState([]);
   const [returnsSpy, setReturnsSpy] = useState(null);
   const [statsRows, setStatsRows] = useState([]);
   const [statsRowsSpy, setStatsRowsSpy] = useState([]);
@@ -914,7 +939,7 @@ export default function IndexPage() {
       setError('Sign in to load index data.');
       setMetaBusy(false);
       setIndexPayload(null);
-      setFullCloseSeries([]);
+      setFullChartRows([]);
       setReturnsSpy(null);
       setStatsRows([]);
       setStatsRowsSpy([]);
@@ -971,7 +996,7 @@ export default function IndexPage() {
             performance: retData.performance,
             seriesMode: 'Sector ETF'
           });
-          setFullCloseSeries(syntheticCloseSeries);
+          setFullChartRows(sortRowsAsc(normalizeOhlcApiRows(ohlcSorted)));
 
           const asOfD = new Date(String(asOf).slice(0, 10) + 'T12:00:00');
           const start365 = new Date(asOfD);
@@ -1047,9 +1072,9 @@ export default function IndexPage() {
               method: 'GET',
               ttlMs: 10 * 60 * 1000
             });
-          if (stale()) return;
-          await yieldToMain();
-          const ohlcSorted = sortRowsAsc(ohlcRowsFromPayload(ohlcLongRes.data));
+            if (stale()) return;
+            await yieldToMain();
+            const ohlcSorted = sortRowsAsc(ohlcRowsFromPayload(ohlcLongRes.data));
             series = ohlcSorted
               .map((r) => {
                 const date = rowDateToTimeKey(r);
@@ -1064,11 +1089,13 @@ export default function IndexPage() {
               ticker: routeChartTicker,
               seriesMode: d?.seriesMode ? `${d.seriesMode} · ${routeChartTicker}` : routeChartTicker
             };
+            setFullChartRows(sortRowsAsc(normalizeOhlcApiRows(ohlcSorted)));
+          } else {
+            setFullChartRows(sortRowsAsc(closeSeriesToChartRows(series)));
           }
 
           payload = await enrichIndexPayloadWithTickerReturns(payload, slug);
           setIndexPayload(payload);
-          setFullCloseSeries(series);
 
           const asOfD = new Date(String(asOf).slice(0, 10) + 'T12:00:00');
           const start365 = new Date(asOfD);
@@ -1163,7 +1190,7 @@ export default function IndexPage() {
         if (isAbortError(e) || stale()) return;
         setError(e.message || 'Failed to load index');
         setIndexPayload(null);
-        setFullCloseSeries([]);
+        setFullChartRows([]);
         setReturnsSpy(null);
         setStatsRows([]);
         setStatsRowsSpy([]);
@@ -1190,7 +1217,7 @@ export default function IndexPage() {
     }
     const sym = ohlcSymbol;
     if (!sym) {
-      const sorted = sortRowsAsc(closeSeriesToChartRows(fullCloseSeries));
+      const sorted = sortRowsAsc(fullChartRows);
       if (sorted.length) {
         const min = rowDateToTimeKey(sorted[0]);
         const max = rowDateToTimeKey(sorted[sorted.length - 1]);
@@ -1222,13 +1249,13 @@ export default function IndexPage() {
     return () => {
       cancelled = true;
     };
-  }, [ohlcSymbol, fullCloseSeries, authVersion]);
+  }, [ohlcSymbol, fullChartRows, authVersion]);
 
   useEffect(() => {
     setNewsPage(1);
   }, [slug, isSectorDataRoute, sectorSlugResolved]);
 
-  const allChartRows = useMemo(() => sortRowsAsc(closeSeriesToChartRows(fullCloseSeries)), [fullCloseSeries]);
+  const allChartRows = useMemo(() => sortRowsAsc(fullChartRows), [fullChartRows]);
 
   const sortedChart = useMemo(() => {
     const { start, end } = chartApiRange;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiUrl } from '../../utils/apiOrigin.js';
 import { fetchWithAuth } from '../../store/apiStore.js';
 import { useWatchlistOptions } from '../../hooks/useWatchlistOptions.js';
@@ -50,7 +50,21 @@ function IcoRuleExists() {
   );
 }
 
-function LeaderTable({ title, rows, side, rules, busy, onAddRule, onAddToForm, onScrollToRules }) {
+function bucketToneClass(bucket) {
+  const b = String(bucket || 'N').toUpperCase();
+  if (b.startsWith('L')) return 'paper-strategy-wl__bucket--long';
+  if (b.startsWith('S')) return 'paper-strategy-wl__bucket--short';
+  return 'paper-strategy-wl__bucket--neutral';
+}
+
+function sideFromBucket(bucket) {
+  const b = String(bucket || 'N').toUpperCase();
+  if (b.startsWith('L')) return 'long';
+  if (b.startsWith('S')) return 'short';
+  return 'long';
+}
+
+function WatchlistTickerList({ rows, rules, busy, onAddRule, onAddToForm, onScrollToRules }) {
   const [selected, setSelected] = useState(() => new Set());
   const checkAllRef = useRef(null);
   const existing = new Set((rules || []).map(ruleTickerKey));
@@ -88,7 +102,7 @@ function LeaderTable({ title, rows, side, rules, busy, onAddRule, onAddToForm, o
   async function addRulesForChecked() {
     const checked = rows.filter((r) => selected.has(r.symbol));
     if (!checked.length) return;
-    await onAddRule(checked, side);
+    await onAddRule(checked);
     onScrollToRules?.();
   }
 
@@ -99,8 +113,8 @@ function LeaderTable({ title, rows, side, rules, busy, onAddRule, onAddToForm, o
   }
 
   return (
-    <div className="paper-strategy-wl__col">
-      <div className="paper-strategy-wl__col-head">
+    <div className="paper-strategy-wl__panel">
+      <div className="paper-strategy-wl__list-head">
         <label className="paper-strategy-wl__check-all" title="Select all">
           <input
             ref={checkAllRef}
@@ -109,19 +123,10 @@ function LeaderTable({ title, rows, side, rules, busy, onAddRule, onAddToForm, o
             checked={allSelected}
             disabled={busy || rows.length === 0}
             onChange={(e) => toggleAll(e.target.checked)}
-            aria-label={`Select all ${side} signals`}
+            aria-label="Select all tickers"
           />
         </label>
-        <h5
-          className={
-            'paper-strategy-wl__col-title' +
-            (side === 'long'
-              ? ' paper-strategy-wl__col-title--long'
-              : ' paper-strategy-wl__col-title--short')
-          }
-        >
-          {title}
-        </h5>
+        <h5 className="paper-strategy-wl__list-title">Tickers</h5>
         <div className="paper-strategy-wl__col-actions">
           <button
             type="button"
@@ -144,13 +149,14 @@ function LeaderTable({ title, rows, side, rules, busy, onAddRule, onAddToForm, o
         </div>
       </div>
       {rows.length === 0 ? (
-        <p className="paper-strategy-muted">No {side} signals in this watchlist.</p>
+        <p className="paper-strategy-muted">No tickers in this watchlist.</p>
       ) : (
         <div className="paper-strategy-wl__list-scroll">
           <ul className="paper-strategy-wl__list">
             {rows.map((row) => {
               const hasRule = existing.has(row.symbol);
               const isChecked = selected.has(row.symbol);
+              const bucket = String(row.bucket || 'N').toUpperCase();
               return (
                 <li key={row.symbol} className="paper-strategy-wl__row">
                   <label className="paper-strategy-wl__row-check">
@@ -164,13 +170,20 @@ function LeaderTable({ title, rows, side, rules, busy, onAddRule, onAddToForm, o
                     />
                   </label>
                   <span className="paper-strategy-wl__sym">{row.symbol}</span>
-                  <span className="paper-strategy-wl__bucket">{row.bucket}</span>
+                  <span className={'paper-strategy-wl__bucket ' + bucketToneClass(bucket)}>{bucket}</span>
                   {hasRule ? (
-                    <span className="paper-strategy-wl__rule-tick-wrap" title="Rule already exists" aria-label="Rule exists">
+                    <span
+                      className="paper-strategy-wl__rule-tick-wrap"
+                      title="Rule already exists"
+                      aria-label="Rule exists"
+                    >
                       <IcoRuleExists />
                     </span>
                   ) : (
-                    <span className="paper-strategy-wl__rule-tick-wrap paper-strategy-wl__rule-tick-wrap--empty" aria-hidden />
+                    <span
+                      className="paper-strategy-wl__rule-tick-wrap paper-strategy-wl__rule-tick-wrap--empty"
+                      aria-hidden
+                    />
                   )}
                 </li>
               );
@@ -195,7 +208,7 @@ export function StrategyWatchlistPanel({
   const { options, loading: optionsLoading, error: optionsError } = useWatchlistOptions();
   const [selectedKey, setSelectedKey] = useState('');
   const [ddOpen, setDdOpen] = useState(false);
-  const [leaders, setLeaders] = useState({ longs: [], shorts: [], watchlist: null });
+  const [leaders, setLeaders] = useState({ tickers: [], watchlist: null });
   const [signalsLoading, setSignalsLoading] = useState(false);
   const [signalsError, setSignalsError] = useState('');
   const ddRef = useRef(null);
@@ -209,7 +222,7 @@ export function StrategyWatchlistPanel({
 
   const loadSignals = useCallback(async (key) => {
     if (!key) {
-      setLeaders({ longs: [], shorts: [], watchlist: null });
+      setLeaders({ tickers: [], watchlist: null });
       return;
     }
     setSignalsLoading(true);
@@ -224,13 +237,12 @@ export function StrategyWatchlistPanel({
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload?.error || 'Failed to load signals');
       setLeaders({
-        longs: payload.longs || [],
-        shorts: payload.shorts || [],
+        tickers: payload.tickers || [],
         watchlist: payload.watchlist || null
       });
     } catch (err) {
       setSignalsError(err?.message || 'Failed to load watchlist signals');
-      setLeaders({ longs: [], shorts: [], watchlist: null });
+      setLeaders({ tickers: [], watchlist: null });
     } finally {
       setSignalsLoading(false);
     }
@@ -240,6 +252,24 @@ export function StrategyWatchlistPanel({
     if (!selectedKey) return;
     void loadSignals(selectedKey);
   }, [selectedKey, loadSignals]);
+
+  const tickerRows = useMemo(() => {
+    if (leaders.tickers?.length) {
+      return leaders.tickers.map((r) => ({
+        symbol: String(r.symbol || '').trim().toUpperCase(),
+        bucket: String(r.bucket || 'N').toUpperCase()
+      }));
+    }
+    const signalMap = new Map();
+    const symbols = selected?.symbols?.length ? selected.symbols : [];
+    return symbols
+      .map((symbol) => ({
+        symbol: String(symbol || '').trim().toUpperCase(),
+        bucket: signalMap.get(symbol) || 'N'
+      }))
+      .filter((r) => r.symbol)
+      .sort((a, b) => a.symbol.localeCompare(b.symbol));
+  }, [leaders.tickers, selected?.symbols]);
 
   useEffect(() => {
     if (!ddOpen) return;
@@ -258,12 +288,12 @@ export function StrategyWatchlistPanel({
     }
   }
 
-  async function handleAddRules(rows, side) {
+  async function handleAddRules(rows) {
     const existing = new Set((rules || []).map(ruleTickerKey));
     for (const row of rows) {
       const sym = String(row.symbol || row).trim().toUpperCase();
       if (!sym || existing.has(sym)) continue;
-      await onAddRule?.(buildWatchlistQuickRule(sym, side));
+      await onAddRule?.(buildWatchlistQuickRule(sym, sideFromBucket(row.bucket)));
       existing.add(sym);
     }
   }
@@ -273,8 +303,8 @@ export function StrategyWatchlistPanel({
       <div className="paper-strategy-section__head">
         <h4 className="paper-strategy-section__title">Watchlist signals</h4>
         <p className="paper-strategy-section__desc">
-          Pick a watchlist to see long and short Odin signals. Check tickers, then use + Add rule or + Form
-          to create a rule in the modal.
+          Pick a watchlist to see each ticker&apos;s Odin signal (L1–L3, S1–S3, or N). Check tickers, then use
+          + Add rule or + Form to create a rule in the modal.
         </p>
       </div>
 
@@ -295,7 +325,7 @@ export function StrategyWatchlistPanel({
                 <span className="wl-flyout__select-item-name">{selected.name}</span>
               </span>
             ) : (
-              <span className="wl-flyout__select-label">{optionsLoading ? 'Loading…' : '—'}</span>
+              <span className="paper-strategy-wl__select-label">{optionsLoading ? 'Loading…' : '—'}</span>
             )}
             <IcoChevronDown className="wl-flyout__select-chev" />
           </button>
@@ -327,30 +357,16 @@ export function StrategyWatchlistPanel({
       {signalsError ? <p className="paper-strategy-err">{signalsError}</p> : null}
 
       {signalsLoading ? (
-        <p className="paper-strategy-muted">Loading signal rankings…</p>
+        <p className="paper-strategy-muted">Loading watchlist signals…</p>
       ) : (
-        <div className="paper-strategy-wl__grid">
-          <LeaderTable
-            title="Long signals"
-            rows={leaders.longs}
-            side="long"
-            rules={rules}
-            busy={busy}
-            onAddRule={handleAddRules}
-            onAddToForm={(syms) => onAddTickersToForm?.(syms)}
-            onScrollToRules={onScrollToRules}
-          />
-          <LeaderTable
-            title="Short signals"
-            rows={leaders.shorts}
-            side="short"
-            rules={rules}
-            busy={busy}
-            onAddRule={handleAddRules}
-            onAddToForm={(syms) => onAddTickersToForm?.(syms)}
-            onScrollToRules={onScrollToRules}
-          />
-        </div>
+        <WatchlistTickerList
+          rows={tickerRows}
+          rules={rules}
+          busy={busy}
+          onAddRule={handleAddRules}
+          onAddToForm={(syms) => onAddTickersToForm?.(syms)}
+          onScrollToRules={onScrollToRules}
+        />
       )}
 
       {leaders.watchlist?.symbolCount != null ? (

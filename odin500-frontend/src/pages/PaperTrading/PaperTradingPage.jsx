@@ -212,8 +212,15 @@ function PaperTradingPageContent() {
     try {
       await resetPortfolio();
       closeModal();
-      await refetchPositions();
-      await loadHistory();
+      await Promise.all([
+        refetchAccount(),
+        refetchPositions(),
+        refetchOrders(),
+        refetchClosed(),
+        loadHistory(),
+        refetchAnalytics(),
+        refetchStrategy()
+      ]);
     } catch (err) {
       setModalError(err?.message || 'Failed to reset portfolio');
     } finally {
@@ -285,7 +292,7 @@ function PaperTradingPageContent() {
               disabled={resetting || accountLoading}
               onClick={openResetModal}
               aria-label={resetting ? 'Resetting portfolio' : 'Reset portfolio'}
-              title="Reset portfolio to $100,000 and clear all positions"
+              title="Reset portfolio to $100,000 and clear all positions, orders, and strategy rules"
             >
               {resetting ? (
                 <Loader2 className="paper-btn__icon paper-btn__icon--spin" aria-hidden />
@@ -389,8 +396,9 @@ function PaperTradingPageContent() {
         }
       >
         <p className="paper-modal-msg">
-          Reset <strong>{selectedAccountLabel}</strong> to $100,000 virtual cash and clear all positions and
-          pending orders? This cannot be undone.
+          Reset <strong>{selectedAccountLabel}</strong> to $100,000 virtual cash and clear all positions,
+          orders, trade history, portfolio chart data, strategy rules, and execution log? This cannot be
+          undone.
         </p>
         {modalError ? <p className="wl-manage-err">{modalError}</p> : null}
       </PaperManageModal>

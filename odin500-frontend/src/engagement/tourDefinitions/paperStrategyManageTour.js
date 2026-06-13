@@ -30,7 +30,7 @@ export function buildPaperStrategyManageSteps() {
       popover: {
         title: 'Watchlist signals',
         description:
-          'Pick a watchlist to see top long and short names. Add quick rules from leaders or push tickers into the rule form below.',
+          'Pick a watchlist to see each ticker\'s Odin signal. Check tickers, then add quick rules or push them into the rule form below.',
         side: 'top',
         align: 'start'
       }

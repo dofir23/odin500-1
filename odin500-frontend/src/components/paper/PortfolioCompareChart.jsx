@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { createChart } from 'lightweight-charts';
-import { getDocumentTheme, subscribeDocumentTheme } from '../../utils/documentTheme.js';
+import { ChevronDown } from 'lucide-react';
+import { createChart } from 'lightweight-charts';import { getDocumentTheme, subscribeDocumentTheme } from '../../utils/documentTheme.js';
 import {
-  PAPER_PERF_RANGES,
   PAPER_CHART_COLORS,
   filterHistoryByRange,
   historyToChartPoints,
@@ -34,35 +33,88 @@ function chartOptionsForTheme(theme, width) {
 /**
  * @param {{
  *   accounts: Array<{ account_id: string, name: string, history: Array<{ snapshot_at: string, equity: number }> }>,
+ *   allAccounts?: Array<{ id: string, name: string }>,
  *   loading?: boolean
  * }} props
  */
-export function PortfolioCompareChart({ accounts = [], loading = false }) {
+export function PortfolioCompareChart({ accounts = [], allAccounts = [], loading = false }) {
   const theme = useSyncExternalStore(subscribeDocumentTheme, getDocumentTheme, () => 'dark');
   const hostRef = useRef(null);
   const chartRef = useRef(null);
-  const [range, setRange] = useState('6M');
-  const [visible, setVisible] = useState(() => new Set());
+  const pickerRef = useRef(null);
+  const [range] = useState('6M');
+  const [activeIds, setActiveIds] = useState(() => new Set());
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const accountPool = useMemo(() => {
+    const histById = new Map((accounts || []).map((a) => [a.account_id, a]));
+    const seen = new Set();
+    const pool = [];
+
+    for (const row of allAccounts || []) {
+      const id = String(row.id || '').trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      const hist = histById.get(id);
+      pool.push({
+        id,
+        name: row.name || hist?.name || 'Account',
+        history: hist?.history || []
+      });
+    }
+
+    for (const acct of accounts || []) {
+      const id = String(acct.account_id || '').trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      pool.push({
+        id,
+        name: acct.name || 'Account',
+        history: acct.history || []
+      });
+    }
+
+    return pool;
+  }, [accounts, allAccounts]);
+
+  const colorById = useMemo(() => {
+    const map = new Map();
+    accountPool.forEach((acct, idx) => {
+      map.set(acct.id, PAPER_CHART_COLORS[idx % PAPER_CHART_COLORS.length]);
+    });
+    return map;
+  }, [accountPool]);
 
   useEffect(() => {
-    const ids = (accounts || []).map((a) => a.account_id).filter(Boolean);
-    setVisible(new Set(ids));
-  }, [accounts]);
+    const ids = accountPool.map((a) => a.id).filter(Boolean);
+    if (!ids.length) {
+      setActiveIds(new Set());
+      return;
+    }
+    setActiveIds((prev) => {
+      const kept = ids.filter((id) => prev.has(id));
+      if (kept.length) return new Set(kept);
+      return new Set(ids);
+    });
+  }, [accountPool]);
 
   const seriesData = useMemo(() => {
-    return (accounts || []).map((acct, idx) => {
-      const filtered = filterHistoryByRange(acct.history || [], range);
-      const pts = rebaseToHundred(historyToChartPoints(filtered));
-      return {
-        id: acct.account_id,
-        name: acct.name || 'Account',
-        color: PAPER_CHART_COLORS[idx % PAPER_CHART_COLORS.length],
-        points: pts
-      };
-    });
-  }, [accounts, range]);
+    return accountPool
+      .filter((acct) => activeIds.has(acct.id))
+      .map((acct) => {
+        const filtered = filterHistoryByRange(acct.history || [], range);
+        const pts = rebaseToHundred(historyToChartPoints(filtered));
+        return {
+          id: acct.id,
+          name: acct.name,
+          color: colorById.get(acct.id) || PAPER_CHART_COLORS[0],
+          points: pts
+        };
+      });
+  }, [accountPool, activeIds, range, colorById]);
 
-  const activeSeries = seriesData.filter((s) => visible.has(s.id) && s.points.length >= 2);
+  const activeSeries = seriesData.filter((s) => s.points.length >= 2);
+  const activeChips = seriesData;
 
   useEffect(() => {
     const el = hostRef.current;
@@ -94,11 +146,20 @@ export function PortfolioCompareChart({ accounts = [], loading = false }) {
     };
   }, [theme, activeSeries]);
 
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onDoc = (e) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) setPickerOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [pickerOpen]);
+
   function toggleAccount(id) {
-    setVisible((prev) => {
+    setActiveIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
-        if (next.size > 1) next.delete(id);
+        next.delete(id);
       } else {
         next.add(id);
       }
@@ -106,59 +167,111 @@ export function PortfolioCompareChart({ accounts = [], loading = false }) {
     });
   }
 
+  function removeAccount(id) {
+    setActiveIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  const pickerLabel =
+    activeIds.size === accountPool.length
+      ? `All portfolios (${activeIds.size})`
+      : `${activeIds.size} of ${accountPool.length} selected`;
+
   return (
     <div className="paper-card paper-compare-chart">
-      <div className="paper-card__head">
-        <div>
+      <div className="paper-card__head paper-compare-chart__head">
+        <div className="paper-compare-chart__head-text">
           <h2 className="paper-card__title">Compare performance</h2>
           <p className="paper-chart-card__hint">
             Each line starts at 100 for the selected period so you can see who is ahead, regardless of account size.
           </p>
         </div>
-      </div>
-
-      {/* <div className="paper-chart-card__toolbar">
-        <div className="paper-seg" role="group" aria-label="Time range">
-          <span className="paper-seg__label">Show</span>
-          {PAPER_PERF_RANGES.map((r) => (
+        {accountPool.length > 0 ? (
+          <div className="paper-compare-chart__picker-dd" ref={pickerRef}>
             <button
-              key={r.id}
               type="button"
-              className={'paper-seg__btn' + (range === r.id ? ' paper-seg__btn--active' : '')}
-              aria-pressed={range === r.id}
-              title={r.label}
-              onClick={() => setRange(r.id)}
+              className={'paper-compare-chart__picker-btn' + (pickerOpen ? ' paper-compare-chart__picker-btn--open' : '')}
+              aria-haspopup="listbox"
+              aria-expanded={pickerOpen}
+              onClick={() => setPickerOpen((v) => !v)}
             >
-              {r.short}
+              <span className="paper-compare-chart__picker-btn-label">{pickerLabel}</span>
+              <ChevronDown className="paper-compare-chart__picker-chev" aria-hidden />
             </button>
-          ))}
-        </div>
-      </div> */}
-
-      <div className="paper-compare-chart__chips" role="group" aria-label="Accounts on chart">
-        {seriesData.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            className={
-              'paper-compare-chip' + (visible.has(s.id) ? ' paper-compare-chip--on' : ' paper-compare-chip--off')
-            }
-            aria-pressed={visible.has(s.id)}
-            onClick={() => toggleAccount(s.id)}
-          >
-            <span className="paper-compare-chip__dot" style={{ background: s.color }} aria-hidden />
-            {s.name}
-          </button>
-        ))}
+            {pickerOpen ? (
+              <div className="paper-compare-chart__picker-menu" role="listbox" aria-label="Select portfolios">
+                {accountPool.map((acct) => {
+                  const color = colorById.get(acct.id) || PAPER_CHART_COLORS[0];
+                  const checked = activeIds.has(acct.id);
+                  return (
+                    <label
+                      key={acct.id}
+                      className="paper-compare-picker__row"
+                      style={{ ['--paper-compare-accent']: color }}
+                      role="option"
+                      aria-selected={checked}
+                    >
+                      <input
+                        type="checkbox"
+                        className="paper-compare-picker__check"
+                        checked={checked}
+                        onChange={() => toggleAccount(acct.id)}
+                        aria-label={`Show ${acct.name} on chart`}
+                      />
+                      <span className="paper-compare-picker__dot" style={{ background: color }} aria-hidden />
+                      <span className="paper-compare-picker__name">{acct.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
+
+      {activeChips.length > 0 ? (
+        <div className="paper-compare-chart__chips-row">
+          <div className="paper-compare-chart__chips" role="group" aria-label="Portfolios on chart">
+            {activeChips.map((s) => (
+              <div key={s.id} className="paper-compare-chip-card">
+                <div className="paper-compare-chip-card__main">
+                  <span className="paper-compare-chip-card__label">{s.name}</span>
+                  <button
+                    type="button"
+                    className="paper-compare-chip-card__x"
+                    aria-label={`Remove ${s.name} from chart`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      removeAccount(s.id);
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+                <span className="paper-compare-chip-card__bar" style={{ background: s.color }} aria-hidden />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="paper-card__body">
         {loading ? (
           <div className="paper-skeleton paper-chart-host" style={{ minHeight: CHART_HEIGHT }} aria-busy="true" />
         ) : activeSeries.length === 0 ? (
           <div className="paper-chart-empty">
-            <p className="paper-chart-empty__title">Not enough history yet</p>
-            <p>Performance lines appear after snapshots are saved for your accounts. Try a longer time range or check back later.</p>
+            <p className="paper-chart-empty__title">
+              {activeIds.size === 0 ? 'No portfolios selected' : 'Not enough history yet'}
+            </p>
+            <p>
+              {activeIds.size === 0
+                ? 'Open the portfolios menu above and check one or more accounts to compare.'
+                : 'Performance lines appear after snapshots are saved for your accounts. Try again later or select other portfolios.'}
+            </p>
           </div>
         ) : (
           <div ref={hostRef} className="paper-chart-host" />

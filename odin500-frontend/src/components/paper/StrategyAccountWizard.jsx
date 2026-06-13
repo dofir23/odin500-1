@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PaperManageModal } from './PaperManageModal.jsx';
 import { StrategyRuleForm } from './StrategyRuleForm.jsx';
-import { ruleSummary } from './strategyRuleUtils.js';
+import { buildRulePayloads, validateRuleForm } from './strategyRuleUtils.js';
 
 const WIZARD_STEPS = [
   { key: 'account', label: 'Portfolio' },
@@ -21,15 +21,20 @@ export function StrategyAccountWizard({
   const [step, setStep] = useState(0);
   const [accountName, setAccountName] = useState('');
   const [strategyName, setStrategyName] = useState('');
-  const [pendingRules, setPendingRules] = useState([]);
+  const [draftRuleForm, setDraftRuleForm] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  const canCreate = useMemo(() => {
+    if (!draftRuleForm) return false;
+    return !validateRuleForm(draftRuleForm, { existingRules: [] });
+  }, [draftRuleForm]);
 
   function reset() {
     setStep(0);
     setAccountName('');
     setStrategyName('');
-    setPendingRules([]);
+    setDraftRuleForm(null);
     setError('');
     setBusy(false);
   }
@@ -37,18 +42,6 @@ export function StrategyAccountWizard({
   function handleClose() {
     reset();
     onClose?.();
-  }
-
-  function addPendingRule(payload) {
-    const list = Array.isArray(payload) ? payload : [payload];
-    setPendingRules((r) => [
-      ...r,
-      ...list.map((item, i) => ({
-        ...item,
-        _localId: `${Date.now()}-${r.length + i}`
-      }))
-    ]);
-    setError('');
   }
 
   function validateStep(targetStep) {
@@ -95,8 +88,14 @@ export function StrategyAccountWizard({
       setStep(1);
       return;
     }
-    if (!pendingRules.length) {
-      setError('Add at least one rule before creating the account');
+    const formErr = validateRuleForm(draftRuleForm, { existingRules: [] });
+    if (formErr) {
+      setError(formErr);
+      return;
+    }
+    const rulesToCreate = buildRulePayloads(draftRuleForm);
+    if (!rulesToCreate.length) {
+      setError('Complete the rule form before creating the account');
       return;
     }
     setBusy(true);
@@ -104,8 +103,7 @@ export function StrategyAccountWizard({
     try {
       const account = await createAccount({ name: accName, activate: false });
       const strategy = await createStrategy({ name: stratName, description: null });
-      for (const rule of pendingRules) {
-        const { _localId, ...payload } = rule;
+      for (const payload of rulesToCreate) {
         await addRule(strategy.id, payload);
       }
       await bindStrategy(strategy.id, account.id, true);
@@ -144,8 +142,8 @@ export function StrategyAccountWizard({
         <button
           type="button"
           className="paper-btn paper-btn--submit-entry"
-          disabled={busy || pendingRules.length === 0}
-          title={pendingRules.length === 0 ? 'Add at least one rule first' : undefined}
+          disabled={busy || !canCreate}
+          title={!canCreate ? 'Complete the rule form first' : undefined}
           onClick={() => void finish()}
         >
           {busy ? 'Creating…' : 'Create strategy account'}
@@ -255,43 +253,14 @@ export function StrategyAccountWizard({
           </div>
 
           <section className="paper-strategy-wizard__section">
-            <h4 className="paper-strategy-wizard__section-title">Rules added</h4>
-            {pendingRules.length ? (
-              <div className="paper-strategy-wizard__rules-scroll">
-                <ul className="paper-strategy-rules-list">
-                  {pendingRules.map((r) => (
-                    <li key={r._localId} className="paper-strategy-rules-list__item">
-                      <span className="paper-strategy-rules-list__summary">{ruleSummary(r)}</span>
-                      <button
-                        type="button"
-                        className="paper-btn paper-btn--ghost paper-btn--sm"
-                        disabled={busy}
-                        onClick={() =>
-                          setPendingRules((list) => list.filter((x) => x._localId !== r._localId))
-                        }
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <p className="paper-strategy-muted paper-strategy-wizard__empty">
-                No rules yet — add at least one below.
-              </p>
-            )}
-          </section>
-
-          <section className="paper-strategy-wizard__section">
             <h4 className="paper-strategy-wizard__section-title">Add rule</h4>
             <StrategyRuleForm
               formId="paper-wizard-add-rule-form"
               variant="modal"
               busy={busy}
-              existingRules={pendingRules}
-              onSubmit={addPendingRule}
-              submitLabel="Add to list"
+              hideActions
+              existingRules={[]}
+              onFormChange={setDraftRuleForm}
             />
           </section>
         </div>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ThemedDropdown } from '../ThemedDropdown.jsx';
 import { PaperManageModal } from './PaperManageModal.jsx';
 import { paperActionLabel } from './paperActionLabels.js';
 
@@ -71,6 +72,23 @@ function defaultOpenLegKey(longQty, shortQty) {
 
 const BUY_QTY_PRESETS = [1, 5, 10, 25, 50];
 
+function buildPositionSummary(position, leg, isBuy) {
+  const sym = position?.ticker ? String(position.ticker).toUpperCase() : '';
+  const last = money(position?.current_price);
+  const net = position?.net_qty ?? 0;
+  if (!leg) return `${sym} · Last ${last} · Net qty ${net}`;
+
+  if (isBuy) {
+    const openPart =
+      leg.openQty > 0
+        ? `${leg.sideLabel} ${leg.openQty} @ ${money(leg.avgCost)}`
+        : `No open ${leg.sideLabel.toLowerCase()}`;
+    return `${sym} · ${openPart} · Last ${last} · Net qty ${net}`;
+  }
+
+  return `${sym} · ${leg.sideLabel} ${leg.qty} @ ${money(leg.avgCost)} · Last ${last} · Net qty ${net}`;
+}
+
 /**
  * @param {'close' | 'buy'} mode
  */
@@ -90,6 +108,15 @@ export function PositionOrderModal({ open, position, mode = 'close', onClose, on
   const longQty = Number(position?.long_qty) || 0;
   const shortQty = Number(position?.short_qty) || 0;
   const isShortOpen = isBuy && leg?.action === 'STO';
+
+  const legOptions = useMemo(
+    () =>
+      legs.map((l) => ({
+        id: l.key,
+        label: `${l.sideLabel} · ${paperActionLabel(l.action)}`
+      })),
+    [legs]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -142,11 +169,26 @@ export function PositionOrderModal({ open, position, mode = 'close', onClose, on
       : null;
 
   const modalClass =
-    'paper-pos-order-modal' +
-    (isBuy ? ' paper-pos-order-modal--buy' : ' paper-pos-order-modal--close') +
-    ' paper-close-position-modal';
+    'paper-rule-edit-modal paper-pos-order-modal' +
+    (isBuy ? ' paper-pos-order-modal--buy' : ' paper-pos-order-modal--close');
 
-  const title = isBuy ? `Add to ${sym}` : `Close ${sym}`;
+  const title = isBuy ? `Buy ${sym}` : `Close ${sym}`;
+  const submitClass = isBuy
+    ? isShortOpen
+      ? ' paper-btn--submit-short'
+      : ' paper-btn--submit-entry'
+    : ' paper-btn--submit-exit';
+  const submitLabel = busy
+    ? 'Submitting…'
+    : `${leg?.verb ?? 'Submit'} ${quantity > 0 ? quantity : ''} ${sym}`.trim();
+
+  const hintText = isBuy && leg?.action === 'BTO'
+    ? 'Adds to your long position with a market buy order. Quantity is filled at the latest available price.'
+    : isBuy && leg?.action === 'STO'
+      ? 'Adds to your short position with a market short order. Quantity is filled at the latest available price.'
+      : leg?.action === 'STC'
+        ? 'Closes part or all of your long position with a market sell order.'
+        : 'Closes part or all of your short position with a market cover order.';
 
   return (
     <PaperManageModal
@@ -156,240 +198,135 @@ export function PositionOrderModal({ open, position, mode = 'close', onClose, on
       modalClassName={modalClass}
       onClose={onClose}
       footer={
-        <>
-          <button type="button" className="paper-btn paper-btn--ghost" onClick={onClose} disabled={busy}>
+        <div className="paper-rule-edit-modal__actions">
+          <button type="button" className="paper-btn paper-btn--danger" onClick={onClose} disabled={busy}>
             Cancel
           </button>
           <button
             type="button"
-            className={
-              'paper-btn' +
-              (isBuy
-                ? isShortOpen
-                  ? ' paper-btn--submit-short'
-                  : ' paper-btn--submit-entry'
-                : ' paper-btn--submit-exit')
-            }
+            className={'paper-btn' + submitClass}
             onClick={() => void handleSubmit()}
             disabled={busy}
           >
-            {busy
-              ? 'Submitting…'
-              : `${leg?.verb ?? 'Submit'} ${quantity > 0 ? quantity : ''} ${sym}`.trim()}
+            {submitLabel}
           </button>
-        </>
+        </div>
       }
     >
-      <div className="paper-pos-order-modal__hero">
-        <span className="paper-pos-order-modal__sym">{sym}</span>
-        <span
-          className={
-            'paper-pos-order-modal__pill' +
-            (isBuy
-              ? isShortOpen
-                ? ' paper-pos-order-modal__pill--short'
-                : ' paper-pos-order-modal__pill--buy'
-              : ' paper-pos-order-modal__pill--close')
-          }
-        >
-          {isBuy ? (isShortOpen ? 'Market short' : 'Market buy') : 'Market close'}
-        </span>
+      <div className="paper-rule-edit-modal__summary-card">
+        <span className="paper-rule-edit-modal__summary-label">Current position</span>
+        <p className="paper-rule-edit-modal__summary">{buildPositionSummary(position, leg, isBuy)}</p>
       </div>
 
-      <p className="paper-pos-order-modal__lead">
-        {isBuy && leg?.action === 'BTO' ? (
-          <>
-            Add to your <strong>long</strong> position with a market <strong>{paperActionLabel('BTO')}</strong>{' '}
-            order
-            {longQty > 0 ? (
-              <>
-                {' '}
-                (currently <strong>{longQty}</strong> long
-                {shortQty > 0 ? (
-                  <>
-                    , <strong>{shortQty}</strong> short
-                  </>
-                ) : null}
-                ).
-              </>
-            ) : (
-              '.'
-            )}
-          </>
-        ) : isBuy && leg?.action === 'STO' ? (
-          <>
-            Add to your <strong>short</strong> position with a market <strong>{paperActionLabel('STO')}</strong>{' '}
-            order
-            {shortQty > 0 ? (
-              <>
-                {' '}
-                (currently <strong>{shortQty}</strong> short
-                {longQty > 0 ? (
-                  <>
-                    , <strong>{longQty}</strong> long
-                  </>
-                ) : null}
-                ).
-              </>
-            ) : (
-              '.'
-            )}
-          </>
-        ) : leg?.action === 'STC' ? (
-          <>
-            Close part or all of your <strong>long</strong> position with a market{' '}
-            <strong>{paperActionLabel('STC')}</strong> order.
-          </>
-        ) : (
-          <>
-            Close part or all of your <strong>short</strong> position with a market{' '}
-            <strong>{paperActionLabel('BTC')}</strong> order.
-          </>
-        )}
-      </p>
-
-      {(isBuy || closeLegs.length > 1) && legs.length ? (
-        <div
-          className="paper-pos-order-modal__legs"
-          role="radiogroup"
-          aria-label={isBuy ? 'Side to open or add to' : 'Position side to close'}
-        >
-          {legs.map((l) => (
-            <label
-              key={l.key}
-              className={
-                'paper-pos-order-modal__leg' + (legKey === l.key ? ' paper-pos-order-modal__leg--active' : '')
-              }
-            >
-              <input
-                type="radio"
-                name={isBuy ? 'open-leg' : 'close-leg'}
-                value={l.key}
-                checked={legKey === l.key}
-                onChange={() => {
-                  setLegKey(l.key);
-                  if (!isBuy) setQty(String(l.qty));
-                  setError('');
-                }}
-                disabled={busy}
-              />
-              <span className="paper-pos-order-modal__leg-text">
-                <span className="paper-pos-order-modal__leg-title">
-                  {l.sideLabel} · {paperActionLabel(l.action)}
-                </span>
-                <span className="paper-pos-order-modal__leg-meta">
-                  {isBuy ? (
-                    <>
-                      {l.openQty > 0 ? (
-                        <>
-                          Open {l.openQty} @ {money(l.avgCost)} · add with {l.verb.toLowerCase()}
-                        </>
-                      ) : (
-                        <>No open {l.sideLabel.toLowerCase()} · {l.verb.toLowerCase()} to open</>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {l.qty} shares · {l.verb} @ {money(l.avgCost)}
-                    </>
-                  )}
-                </span>
-              </span>
-            </label>
-          ))}
-        </div>
-      ) : null}
-
-      <dl className="paper-pos-order-modal__summary">
-        {isBuy && leg ? (
-          <div>
-            <dt>Open {leg.sideLabel.toLowerCase()}</dt>
-            <dd>
-              {leg.openQty > 0 ? (
-                <>
-                  {leg.openQty} @ {money(leg.avgCost)}
-                </>
+      <div className="paper-strategy-rule-form paper-strategy-rule-form--modal paper-pos-order-modal__form">
+        <div className="paper-strategy-rule-form__layout">
+          <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--primary">
+            <label className="paper-field paper-strategy-rule-form__field--rule-type">
+              <span className="paper-field__label">Action</span>
+              {legOptions.length > 1 ? (
+                <ThemedDropdown
+                  className="paper-strategy-rule-form__dd"
+                  wideLabel
+                  value={legKey}
+                  options={legOptions}
+                  disabled={busy}
+                  onChange={(id) => {
+                    setLegKey(id);
+                    const picked = legs.find((l) => l.key === id);
+                    if (!isBuy && picked) setQty(String(picked.qty));
+                    setError('');
+                  }}
+                  ariaLabelPrefix="Action"
+                  labelFallback="Action"
+                />
               ) : (
-                '—'
+                <input
+                  type="text"
+                  className="paper-input"
+                  readOnly
+                  value={leg ? `${leg.sideLabel} · ${paperActionLabel(leg.action)}` : '—'}
+                />
               )}
-            </dd>
+            </label>
+            <label className="paper-field paper-strategy-rule-form__field--tickers">
+              <span className="paper-field__label">Ticker</span>
+              <input type="text" className="paper-input" readOnly value={sym} />
+            </label>
           </div>
-        ) : !isBuy && leg ? (
-          <div>
-            <dt>Open {leg.sideLabel.toLowerCase()}</dt>
-            <dd>
-              {leg.qty} @ {money(leg.avgCost)}
-            </dd>
-          </div>
-        ) : null}
-        <div>
-          <dt>Last price</dt>
-          <dd>{money(estPrice)}</dd>
-        </div>
-        <div>
-          <dt>Net qty</dt>
-          <dd>{position.net_qty ?? 0}</dd>
-        </div>
-      </dl>
 
-      <label className="paper-field paper-pos-order-modal__qty-field">
-        <span className="paper-field__label">
+          <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--secondary">
+            <label className="paper-field paper-strategy-rule-form__field--qty">
+              <span className="paper-field__label">
+                {isBuy
+                  ? leg?.action === 'STO'
+                    ? 'Shares to short'
+                    : 'Shares to buy'
+                  : `Quantity to ${leg?.verb.toLowerCase()}`}
+              </span>
+              <input
+                ref={qtyInputRef}
+                type="number"
+                className="paper-input"
+                min="1"
+                max={isBuy ? undefined : leg?.qty}
+                step="1"
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+                disabled={busy}
+                placeholder={isBuy ? 'Enter quantity' : String(leg?.qty ?? '')}
+              />
+            </label>
+            <label className="paper-field paper-strategy-rule-form__field--max">
+              <span className="paper-field__label">{isBuy ? 'Last price' : 'Max available'}</span>
+              <input
+                type="text"
+                className="paper-input"
+                readOnly
+                value={isBuy ? money(estPrice) : leg ? String(leg.qty) : '—'}
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="paper-pos-order-modal__presets" aria-label="Quick quantity">
           {isBuy
-            ? leg?.action === 'STO'
-              ? 'Shares to short'
-              : 'Shares to buy'
-            : `Quantity to ${leg?.verb.toLowerCase()}`}
-        </span>
-        <input
-          ref={qtyInputRef}
-          type="number"
-          className="paper-field__input"
-          min="1"
-          max={isBuy ? undefined : leg?.qty}
-          step="1"
-          value={qty}
-          onChange={(e) => setQty(e.target.value)}
-          disabled={busy}
-          placeholder={isBuy ? 'Enter quantity' : String(leg?.qty ?? '')}
-        />
-      </label>
+            ? BUY_QTY_PRESETS.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className="paper-qty-presets__btn"
+                  onClick={() => setQty(String(n))}
+                  disabled={busy}
+                >
+                  {n}
+                </button>
+              ))
+            : leg ? (
+                <button
+                  type="button"
+                  className="paper-qty-presets__btn paper-qty-presets__btn--all"
+                  onClick={() => setQty(String(leg.qty))}
+                  disabled={busy}
+                >
+                  ALL ({leg.qty})
+                </button>
+              ) : null}
+        </div>
 
-      <div className="paper-qty-presets" aria-label="Quick quantity">
-        {isBuy
-          ? BUY_QTY_PRESETS.map((n) => (
-              <button
-                key={n}
-                type="button"
-                className="paper-qty-presets__btn"
-                onClick={() => setQty(String(n))}
-                disabled={busy}
-              >
-                {n}
-              </button>
-            ))
-          : leg ? (
-              <button
-                type="button"
-                className="paper-qty-presets__btn paper-qty-presets__btn--all"
-                onClick={() => setQty(String(leg.qty))}
-                disabled={busy}
-              >
-                ALL ({leg.qty})
-              </button>
-            ) : null}
+        <p className="paper-strategy-muted paper-strategy-rule-form__hint">{hintText}</p>
+
+        {estTotal != null ? (
+          <p className="paper-strategy-muted paper-strategy-rule-form__hint paper-pos-order-modal__estimate">
+            Est. order value: <strong>{money(estTotal)}</strong>
+            <span className="paper-order__estimate-meta">
+              {' '}
+              ({quantity} × {money(estPrice)}, mkt est.)
+            </span>
+          </p>
+        ) : null}
+
+        {error ? <p className="paper-strategy-err">{error}</p> : null}
       </div>
-
-      {estTotal != null ? (
-        <p className="paper-order__estimate paper-pos-order-modal__estimate">
-          Est. order value: <strong>{money(estTotal)}</strong>
-          <span className="paper-order__estimate-meta">
-            {' '}
-            ({quantity} × {money(estPrice)}, mkt est.)
-          </span>
-        </p>
-      ) : null}
-
-      {error ? <p className="paper-feedback paper-feedback--err">{error}</p> : null}
     </PaperManageModal>
   );
 }

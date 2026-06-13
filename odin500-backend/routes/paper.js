@@ -607,10 +607,42 @@ router.post('/account/reset', async (req, res) => {
       .eq('account_id', account.id)
       .eq('status', 'pending');
 
-    await supabaseService.from('paper_positions').delete().eq('account_id', account.id);
-    await supabaseService.from('paper_position_lots').delete().eq('account_id', account.id);
-    await supabaseService.from('paper_lot_closures').delete().eq('account_id', account.id);
-    await supabaseService.from('paper_trades_closed').delete().eq('account_id', account.id);
+    const resetTables = [
+      'paper_strategy_execution_log',
+      'paper_fills',
+      'paper_orders',
+      'paper_positions',
+      'paper_position_lots',
+      'paper_lot_closures',
+      'paper_trades_closed',
+      'paper_portfolio_snapshots',
+      'paper_account_daily_snapshots'
+    ];
+    for (const table of resetTables) {
+      const { error: delErr } = await supabaseService.from(table).delete().eq('account_id', account.id);
+      if (delErr && !/relation|does not exist|schema cache/i.test(String(delErr.message || ''))) {
+        throw delErr;
+      }
+    }
+
+    const { data: binding } = await supabaseService
+      .from('paper_strategy_account_bindings')
+      .select('strategy_id')
+      .eq('account_id', account.id)
+      .maybeSingle();
+
+    if (binding?.strategy_id) {
+      const { error: rulesErr } = await supabaseService
+        .from('paper_strategy_rules')
+        .delete()
+        .eq('strategy_id', binding.strategy_id);
+      if (rulesErr) throw rulesErr;
+
+      await supabaseService
+        .from('paper_strategy_account_bindings')
+        .update({ last_run_at: null, last_error: null })
+        .eq('account_id', account.id);
+    }
 
     const resetPayload = { cash_balance: STARTING_CAPITAL };
     if (account.starting_capital != null) {

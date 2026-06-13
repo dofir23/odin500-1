@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { ChevronDown, Trash2 } from 'lucide-react';
+import { PaperManageModal } from './PaperManageModal.jsx';
 import { StrategyRuleCreateModal } from './StrategyRuleCreateModal.jsx';
 import { StrategyRuleEditModal } from './StrategyRuleEditModal.jsx';
 import { StrategyRulesList } from './StrategyRulesList.jsx';
@@ -29,7 +31,10 @@ export function StrategyPanel({
   const [wlSaveError, setWlSaveError] = useState('');
   const [editingRule, setEditingRule] = useState(null);
   const [createRuleOpen, setCreateRuleOpen] = useState(false);
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [deleteAllError, setDeleteAllError] = useState('');
   const [tickerSeed, setTickerSeed] = useState(null);
+  const [logExpanded, setLogExpanded] = useState(true);
 
   if (loading) {
     return <p className="paper-strategy-muted">Loading strategy…</p>;
@@ -84,6 +89,35 @@ export function StrategyPanel({
       setTickerSeed(null);
     }
     setCreateRuleOpen(true);
+  }
+
+  function openDeleteAllModal() {
+    if (!rules.length) return;
+    setDeleteAllError('');
+    setDeleteAllOpen(true);
+  }
+
+  function closeDeleteAllModal() {
+    if (busy) return;
+    setDeleteAllOpen(false);
+    setDeleteAllError('');
+  }
+
+  async function confirmDeleteAllRules() {
+    if (!rules.length) return;
+    setDeleteAllError('');
+    try {
+      await wrap(async () => {
+        setEditingRule(null);
+        const ids = rules.map((r) => r.id);
+        for (const id of ids) {
+          await onDeleteRule(id);
+        }
+        setDeleteAllOpen(false);
+      });
+    } catch (err) {
+      setDeleteAllError(err?.message || 'Failed to remove rules');
+    }
   }
 
   return (
@@ -177,15 +211,27 @@ export function StrategyPanel({
         <div className="paper-strategy-subsection" data-strategy-anchor="rules-list">
           <div className="paper-strategy-subsection__head">
             <h5 className="paper-strategy-subsection__title">Active rules</h5>
-            <button
-              type="button"
-              className="paper-btn paper-btn--submit-entry paper-btn--sm"
-              disabled={busy}
-              data-tour="paper-create-rule"
-              onClick={() => openCreateRuleModal()}
-            >
-              + Create rule
-            </button>
+            <div className="paper-strategy-subsection__actions">
+              <button
+                type="button"
+                className="paper-btn paper-btn--submit-entry paper-btn--sm"
+                disabled={busy}
+                data-tour="paper-create-rule"
+                onClick={() => openCreateRuleModal()}
+              >
+                + Create rule
+              </button>
+              <button
+                type="button"
+                className="paper-btn paper-btn--icon paper-btn--ghost paper-btn--danger"
+                disabled={busy || !rules.length}
+                onClick={openDeleteAllModal}
+                aria-label="Remove all rules"
+                title={rules.length ? 'Remove all rules' : 'No rules to remove'}
+              >
+                <Trash2 className="paper-btn__icon" aria-hidden />
+              </button>
+            </div>
           </div>
           <StrategyRulesList
             rules={rules}
@@ -237,14 +283,66 @@ export function StrategyPanel({
         }
       />
 
-      <section className="paper-strategy-section" data-tour="paper-strategy-log">
-        <div className="paper-strategy-section__head">
-          <h4 className="paper-strategy-section__title">Execution log</h4>
-          <p className="paper-strategy-section__desc">
-            Recent strategy runs, including triggered orders, skips, and errors.
-          </p>
-        </div>
-        <StrategyExecutionLog log={executionLog} />
+      <PaperManageModal
+        open={deleteAllOpen}
+        title="Remove all rules"
+        titleId="paper-delete-all-rules-title"
+        onClose={closeDeleteAllModal}
+        footer={
+          <>
+            <button
+              type="button"
+              className="wl-manage-btn wl-manage-btn--ghost"
+              onClick={closeDeleteAllModal}
+              disabled={busy}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="wl-manage-btn wl-manage-btn--danger"
+              onClick={() => void confirmDeleteAllRules()}
+              disabled={busy || !rules.length}
+            >
+              {busy ? 'Removing…' : 'Remove all'}
+            </button>
+          </>
+        }
+      >
+        <p className="paper-modal-msg">
+          Remove all <strong>{rules.length}</strong> rule{rules.length === 1 ? '' : 's'} from{' '}
+          <strong>{strategy.name}</strong>? This cannot be undone.
+        </p>
+        {deleteAllError ? <p className="wl-manage-err">{deleteAllError}</p> : null}
+      </PaperManageModal>
+
+      <section
+        className={
+          'paper-strategy-section paper-strategy-section--collapsible' +
+          (logExpanded ? ' paper-strategy-section--open' : '')
+        }
+        data-tour="paper-strategy-log"
+      >
+        <button
+          type="button"
+          className="paper-strategy-section__head paper-strategy-section__toggle"
+          aria-expanded={logExpanded}
+          aria-controls="paper-strategy-execution-log"
+          onClick={() => setLogExpanded((open) => !open)}
+        >
+          <span className="paper-strategy-section__toggle-text">
+            <span className="paper-strategy-section__title">Execution log</span>
+            <span className="paper-strategy-section__desc">
+              Recent strategy runs, including triggered orders, skips, and errors.
+            </span>
+          </span>
+          <ChevronDown className="paper-strategy-section__chev" aria-hidden />
+        </button>
+        {logExpanded ? (
+          <div id="paper-strategy-execution-log">
+            <StrategyExecutionLog log={executionLog} />
+          </div>
+        ) : null}
       </section>
 
       <section className="paper-strategy-section paper-strategy-section--footnote" aria-label="Strategy help">

@@ -3,6 +3,8 @@ import { TickerSymbolCombobox } from '../TickerSymbolCombobox.jsx';
 import { ThemedDropdown } from '../ThemedDropdown.jsx';
 import { SignalBucketMultiSelect } from './SignalBucketMultiSelect.jsx';
 import { isClosingPaperAction, isOpeningPaperAction } from './paperActionLabels.js';
+import { useWatchlistOptions } from '../../hooks/useWatchlistOptions.js';
+import { watchlistKindTag } from '../../utils/watchlistOptions.js';
 import {
   buildActionOptions,
   buildRulePayload,
@@ -28,6 +30,7 @@ const EMPTY = {
 
 export function StrategyRuleForm({
   onSubmit,
+  onFormChange,
   busy = false,
   submitLabel = 'Add rule',
   editingRule = null,
@@ -40,17 +43,28 @@ export function StrategyRuleForm({
 }) {
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState('');
+  const [tickerSource, setTickerSource] = useState('manual');
+  const [selectedWatchlistKey, setSelectedWatchlistKey] = useState('');
+  const { options: watchlistOptions, loading: watchlistsLoading } = useWatchlistOptions();
   const isEditing = Boolean(editingRule?.id);
   const excludeRuleId = editingRule?.id ?? editingRule?._localId ?? null;
 
   useEffect(() => {
     if (editingRule) {
       setForm(ruleToForm(editingRule));
+      setTickerSource('manual');
+      setSelectedWatchlistKey('');
     } else {
       setForm(EMPTY);
+      setTickerSource('manual');
+      setSelectedWatchlistKey('');
     }
     setError('');
   }, [editingRule?.id]);
+
+  useEffect(() => {
+    onFormChange?.(form);
+  }, [form, onFormChange]);
 
   const showBucket = form.uiRuleType === 'signal_bucket';
 
@@ -121,6 +135,8 @@ export function StrategyRuleForm({
 
   useEffect(() => {
     if (!tickerSeed?.symbols?.length) return;
+    setTickerSource('manual');
+    setSelectedWatchlistKey('');
     setForm((f) => ({
       ...f,
       tickers: [
@@ -131,6 +147,39 @@ export function StrategyRuleForm({
       ]
     }));
   }, [tickerSeed?.nonce]);
+
+  const watchlistDropdownOptions = useMemo(
+    () =>
+      watchlistOptions.map((o) => ({
+        id: o.key,
+        label: o.name,
+        tag: o.kind === 'user' ? 'user' : o.kind === 'default' ? 'default' : undefined,
+        disabled: !o.symbols?.length,
+        disabledTitle: !o.symbols?.length ? 'This watchlist has no tickers' : undefined
+      })),
+    [watchlistOptions]
+  );
+
+  const selectedWatchlist = watchlistOptions.find((o) => o.key === selectedWatchlistKey);
+
+  function switchTickerSource(next) {
+    setTickerSource(next);
+    setError('');
+    if (next === 'manual') {
+      setSelectedWatchlistKey('');
+    } else {
+      setForm((f) => ({ ...f, tickers: [] }));
+      setSelectedWatchlistKey('');
+    }
+  }
+
+  function pickWatchlist(key) {
+    setSelectedWatchlistKey(key);
+    const opt = watchlistOptions.find((o) => o.key === key);
+    const symbols = opt?.symbols?.length ? [...opt.symbols] : [];
+    setForm((f) => ({ ...f, tickers: symbols }));
+    setError('');
+  }
 
   const showThreshold =
     form.uiRuleType === 'price_above' || form.uiRuleType === 'price_below';
@@ -166,6 +215,7 @@ export function StrategyRuleForm({
 
   function handleSubmit(e) {
     e.preventDefault();
+    if (!onSubmit) return;
     const err = validateRuleForm(form, { existingRules, excludeRuleId });
     if (err) {
       setError(err);
@@ -179,18 +229,22 @@ export function StrategyRuleForm({
     }
     if (!isEditing) {
       setForm(EMPTY);
+      setTickerSource('manual');
+      setSelectedWatchlistKey('');
     }
     setError('');
   }
 
   function handleCancel() {
     setForm(EMPTY);
+    setTickerSource('manual');
+    setSelectedWatchlistKey('');
     setError('');
     onCancelEdit?.();
   }
 
   const qtyField = (
-    <label className="paper-field paper-strategy-close-qty__qty">
+    <label className="paper-field paper-strategy-close-qty__qty paper-strategy-rule-form__field--qty">
       <span className="paper-field__label">Qty per run</span>
       <input
         type="number"
@@ -225,118 +279,194 @@ export function StrategyRuleForm({
           Editing rule for <strong>{editingRule.ticker}</strong>
         </p>
       ) : null}
-      <div className="paper-strategy-rule-form__grid">
-        <label className="paper-field">
-          <span className="paper-field__label">Rule type</span>
-          <ThemedDropdown
-            className="paper-strategy-rule-form__dd"
-            wideLabel
-            value={form.uiRuleType}
-            options={ruleTypeOptions}
-            onChange={(id) =>
-              update({
-                uiRuleType: id,
-                signalBuckets: id === 'signal_bucket' ? form.signalBuckets : []
-              })
-            }
-            ariaLabelPrefix="Rule type"
-            labelFallback="Rule type"
-          />
-        </label>
-        <label className="paper-field">
-          <span className="paper-field__label">Tickers</span>
-          <TickerSymbolCombobox
-            multiple={!isEditing}
-            symbol={editTicker}
-            onSymbolChange={(sym) =>
-              update({ tickers: sym ? [String(sym).trim().toUpperCase()] : [] })
-            }
-            symbols={form.tickers}
-            onSymbolsChange={(symbols) => update({ tickers: symbols })}
-            inputId="paper-strategy-ticker"
-            placeholder="e.g. AAPL, MSFT"
-          />
-        </label>
-        <label className="paper-field">
-          <span className="paper-field__label">Action</span>
-          <ThemedDropdown
-            className="paper-strategy-rule-form__dd"
-            value={form.action}
-            options={actionOptions}
-            onChange={(id) => update({ action: id })}
-            ariaLabelPrefix="Action"
-            labelFallback="Action"
-          />
-        </label>
-
-        {isClose ? (
-          <div className="paper-field paper-field--span2 paper-strategy-close-qty">
-            <div className="paper-strategy-close-qty__row">
-              <label
-                className={
-                  'paper-field paper-strategy-close-qty__close' +
-                  (form.closeAll ? ' paper-strategy-close-qty__close--active' : '')
-                }
-              >
-                <span className="paper-field__label">Close all</span>
-                <span className="paper-strategy-close-qty__control">
-                  <input
-                    type="checkbox"
-                    className="paper-strategy-close-qty__check"
-                    checked={form.closeAll}
-                    onChange={(e) => update({ closeAll: e.target.checked })}
-                  />
-                  <span className="paper-strategy-close-qty__control-text">Close all (ALL)</span>
-                </span>
-              </label>
-              {!form.closeAll ? qtyField : null}
+      <div className="paper-strategy-rule-form__layout">
+        <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--primary">
+          <label className="paper-field paper-strategy-rule-form__field--rule-type">
+            <span className="paper-field__label">Rule type</span>
+            <ThemedDropdown
+              className="paper-strategy-rule-form__dd"
+              wideLabel
+              value={form.uiRuleType}
+              options={ruleTypeOptions}
+              onChange={(id) =>
+                update({
+                  uiRuleType: id,
+                  signalBuckets: id === 'signal_bucket' ? form.signalBuckets : []
+                })
+              }
+              ariaLabelPrefix="Rule type"
+              labelFallback="Rule type"
+            />
+          </label>
+          <div className="paper-field paper-field--tickers paper-strategy-rule-form__field--tickers">
+            <div className="paper-strategy-ticker-source">
+              <span className="paper-field__label">Tickers</span>
+              {!isEditing ? (
+                <div className="paper-strategy-ticker-source__tabs" role="tablist" aria-label="Ticker source">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tickerSource === 'manual'}
+                    className={
+                      'paper-strategy-ticker-source__tab' +
+                      (tickerSource === 'manual' ? ' paper-strategy-ticker-source__tab--active' : '')
+                    }
+                    disabled={busy}
+                    onClick={() => switchTickerSource('manual')}
+                  >
+                    Pick tickers
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tickerSource === 'watchlist'}
+                    className={
+                      'paper-strategy-ticker-source__tab' +
+                      (tickerSource === 'watchlist' ? ' paper-strategy-ticker-source__tab--active' : '')
+                    }
+                    disabled={busy}
+                    onClick={() => switchTickerSource('watchlist')}
+                  >
+                    Use watchlist
+                  </button>
+                </div>
+              ) : null}
             </div>
+            {isEditing || tickerSource === 'manual' ? (
+              <TickerSymbolCombobox
+                multiple={!isEditing}
+                symbol={editTicker}
+                onSymbolChange={(sym) => {
+                  setSelectedWatchlistKey('');
+                  update({ tickers: sym ? [String(sym).trim().toUpperCase()] : [] });
+                }}
+                symbols={form.tickers}
+                onSymbolsChange={(symbols) => {
+                  setSelectedWatchlistKey('');
+                  update({ tickers: symbols });
+                }}
+                inputId="paper-strategy-ticker"
+                placeholder="e.g. AAPL, MSFT"
+              />
+            ) : (
+              <>
+                <ThemedDropdown
+                  className="paper-strategy-rule-form__dd"
+                  wideLabel
+                  value={selectedWatchlistKey}
+                  options={watchlistDropdownOptions}
+                  onChange={pickWatchlist}
+                  disabled={busy || watchlistsLoading || !watchlistDropdownOptions.length}
+                  ariaLabelPrefix="Watchlist"
+                  labelFallback={watchlistsLoading ? 'Loading watchlists…' : 'Select watchlist'}
+                />
+                {selectedWatchlist ? (
+                  <p className="paper-strategy-muted paper-strategy-ticker-source__hint">
+                    {form.tickers.length
+                      ? `${form.tickers.length} ticker${form.tickers.length === 1 ? '' : 's'} from ${selectedWatchlist.name}`
+                      : `No tickers in ${selectedWatchlist.name}`}
+                    {selectedWatchlist.kind ? (
+                      <>
+                        {' · '}
+                        <span className="paper-strategy-ticker-source__tag">
+                          {watchlistKindTag(selectedWatchlist.kind)}
+                        </span>
+                      </>
+                    ) : null}
+                  </p>
+                ) : null}
+              </>
+            )}
           </div>
-        ) : (
-          qtyField
-        )}
+        </div>
 
-        {isOpen ? (
-          <label className="paper-field">
-            <span className="paper-field__label">Max position limit</span>
-            <input
-              type="number"
-              className="paper-input"
-              min="0.000001"
-              step="any"
-              value={form.maxPositionQty}
-              onChange={(e) => update({ maxPositionQty: e.target.value })}
-              placeholder="Never exceed this total size"
+        <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--secondary">
+          <label className="paper-field paper-strategy-rule-form__field--action">
+            <span className="paper-field__label">Action</span>
+            <ThemedDropdown
+              className="paper-strategy-rule-form__dd"
+              value={form.action}
+              options={actionOptions}
+              onChange={(id) => update({ action: id })}
+              ariaLabelPrefix="Action"
+              labelFallback="Action"
             />
           </label>
-        ) : null}
-        {showThreshold ? (
-          <label className="paper-field">
-            <span className="paper-field__label">Threshold ($)</span>
-            <input
-              type="number"
-              className="paper-input"
-              min="0"
-              step="0.01"
-              value={form.threshold_value}
-              onChange={(e) => update({ threshold_value: e.target.value })}
-            />
-          </label>
-        ) : null}
+
+          {isClose ? (
+            <div className="paper-field paper-strategy-close-qty paper-strategy-rule-form__field--close-qty">
+              <div className="paper-strategy-close-qty__row">
+                <label
+                  className={
+                    'paper-field paper-strategy-close-qty__close' +
+                    (form.closeAll ? ' paper-strategy-close-qty__close--active' : '')
+                  }
+                >
+                  <span className="paper-field__label">Close all</span>
+                  <span className="paper-strategy-close-qty__control">
+                    <input
+                      type="checkbox"
+                      className="paper-strategy-close-qty__check"
+                      checked={form.closeAll}
+                      onChange={(e) => update({ closeAll: e.target.checked })}
+                    />
+                    <span className="paper-strategy-close-qty__control-text">Close all (ALL)</span>
+                  </span>
+                </label>
+                {!form.closeAll ? qtyField : null}
+              </div>
+            </div>
+          ) : (
+            qtyField
+          )}
+
+          {isOpen ? (
+            <label className="paper-field paper-strategy-rule-form__field--max">
+              <span className="paper-field__label">Max position limit</span>
+              <input
+                type="number"
+                className="paper-input"
+                min="0.000001"
+                step="any"
+                value={form.maxPositionQty}
+                onChange={(e) => update({ maxPositionQty: e.target.value })}
+                placeholder="Never exceed this total size"
+              />
+            </label>
+          ) : null}
+
+          {showThreshold ? (
+            <label className="paper-field paper-strategy-rule-form__field--threshold">
+              <span className="paper-field__label">Threshold ($)</span>
+              <input
+                type="number"
+                className="paper-input"
+                min="0"
+                step="0.01"
+                value={form.threshold_value}
+                onChange={(e) => update({ threshold_value: e.target.value })}
+              />
+            </label>
+          ) : null}
+        </div>
+
         {showBucket ? (
-          <SignalBucketMultiSelect
-            selected={form.signalBuckets}
-            disabledBuckets={disabledBuckets}
-            exitBlockedBuckets={exitRestrictions.blockedBuckets}
-            busy={busy}
-            onChange={(signalBuckets) => update({ signalBuckets })}
-          />
+          <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--full">
+            <SignalBucketMultiSelect
+              selected={form.signalBuckets}
+              disabledBuckets={disabledBuckets}
+              exitBlockedBuckets={exitRestrictions.blockedBuckets}
+              busy={busy}
+              onChange={(signalBuckets) => update({ signalBuckets })}
+            />
+          </div>
         ) : null}
       </div>
       {isOpen ? (
         <p className="paper-strategy-muted paper-strategy-rule-form__hint">
-          Buys or shorts up to the qty per run on each schedule tick, but total position will never
-          exceed the max limit.
+          {hideActions
+            ? 'Fill in the rule below, then click Create strategy account.'
+            : 'After filling the form please click on the "Add rule" button to add the rule.'}
         </p>
       ) : null}
       {isClose && form.closeAll ? (

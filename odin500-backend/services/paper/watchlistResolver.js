@@ -138,6 +138,9 @@ function buildLeadersPayload(meta, signalMap, limit) {
       kind: meta.kind,
       symbolCount: meta.symbols.length
     },
+    tickers: rows
+      .map(({ symbol, bucket }) => ({ symbol, bucket }))
+      .sort((a, b) => a.symbol.localeCompare(b.symbol)),
     longs: limit == null ? longSorted : longSorted.slice(0, limit),
     shorts: limit == null ? shortSorted : shortSorted.slice(0, limit)
   };

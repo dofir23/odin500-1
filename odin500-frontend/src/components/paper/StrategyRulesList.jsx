@@ -1,3 +1,4 @@
+import { Pencil, Trash2 } from 'lucide-react';
 import { ruleSummary } from './strategyRuleUtils.js';
 
 const RULES_SCROLL_THRESHOLD = 10;
@@ -29,21 +30,25 @@ export function StrategyRulesList({ rules = [], onEdit, onDelete, busy = false, 
             {onEdit ? (
               <button
                 type="button"
-                className="paper-btn paper-btn--ghost paper-btn--sm"
+                className="paper-btn paper-btn--icon paper-btn--ghost"
                 disabled={busy}
                 onClick={() => onEdit(rule)}
+                aria-label={`Edit rule for ${rule.ticker || 'ticker'}`}
+                title="Edit rule"
               >
-                Edit
+                <Pencil className="paper-btn__icon" aria-hidden />
               </button>
             ) : null}
             {onDelete ? (
               <button
                 type="button"
-                className="paper-btn paper-btn--ghost paper-btn--sm"
+                className="paper-btn paper-btn--icon paper-btn--ghost paper-btn--danger"
                 disabled={busy}
                 onClick={() => onDelete(rule.id)}
+                aria-label={`Remove rule for ${rule.ticker || 'ticker'}`}
+                title="Remove rule"
               >
-                Remove
+                <Trash2 className="paper-btn__icon" aria-hidden />
               </button>
             ) : null}
           </div>

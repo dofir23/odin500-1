@@ -3,6 +3,29 @@
  * @param {unknown} defaultsRaw
  * @param {unknown} mineRaw
  */
+
+function symbolsFromDefaultItems(items) {
+  const arr = Array.isArray(items) ? items : [];
+  return [
+    ...new Set(
+      arr
+        .map((r) => String(r.symbol || '').trim().toUpperCase())
+        .filter(Boolean)
+    )
+  ];
+}
+
+function symbolsFromUserTickers(tickers) {
+  const arr = Array.isArray(tickers) ? tickers : [];
+  return [
+    ...new Set(
+      arr
+        .map((t) => String(t.symbol || '').trim().toUpperCase())
+        .filter(Boolean)
+    )
+  ];
+}
+
 export function optionsFromApiArrays(defaultsRaw, mineRaw) {
   const built = [];
   if (defaultsRaw != null) {
@@ -13,11 +36,12 @@ export function optionsFromApiArrays(defaultsRaw, mineRaw) {
         key: 'def:' + g,
         name: g,
         kind: /** @type {'default'} */ ('default'),
-        watchlistId: undefined
+        watchlistId: undefined,
+        symbols: symbolsFromDefaultItems(d.items)
       });
     }
   }
-  /** @type {Array<{ key: string, name: string, kind: 'user' | 'default', watchlistId?: string }>} */
+  /** @type {Array<{ key: string, name: string, kind: 'user' | 'default', watchlistId?: string, symbols: string[] }>} */
   const userOpts = [];
   if (mineRaw != null) {
     const mine = Array.isArray(mineRaw) ? mineRaw : [];
@@ -26,7 +50,8 @@ export function optionsFromApiArrays(defaultsRaw, mineRaw) {
         key: 'usr:' + wl.id,
         watchlistId: String(wl.id),
         name: String(wl.name || 'Untitled').trim() || 'Untitled',
-        kind: /** @type {'user'} */ ('user')
+        kind: /** @type {'user'} */ ('user'),
+        symbols: symbolsFromUserTickers(wl.tickers)
       });
     }
   }

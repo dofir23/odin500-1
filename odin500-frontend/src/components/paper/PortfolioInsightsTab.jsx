@@ -142,7 +142,7 @@ export function PortfolioInsightsTab({
         )}
       </section>
 
-      <PortfolioCompareChart accounts={compareHistory} loading={loading} />
+      <PortfolioCompareChart accounts={compareHistory} allAccounts={summaries} loading={loading} />
 
       <SectorAllocationSection
         sectors={sectors}

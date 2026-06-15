@@ -28,6 +28,7 @@ import { StrategyAccountWizard } from '../../components/paper/StrategyAccountWiz
 import { usePaperStrategy } from '../../hooks/usePaperStrategy.js';
 import { ProductTourProvider, useProductTourContext } from '../../context/ProductTourContext.jsx';
 import { isTourSkipped, TOUR_IDS } from '../../engagement/tourStorage.js';
+import { readPaperTradingSearchParams } from '../../utils/paperTradingUrl.js';
 import '../../styles/paper-trading.css';
 
 function PaperTradingPageContent() {
@@ -46,7 +47,7 @@ function PaperTradingPageContent() {
   const { positions, loading: positionsLoading, refetch: refetchPositions } = usePaperPositions({
     accountId: activeAccountId
   });
-  const { orders, loading: ordersLoading, placeOrder, cancelOrder, refetch: refetchOrders } = usePaperOrders({
+  const { orders, loading: ordersLoading, placeOrder, cancelOrder, modifyOrder, refetch: refetchOrders } = usePaperOrders({
     accountId: activeAccountId
   });
   const { trades: closedTrades, totals: closedTotals, loading: closedLoading, refetch: refetchClosed } =
@@ -70,13 +71,9 @@ function PaperTradingPageContent() {
     patchStrategy,
     runOnce
   } = usePaperStrategy(activeAccountId);
-  const [tab, setTab] = useState(() => {
-    try {
-      return new URLSearchParams(window.location.search).get('tab') || 'positions';
-    } catch {
-      return 'positions';
-    }
-  });
+  const [initialUrl] = useState(() => readPaperTradingSearchParams());
+  const [tab, setTab] = useState(() => initialUrl.tab);
+  const initialTicker = initialUrl.ticker;
   const [wizardOpen, setWizardOpen] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -463,6 +460,7 @@ function PaperTradingPageContent() {
             onPlaceOrder={handlePlaceOrder}
             positions={positions}
             strategyActive={strategyActive}
+            initialTicker={initialTicker}
           />
         </aside>
 
@@ -628,6 +626,10 @@ function PaperTradingPageContent() {
                   loading={ordersLoading}
                   onCancel={async (id) => {
                     await cancelOrder(id);
+                    await refetchAccount();
+                  }}
+                  onModify={async (id, patch) => {
+                    await modifyOrder(id, patch);
                     await refetchAccount();
                   }}
                 />

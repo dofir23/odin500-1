@@ -4,6 +4,8 @@ import { ThemedDropdown } from '../ThemedDropdown.jsx';
 import { SignalBucketMultiSelect } from './SignalBucketMultiSelect.jsx';
 import { isClosingPaperAction, isOpeningPaperAction } from './paperActionLabels.js';
 import { useWatchlistOptions } from '../../hooks/useWatchlistOptions.js';
+import { useTickerLatestPrices } from '../../hooks/useTickerLatestPrices.js';
+import { formatLatestClosePrice } from '../../utils/marketOhlcLatest.js';
 import { watchlistKindTag } from '../../utils/watchlistOptions.js';
 import {
   buildActionOptions,
@@ -26,7 +28,10 @@ const EMPTY = {
   maxPositionValue: '',
   closeAll: false,
   threshold_value: '',
-  signalBuckets: []
+  signalBuckets: [],
+  bracketEnabled: false,
+  bracketStopLoss: '',
+  bracketTakeProfit: ''
 };
 
 export function StrategyRuleForm({
@@ -108,6 +113,13 @@ export function StrategyRuleForm({
         : { blockedRuleTypes: new Set(), blockedBuckets: new Set() },
     [existingRules, form.tickers, form.action, excludeRuleId]
   );
+
+  const {
+    prices: tickerPrices,
+    loading: tickerPricesLoading,
+    error: tickerPricesError,
+    symbols: pricedSymbols
+  } = useTickerLatestPrices(form.tickers);
 
   const blockedRuleTypeKey = useMemo(
     () => [...exitRestrictions.blockedRuleTypes].sort().join(','),
@@ -209,6 +221,9 @@ export function StrategyRuleForm({
         if (isClosingPaperAction(next.action)) {
           next.maxPositionQty = '';
           next.maxPositionValue = '';
+          next.bracketEnabled = false;
+          next.bracketStopLoss = '';
+          next.bracketTakeProfit = '';
         }
       }
       return next;
@@ -283,24 +298,7 @@ export function StrategyRuleForm({
         </p>
       ) : null}
       <div className="paper-strategy-rule-form__layout">
-        <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--primary">
-          <label className="paper-field paper-strategy-rule-form__field--rule-type">
-            <span className="paper-field__label">Rule type</span>
-            <ThemedDropdown
-              className="paper-strategy-rule-form__dd"
-              wideLabel
-              value={form.uiRuleType}
-              options={ruleTypeOptions}
-              onChange={(id) =>
-                update({
-                  uiRuleType: id,
-                  signalBuckets: id === 'signal_bucket' ? form.signalBuckets : []
-                })
-              }
-              ariaLabelPrefix="Rule type"
-              labelFallback="Rule type"
-            />
-          </label>
+        <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--tickers">
           <div className="paper-field paper-field--tickers paper-strategy-rule-form__field--tickers">
             <div className="paper-strategy-ticker-source">
               <span className="paper-field__label">Tickers</span>
@@ -383,6 +381,50 @@ export function StrategyRuleForm({
           </div>
         </div>
 
+        {form.tickers.length > 0 ? (
+          <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--prices">
+            <div className="paper-strategy-ticker-prices" role="status" aria-live="polite">
+              <span className="paper-strategy-ticker-prices__label">Last price (daily close)</span>
+              {tickerPricesLoading ? (
+                <span className="paper-strategy-muted">Loading…</span>
+              ) : tickerPricesError ? (
+                <span className="paper-strategy-muted">{tickerPricesError}</span>
+              ) : (
+                <ul className="paper-strategy-ticker-prices__list">
+                  {pricedSymbols.map((sym) => (
+                    <li key={sym} className="paper-strategy-ticker-prices__item">
+                      <span className="paper-strategy-ticker-prices__sym">{sym}</span>
+                      <span className="paper-strategy-ticker-prices__px">
+                        {formatLatestClosePrice(tickerPrices[sym])}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--primary">
+          <label className="paper-field paper-strategy-rule-form__field--rule-type">
+            <span className="paper-field__label">Rule type</span>
+            <ThemedDropdown
+              className="paper-strategy-rule-form__dd"
+              wideLabel
+              value={form.uiRuleType}
+              options={ruleTypeOptions}
+              onChange={(id) =>
+                update({
+                  uiRuleType: id,
+                  signalBuckets: id === 'signal_bucket' ? form.signalBuckets : []
+                })
+              }
+              ariaLabelPrefix="Rule type"
+              labelFallback="Rule type"
+            />
+          </label>
+        </div>
+
         <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--secondary">
           <label className="paper-field paper-strategy-rule-form__field--action">
             <span className="paper-field__label">Action</span>
@@ -439,32 +481,81 @@ export function StrategyRuleForm({
         </div>
 
         {isOpen ? (
-          <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--limits">
-            <label className="paper-field paper-strategy-rule-form__field--max">
-              <span className="paper-field__label">Max position limit</span>
-              <input
-                type="number"
-                className="paper-input"
-                min="0.000001"
-                step="any"
-                value={form.maxPositionQty}
-                onChange={(e) => update({ maxPositionQty: e.target.value })}
-                placeholder="Max shares"
-              />
-            </label>
-            <label className="paper-field paper-strategy-rule-form__field--max-value">
-              <span className="paper-field__label">Max position value</span>
-              <input
-                type="number"
-                className="paper-input"
-                min="0.01"
-                step="0.01"
-                value={form.maxPositionValue}
-                onChange={(e) => update({ maxPositionValue: e.target.value })}
-                placeholder="Max $ notional (optional)"
-              />
-            </label>
-          </div>
+          <>
+            <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--limits">
+              <label className="paper-field paper-strategy-rule-form__field--max">
+                <span className="paper-field__label">Max position limit</span>
+                <input
+                  type="number"
+                  className="paper-input"
+                  min="0.000001"
+                  step="any"
+                  value={form.maxPositionQty}
+                  onChange={(e) => update({ maxPositionQty: e.target.value })}
+                  placeholder="Max shares"
+                />
+              </label>
+              <label className="paper-field paper-strategy-rule-form__field--max-value">
+                <span className="paper-field__label">Max position value</span>
+                <input
+                  type="number"
+                  className="paper-input"
+                  min="0.01"
+                  step="0.01"
+                  value={form.maxPositionValue}
+                  onChange={(e) => update({ maxPositionValue: e.target.value })}
+                  placeholder="Max $ notional (optional)"
+                />
+              </label>
+            </div>
+            <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--full">
+              <div className="paper-bracket paper-bracket--strategy">
+                <label className="paper-bracket__toggle">
+                  <input
+                    type="checkbox"
+                    checked={form.bracketEnabled}
+                    onChange={(e) => update({ bracketEnabled: e.target.checked })}
+                    disabled={busy}
+                  />
+                  <span>Add stop-loss / take-profit (OCO)</span>
+                </label>
+                <p className="paper-bracket__hint">
+                  After this rule buys or shorts, optional exit orders are placed. Filling one
+                  cancels the other.
+                </p>
+                {form.bracketEnabled ? (
+                  <div className="paper-bracket__fields">
+                    <label className="paper-field">
+                      <span className="paper-field__label">Stop-loss price</span>
+                      <input
+                        type="number"
+                        className="paper-input"
+                        min="0"
+                        step="0.01"
+                        value={form.bracketStopLoss}
+                        onChange={(e) => update({ bracketStopLoss: e.target.value })}
+                        placeholder="Optional"
+                        disabled={busy}
+                      />
+                    </label>
+                    <label className="paper-field">
+                      <span className="paper-field__label">Take-profit price</span>
+                      <input
+                        type="number"
+                        className="paper-input"
+                        min="0"
+                        step="0.01"
+                        value={form.bracketTakeProfit}
+                        onChange={(e) => update({ bracketTakeProfit: e.target.value })}
+                        placeholder="Optional"
+                        disabled={busy}
+                      />
+                    </label>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </>
         ) : null}
 
         {showBucket ? (

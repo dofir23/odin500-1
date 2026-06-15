@@ -291,6 +291,7 @@ async function processBinding(binding) {
         continue;
       }
 
+      const hasBracket = isOpeningAction(resolved.action) && params.bracket;
       const result = await placeOrder(strategy.user_id, {
         account_id: binding.account_id,
         ticker: rule.ticker,
@@ -298,6 +299,7 @@ async function processBinding(binding) {
         qty: resolved.qty,
         orderType: 'market',
         source: 'strategy',
+        ...(isOpeningAction(resolved.action) && params.bracket ? { bracket: params.bracket } : {}),
         metadata: {
           strategy_id: strategy.id,
           rule_id: rule.id,
@@ -314,7 +316,7 @@ async function processBinding(binding) {
         accountId: binding.account_id,
         ruleId: rule.id,
         status: 'triggered',
-        message: 'Order submitted',
+        message: hasBracket ? 'Order submitted with OCO bracket exits' : 'Order submitted',
         orderId: result?.order?.id || null
       });
       triggered += 1;

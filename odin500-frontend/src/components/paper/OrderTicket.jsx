@@ -2,18 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { TickerSymbolCombobox } from '../TickerSymbolCombobox.jsx';
 import { ThemedDropdown } from '../ThemedDropdown.jsx';
 import { canFetchProtectedApi, fetchJsonCached } from '../../store/apiStore.js';
+import { sanitizeTickerPageInput } from '../../utils/tickerUrlSync.js';
 import {
   PAPER_ACTION_OPTIONS,
   isClosingPaperAction,
   paperActionLabel
 } from './paperActionLabels.js';
+import { PAPER_ORDER_TYPE_OPTIONS, pendingOrderSuccessMessage } from './paperOrderLabels.js';
 
 const QTY_PRESETS = [10, 25, 50, 100, 500];
-
-const ORDER_TYPE_OPTIONS = [
-  { id: 'market', label: 'Market' },
-  { id: 'limit', label: 'Limit' }
-];
 
 function money(v) {
   if (v == null || !Number.isFinite(Number(v))) return '—';
@@ -42,7 +39,6 @@ function pickClose(row) {
   return null;
 }
 
-/** Latest close from GET /api/market/ohlc (rows ordered by Date DESC). */
 function latestCloseFromOhlcPayload(payload) {
   const rows = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
   if (!rows.length) return null;
@@ -54,15 +50,28 @@ function latestCloseFromOhlcPayload(payload) {
   return null;
 }
 
-export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = false }) {
+function isOpeningAction(action) {
+  return action === 'BTO' || action === 'STO';
+}
+
+export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = false, initialTicker = '' }) {
   const [ticker, setTicker] = useState('');
   const [action, setAction] = useState('BTO');
   const [orderType, setOrderType] = useState('market');
   const [qty, setQty] = useState('');
   const [limitPrice, setLimitPrice] = useState('');
+  const [stopPrice, setStopPrice] = useState('');
+  const [bracketEnabled, setBracketEnabled] = useState(false);
+  const [bracketStopLoss, setBracketStopLoss] = useState('');
+  const [bracketTakeProfit, setBracketTakeProfit] = useState('');
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const sym = sanitizeTickerPageInput(initialTicker);
+    if (sym) setTicker(sym);
+  }, [initialTicker]);
 
   const sym = ticker.trim().toUpperCase();
   const quantity = Number(qty);
@@ -83,10 +92,15 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
   const isBuy = action === 'BTO' || action === 'BTC';
   const isClose = isClosingPaperAction(action);
   const closableQty = action === 'STC' ? held.long : action === 'BTC' ? held.short : 0;
+  const showBracket = isOpeningAction(action);
 
   const [marketPrice, setMarketPrice] = useState(null);
   const [priceBusy, setPriceBusy] = useState(false);
   const [priceError, setPriceError] = useState('');
+
+  useEffect(() => {
+    if (!showBracket) setBracketEnabled(false);
+  }, [showBracket]);
 
   useEffect(() => {
     if (!sym) {
@@ -140,13 +154,17 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
   }, [sym, held.currentPrice]);
 
   const referencePrice = useMemo(() => {
-    if (orderType === 'limit') {
+    if (orderType === 'limit' || orderType === 'stop_limit') {
       const lp = Number(limitPrice);
       if (Number.isFinite(lp) && lp > 0) return lp;
     }
+    if (orderType === 'stop_market') {
+      const sp = Number(stopPrice);
+      if (Number.isFinite(sp) && sp > 0) return sp;
+    }
     if (marketPrice != null && Number.isFinite(marketPrice) && marketPrice > 0) return marketPrice;
     return null;
-  }, [orderType, limitPrice, marketPrice]);
+  }, [orderType, limitPrice, stopPrice, marketPrice]);
 
   const priceAtLabel = fmtPrice(referencePrice);
   const estTotal =
@@ -163,6 +181,15 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
     setTicker(next);
     setSuccess('');
     setError('');
+  }
+
+  function resetFormFields() {
+    setQty('');
+    setLimitPrice('');
+    setStopPrice('');
+    setBracketStopLoss('');
+    setBracketTakeProfit('');
+    setBracketEnabled(false);
   }
 
   async function handleSubmit() {
@@ -198,7 +225,8 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
     }
 
     const body = { ticker: sym, action, qty: quantity, orderType };
-    if (orderType === 'limit') {
+
+    if (orderType === 'limit' || orderType === 'stop_limit') {
       const lp = Number(limitPrice);
       if (!Number.isFinite(lp) || lp <= 0) {
         setError('Enter a valid limit price');
@@ -207,19 +235,43 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
       body.limitPrice = lp;
     }
 
+    if (orderType === 'stop_market' || orderType === 'stop_limit') {
+      const sp = Number(stopPrice);
+      if (!Number.isFinite(sp) || sp <= 0) {
+        setError('Enter a valid stop price');
+        return;
+      }
+      body.stopPrice = sp;
+    }
+
+    if (bracketEnabled && showBracket) {
+      const sl = Number(bracketStopLoss);
+      const tp = Number(bracketTakeProfit);
+      const hasSl = Number.isFinite(sl) && sl > 0;
+      const hasTp = Number.isFinite(tp) && tp > 0;
+      if (!hasSl && !hasTp) {
+        setError('Enter a stop-loss and/or take-profit price for the bracket');
+        return;
+      }
+      body.bracket = {
+        ...(hasSl ? { stopLoss: sl } : {}),
+        ...(hasTp ? { takeProfit: tp } : {})
+      };
+    }
+
     setBusy(true);
     try {
       const result = await onPlaceOrder(body);
       const fillPrice = result?.fill?.fillPrice ?? result?.order?.avg_fill_price;
       if (fillPrice != null) {
-        setSuccess(`Filled ${quantity} @ ${Number(fillPrice).toFixed(2)}`);
+        const bracketNote = body.bracket ? ' Bracket exits queued.' : '';
+        setSuccess(`Filled ${quantity} @ ${Number(fillPrice).toFixed(2)}.${bracketNote}`);
       } else if (result?.pending) {
-        setSuccess('Limit order queued — fills when price is reached');
+        setSuccess(pendingOrderSuccessMessage(orderType));
       } else {
         setSuccess('Order submitted');
       }
-      setQty('');
-      setLimitPrice('');
+      resetFormFields();
     } catch (err) {
       setError(err?.message || 'Order failed');
     } finally {
@@ -277,7 +329,7 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
           <ThemedDropdown
             className="paper-order__dd"
             value={orderType}
-            options={ORDER_TYPE_OPTIONS}
+            options={PAPER_ORDER_TYPE_OPTIONS}
             onChange={setOrderType}
             title="Order type"
             ariaLabelPrefix="Order type"
@@ -286,6 +338,12 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
             disabled={busy}
           />
         </div>
+
+        {orderType === 'stop_market' || orderType === 'stop_limit' ? (
+          <p className="paper-order__help" role="note">
+            Stop orders are checked against the latest daily close — not live intraday prices.
+          </p>
+        ) : null}
 
         <label className="paper-field">
           <span className="paper-field__label">Quantity (shares)</span>
@@ -322,7 +380,22 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
           ))}
         </div>
 
-        {orderType === 'limit' ? (
+        {orderType === 'stop_market' || orderType === 'stop_limit' ? (
+          <label className="paper-field">
+            <span className="paper-field__label">Stop price</span>
+            <input
+              type="number"
+              className="paper-field__input"
+              min="0"
+              step="0.01"
+              value={stopPrice}
+              onChange={(e) => setStopPrice(e.target.value)}
+              placeholder="0.00"
+            />
+          </label>
+        ) : null}
+
+        {orderType === 'limit' || orderType === 'stop_limit' ? (
           <label className="paper-field">
             <span className="paper-field__label">Limit price</span>
             <input
@@ -337,18 +410,63 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
           </label>
         ) : null}
 
+        {showBracket ? (
+          <div className="paper-bracket">
+            <label className="paper-bracket__toggle">
+              <input
+                type="checkbox"
+                checked={bracketEnabled}
+                onChange={(e) => setBracketEnabled(e.target.checked)}
+                disabled={busy}
+              />
+              <span>Add stop-loss / take-profit (OCO)</span>
+            </label>
+            <p className="paper-bracket__hint">
+              After your entry fills, optional exit orders are placed. Filling one cancels the other.
+            </p>
+            {bracketEnabled ? (
+              <div className="paper-bracket__fields">
+                <label className="paper-field">
+                  <span className="paper-field__label">Stop-loss price</span>
+                  <input
+                    type="number"
+                    className="paper-field__input"
+                    min="0"
+                    step="0.01"
+                    value={bracketStopLoss}
+                    onChange={(e) => setBracketStopLoss(e.target.value)}
+                    placeholder="Optional"
+                  />
+                </label>
+                <label className="paper-field">
+                  <span className="paper-field__label">Take-profit price</span>
+                  <input
+                    type="number"
+                    className="paper-field__input"
+                    min="0"
+                    step="0.01"
+                    value={bracketTakeProfit}
+                    onChange={(e) => setBracketTakeProfit(e.target.value)}
+                    placeholder="Optional"
+                  />
+                </label>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         {sym && referencePrice != null && Number.isFinite(quantity) && quantity > 0 && estTotal != null ? (
           <p className="paper-order__estimate">
             Est. order value: <strong>{money(estTotal)}</strong>
             <span className="paper-order__estimate-meta">
               {' '}
               ({quantity} × {money(referencePrice)}
-              {orderType === 'limit' ? ', limit' : ', mkt est.'})
+              {orderType === 'limit' ? ', limit' : orderType === 'market' ? ', mkt est.' : ', ref.'})
             </span>
           </p>
         ) : sym && referencePrice != null ? (
           <p className="paper-order__estimate paper-order__estimate--muted">
-            {orderType === 'limit' ? 'Limit' : 'Market'} price est.: <strong>{money(referencePrice)}</strong>
+            Reference price: <strong>{money(referencePrice)}</strong>
           </p>
         ) : sym && priceBusy ? (
           <p className="paper-order__estimate paper-order__estimate--muted">Loading price estimate…</p>

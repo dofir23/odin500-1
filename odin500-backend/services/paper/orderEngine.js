@@ -6,6 +6,9 @@ const { simulateFill } = require('./executionSimulator');
 const { validateOrder } = require('./riskGuard');
 const { applyFill, getClosableQty } = require('./positionManager');
 const { getCurrentPrice } = require('./pnlCalculator');
+const { priceForRiskCheck } = require('./pendingOrderRules');
+const { normalizeAction, actionToLegacySide } = require('./orderEngineHelpers');
+const { validateBracket, createBracketExits, cancelOcoSiblings } = require('./bracketOrders');
 
 const { DEFAULT_ACCOUNT_NAME, STARTING_CAPITAL } = require('./dbSchema');
 
@@ -86,19 +89,6 @@ async function createAccountForUser(userId, payload = {}) {
   return data;
 }
 
-function normalizeAction(rawAction, rawSide = '') {
-  const act = String(rawAction || '').toUpperCase().trim();
-  if (['BTO', 'STO', 'BTC', 'STC'].includes(act)) return act;
-  const side = String(rawSide || '').toLowerCase().trim();
-  if (side === 'buy') return 'BTO';
-  if (side === 'sell') return 'STC';
-  return 'BTO';
-}
-
-function actionToLegacySide(action) {
-  return action === 'BTO' || action === 'BTC' ? 'buy' : 'sell';
-}
-
 /**
  * @param {string} accountId
  * @param {object} order
@@ -110,20 +100,20 @@ async function executeFill(accountId, order, fill, marketPrice) {
   const { data: fillRow, error: fillErr } = await supabaseService
     .from('paper_fills')
     .insert({
-    order_id: order.id,
-    account_id: accountId,
-    ticker: String(order.ticker || '').toUpperCase(),
-    side: order.side || actionToLegacySide(order.action),
-    action: order.action,
-    qty: fill.fillQty,
-    fill_price: fill.fillPrice,
-    market_price_at_fill: marketPrice,
-    commission: fill.commission || 0,
-    exchange_fee: fill.exchangeFee || 0,
-    regulatory_fee: fill.regulatoryFee || 0,
-    slippage_amount: fill.slippage || 0,
-    total_fees: fill.totalFees || 0,
-    filled_at: now
+      order_id: order.id,
+      account_id: accountId,
+      ticker: String(order.ticker || '').toUpperCase(),
+      side: order.side || actionToLegacySide(order.action),
+      action: order.action,
+      qty: fill.fillQty,
+      fill_price: fill.fillPrice,
+      market_price_at_fill: marketPrice,
+      commission: fill.commission || 0,
+      exchange_fee: fill.exchangeFee || 0,
+      regulatory_fee: fill.regulatoryFee || 0,
+      slippage_amount: fill.slippage || 0,
+      total_fees: fill.totalFees || 0,
+      filled_at: now
     })
     .select('*')
     .single();
@@ -151,12 +141,18 @@ async function executeFill(accountId, order, fill, marketPrice) {
 
   await applyFill(accountId, order, { ...fill, fillId: fillRow?.id });
 
+  await cancelOcoSiblings(updatedOrder);
+
+  if (updatedOrder.metadata?.bracket && ['BTO', 'STO'].includes(String(updatedOrder.action || '').toUpperCase())) {
+    await createBracketExits(accountId, updatedOrder, fill.fillQty, fill.fillPrice);
+  }
+
   return { order: updatedOrder, fill, marketPrice };
 }
 
 /**
  * @param {string} userId
- * @param {{ ticker: string, side: string, qty: number, orderType?: string, limitPrice?: number, stopPrice?: number }} orderInput
+ * @param {object} orderInput
  */
 async function placeOrder(userId, orderInput) {
   const account = await resolveAccountForUser(userId, orderInput.accountId || orderInput.account_id);
@@ -183,10 +179,26 @@ async function placeOrder(userId, orderInput) {
     throw new Error(`No market price available for ${ticker}`);
   }
 
-  const priceForRisk =
-    orderType === 'limit' && limitPrice != null ? limitPrice : marketPrice;
+  const entryRef = orderType === 'limit' && limitPrice != null ? limitPrice : marketPrice;
+  let bracketMeta = null;
+  if (orderInput.bracket && (action === 'BTO' || action === 'STO')) {
+    bracketMeta = validateBracket(orderInput.bracket, action, entryRef);
+  }
+
+  const priceForRisk = priceForRiskCheck(
+    { action, orderType, limitPrice, stopPrice, limit_price: limitPrice, stop_price: stopPrice },
+    marketPrice
+  );
   const closable = await getClosableQty(account.id, ticker);
-  validateOrder({ ticker, action, qty, orderType }, account, priceForRisk, closable);
+  validateOrder(
+    { ticker, action, qty, orderType, limitPrice, stopPrice },
+    account,
+    priceForRisk,
+    closable
+  );
+
+  const metadata = { ...(orderInput.metadata || {}) };
+  if (bracketMeta) metadata.bracket = bracketMeta;
 
   const { data: order, error: insErr } = await supabaseService
     .from('paper_orders')
@@ -200,7 +212,7 @@ async function placeOrder(userId, orderInput) {
       limit_price: limitPrice,
       stop_price: stopPrice,
       source: String(orderInput.source || 'manual'),
-      metadata: orderInput.metadata || {},
+      metadata,
       status: 'pending'
     })
     .select('*')
@@ -291,6 +303,71 @@ async function cancelOrderForUser(userId, orderId, explicitAccountId = null) {
   return updated;
 }
 
+async function modifyOrderForUser(userId, orderId, patch = {}, explicitAccountId = null) {
+  const account = await resolveAccountForUser(userId, explicitAccountId);
+  const { data: order, error: selErr } = await supabaseService
+    .from('paper_orders')
+    .select('*')
+    .eq('id', orderId)
+    .eq('account_id', account.id)
+    .maybeSingle();
+
+  if (selErr) throw selErr;
+  if (!order) throw new Error('Order not found');
+  if (order.status !== 'pending') {
+    throw new Error('Only pending orders can be modified');
+  }
+  if (order.metadata?.stop_triggered) {
+    throw new Error('Stop-limit orders cannot be modified after the stop has triggered');
+  }
+
+  const qty = patch.qty != null ? Number(patch.qty) : Number(order.qty);
+  const limitPrice =
+    patch.limitPrice != null
+      ? Number(patch.limitPrice)
+      : patch.limit_price != null
+        ? Number(patch.limit_price)
+        : order.limit_price != null
+          ? Number(order.limit_price)
+          : null;
+  const stopPrice =
+    patch.stopPrice != null
+      ? Number(patch.stopPrice)
+      : patch.stop_price != null
+        ? Number(patch.stop_price)
+        : order.stop_price != null
+          ? Number(order.stop_price)
+          : null;
+
+  const marketPrice = await getCurrentPrice(order.ticker);
+  if (marketPrice == null) {
+    throw new Error(`No market price available for ${order.ticker}`);
+  }
+
+  const orderType = String(order.order_type || '').toLowerCase();
+  const action = normalizeAction(order.action, order.side);
+  const priceForRisk = priceForRiskCheck(
+    { action, orderType, limitPrice, stopPrice, limit_price: limitPrice, stop_price: stopPrice },
+    marketPrice
+  );
+  const closable = await getClosableQty(account.id, order.ticker);
+  validateOrder({ ticker: order.ticker, action, qty, orderType, limitPrice, stopPrice }, account, priceForRisk, closable);
+
+  const { data: updated, error: updErr } = await supabaseService
+    .from('paper_orders')
+    .update({
+      qty,
+      limit_price: limitPrice,
+      stop_price: stopPrice
+    })
+    .eq('id', orderId)
+    .select('*')
+    .single();
+
+  if (updErr) throw updErr;
+  return updated;
+}
+
 module.exports = {
   getOrCreateAccount,
   resolveAccountForUser,
@@ -300,5 +377,6 @@ module.exports = {
   placeOrder,
   executeFill,
   cancelOrderForUser,
+  modifyOrderForUser,
   STARTING_CAPITAL
 };

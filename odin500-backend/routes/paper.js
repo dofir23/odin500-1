@@ -13,6 +13,7 @@ const {
   deleteAccountForUser,
   placeOrder,
   cancelOrderForUser,
+  modifyOrderForUser,
   STARTING_CAPITAL
 } = require('../services/paper/orderEngine');
 const {
@@ -132,6 +133,31 @@ router.delete('/orders/:id', async (req, res) => {
     res.status(200).json(order);
   } catch (error) {
     const status = error.message === 'Order not found' ? 404 : 400;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+router.patch('/orders/:id', async (req, res) => {
+  try {
+    const order = await modifyOrderForUser(
+      req.user.id,
+      req.params.id,
+      req.body || {},
+      req.query.account_id || req.query.accountId || req.body?.account_id || null
+    );
+    res.status(200).json(order);
+  } catch (error) {
+    const status =
+      error.message === 'Order not found'
+        ? 404
+        : error.message.includes('Insufficient') ||
+            error.message.includes('required') ||
+            error.message.includes('exceed') ||
+            error.message.includes('must') ||
+            error.message.includes('Only pending') ||
+            error.message.includes('cannot be modified')
+          ? 400
+          : 500;
     res.status(status).json({ error: error.message });
   }
 });

@@ -119,6 +119,58 @@ function IcoTrash({ className }) {
   );
 }
 
+function IcoListPlus({ className }) {
+  return (
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M11 12H3M11 6H3M11 18H3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="M16 12h5M18.5 9.5v5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IcoPencil({ className }) {
+  return (
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IcoCopy({ className }) {
+  return (
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.65" />
+      <path
+        d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+        stroke="currentColor"
+        strokeWidth="1.65"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IcoDownload({ className }) {
+  return (
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 4v10m0 0l4-4m-4 4L8 10M6 18h12"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function mapDefaultItems(items) {
   const arr = Array.isArray(items) ? items : [];
   return arr.map((r) => ({
@@ -637,6 +689,22 @@ export function WatchlistRailFlyout({ open, onClose, docked = false }) {
     [options, selectedKey]
   );
 
+  /** Header + : add tickers to the watchlist currently selected in the dropdown. */
+  const openAddToCurrentWatchlist = () => {
+    setSettingsOpen(false);
+    setError('');
+    if (!selected) return;
+    if (selected.kind !== 'user' || !selected.watchlistId) {
+      setError('Select one of your watchlists to add tickers. Default lists cannot be edited.');
+      return;
+    }
+    if (pendingAddSymbol) {
+      void quickAddPendingTickerToWatchlist(selected);
+      return;
+    }
+    beginUpdateEdit(selected);
+  };
+
   /** Pre-fill create modal with tickers from the watchlist currently selected in the dropdown. */
   const copyWatchlist = useCallback(async () => {
     setSettingsOpen(false);
@@ -830,7 +898,8 @@ export function WatchlistRailFlyout({ open, onClose, docked = false }) {
                 className="wl-flyout__iconbtn"
                 title="Add tickers to this watchlist"
                 aria-label="Add tickers to this watchlist"
-                onClick={openCreatePanel}
+                onClick={openAddToCurrentWatchlist}
+                disabled={!!quickAddBusyId}
               >
                 <IcoPlus className="wl-flyout__iconbtn-svg" />
               </button>
@@ -849,27 +918,32 @@ export function WatchlistRailFlyout({ open, onClose, docked = false }) {
               <ul className="wl-flyout__settings-menu" role="menu">
                 <li role="none">
                   <button type="button" className="wl-flyout__settings-item" role="menuitem" onClick={openCreatePanel}>
-                    Create Watchlist
+                    <IcoListPlus className="wl-flyout__settings-item-icon" />
+                    <span>Create Watchlist</span>
                   </button>
                 </li>
                 <li role="none">
                   <button type="button" className="wl-flyout__settings-item" role="menuitem" onClick={openDeletePanel}>
-                    Delete Watchlist
+                    <IcoTrash className="wl-flyout__settings-item-icon" />
+                    <span>Delete Watchlist</span>
                   </button>
                 </li>
                 <li role="none">
                   <button type="button" className="wl-flyout__settings-item" role="menuitem" onClick={openUpdatePickPanel}>
-                    Update Watchlist
+                    <IcoPencil className="wl-flyout__settings-item-icon" />
+                    <span>Update Watchlist</span>
                   </button>
                 </li>
                 <li role="none">
                   <button type="button" className="wl-flyout__settings-item" role="menuitem" onClick={copyWatchlist}>
-                    Copy Watchlist
+                    <IcoCopy className="wl-flyout__settings-item-icon" />
+                    <span>Copy Watchlist</span>
                   </button>
                 </li>
                 <li role="none">
                   <button type="button" className="wl-flyout__settings-item" role="menuitem" onClick={downloadWatchlistCsv}>
-                    Download CSV
+                    <IcoDownload className="wl-flyout__settings-item-icon" />
+                    <span>Download CSV</span>
                   </button>
                 </li>
               </ul>

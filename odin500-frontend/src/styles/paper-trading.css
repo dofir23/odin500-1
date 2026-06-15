@@ -1271,6 +1271,20 @@
   letter-spacing: 0.03em;
 }
 
+.paper-table__sym-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.paper-table__sym-link:hover {
+  text-decoration: underline;
+  color: var(--app-link, #93c5fd);
+}
+
+[data-theme='light'] .paper-table__sym-link:hover {
+  color: #2563eb;
+}
+
 .paper-tone-up {
   color: var(--app-positive, #4ade80) !important;
 }
@@ -2184,6 +2198,164 @@
   color: #92400e;
   background: #fffbeb;
   border-color: #fcd34d;
+}
+
+.paper-order__help {
+  margin: -0.35rem 0 0.75rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+[data-theme='light'] .paper-order__help {
+  color: #64748b;
+}
+
+.paper-bracket {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.35);
+}
+
+[data-theme='light'] .paper-bracket {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.paper-bracket__toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.paper-bracket__toggle input {
+  margin-top: 0.15rem;
+}
+
+.paper-bracket__hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+[data-theme='light'] .paper-bracket__hint {
+  color: #64748b;
+}
+
+.paper-bracket__fields {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.paper-order-action-btn {
+  margin-right: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: transparent;
+  color: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.paper-order-action-btn:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.45);
+}
+
+.paper-pending-edit__meta {
+  margin: 0 0 0.85rem;
+  font-size: 0.82rem;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.paper-pending-edit-modal .wl-manage-modal__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .paper-bracket__fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+.paper-strategy-ticker-prices {
+  margin-top: 0;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.35);
+}
+
+[data-theme='light'] .paper-strategy-ticker-prices {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.paper-strategy-ticker-prices__label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.95);
+  margin-bottom: 0.35rem;
+}
+
+[data-theme='light'] .paper-strategy-ticker-prices__label {
+  color: #64748b;
+}
+
+.paper-strategy-ticker-prices__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  max-height: 6.5rem;
+  overflow-y: auto;
+}
+
+.paper-strategy-ticker-prices__item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+}
+
+.paper-strategy-ticker-prices__sym {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.paper-strategy-ticker-prices__px {
+  font-variant-numeric: tabular-nums;
+  color: rgba(226, 232, 240, 0.95);
+}
+
+[data-theme='light'] .paper-strategy-ticker-prices__px {
+  color: #334155;
+}
+
+.paper-bracket--strategy {
+  margin: 0;
+  width: 100%;
+}
+
+.paper-strategy-rule-form__row--full .paper-bracket--strategy {
+  margin-top: 0.25rem;
 }
 
 .paper-auto-banner {
@@ -3547,6 +3719,13 @@
   width: 100%;
 }
 
+.paper-strategy-rule-form__row--tickers > .paper-strategy-rule-form__field--tickers,
+.paper-strategy-rule-form__row--prices > .paper-strategy-ticker-prices {
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: none;
+}
+
 .paper-strategy-rule-form__row--limits > .paper-field {
   flex: 1 1 calc(50% - 0.35rem);
   min-width: min(100%, 10rem);
@@ -3570,7 +3749,8 @@
 }
 
 .paper-strategy-rule-form--modal .paper-strategy-rule-form__row > .paper-field,
-.paper-strategy-rule-form--modal .paper-strategy-rule-form__row > .paper-strategy-close-qty {
+.paper-strategy-rule-form--modal .paper-strategy-rule-form__row > .paper-strategy-close-qty,
+.paper-strategy-rule-form--modal .paper-strategy-rule-form__row--prices > .paper-strategy-ticker-prices {
   flex: 1 1 100%;
   max-width: none;
 }
@@ -3581,6 +3761,12 @@
   .paper-strategy-rule-form--modal .paper-strategy-rule-form__row--limits > .paper-field,
   .paper-strategy-rule-form--modal .paper-strategy-rule-form__row--secondary > .paper-strategy-close-qty {
     flex: 1 1 calc(50% - 0.5rem);
+    max-width: none;
+  }
+
+  .paper-strategy-rule-form--modal .paper-strategy-rule-form__row--tickers > .paper-field,
+  .paper-strategy-rule-form--modal .paper-strategy-rule-form__row--prices > .paper-strategy-ticker-prices {
+    flex: 1 1 100%;
     max-width: none;
   }
 

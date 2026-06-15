@@ -632,7 +632,9 @@ a.app-right-rail__btn {
 }
 
 .wl-flyout__settings-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
   padding: 10px 14px;
   border: none;
@@ -642,6 +644,13 @@ a.app-right-rail__btn {
   font-weight: 600;
   text-align: left;
   cursor: pointer;
+}
+
+.wl-flyout__settings-item-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  opacity: 0.88;
 }
 
 .wl-flyout__settings-item:hover {

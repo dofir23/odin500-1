@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { fmtAbsSigned, fmtNumber, fmtPctSigned } from '../../utils/formatDisplayNumber.js';
 import { PositionOrderModal, getClosableLegs } from './ClosePositionModal.jsx';
 
@@ -111,7 +112,15 @@ export function PositionsTable({ positions, loading, onPlaceOrder }) {
               const canClose = closableLegs.length > 0 && canTrade;
               return (
                 <tr key={p.id || p.ticker}>
-                  <td className="paper-table__sym">{p.ticker}</td>
+                  <td>
+                    <Link
+                      to={`/ticker/${encodeURIComponent(p.ticker)}`}
+                      className="paper-table__sym paper-table__sym-link"
+                      title={`View ${p.ticker} chart and data`}
+                    >
+                      {p.ticker}
+                    </Link>
+                  </td>
                   <td>{fmtQty(p.long_qty)}</td>
                   <td>{fmtQty(p.short_qty)}</td>
                   <td>{fmtQty(p.net_qty)}</td>

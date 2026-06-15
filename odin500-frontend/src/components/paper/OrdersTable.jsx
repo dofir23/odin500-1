@@ -1,4 +1,8 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { paperActionLabel } from './paperActionLabels.js';
+import { formatOrderPriceSummary, paperOrderTypeLabel } from './paperOrderLabels.js';
+import { PendingOrderEditModal } from './PendingOrderEditModal.jsx';
 
 function formatTime(iso) {
   if (!iso) return '—';
@@ -14,13 +18,6 @@ function formatTime(iso) {
   }
 }
 
-function money(v) {
-  if (v == null || v === '—' || Number.isNaN(Number(v))) return '—';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(
-    Number(v)
-  );
-}
-
 function SidePill({ side, action }) {
   const s = String(side).toLowerCase();
   const label = paperActionLabel(action) || s;
@@ -32,31 +29,57 @@ function StatusPill({ status }) {
   return <span className={'paper-status paper-status--' + s}>{status}</span>;
 }
 
-export function OrdersTable({ orders, loading, onCancel }) {
+export function OrdersTable({ orders, loading, onCancel, onModify }) {
+  const [editOrder, setEditOrder] = useState(null);
+  const [editBusy, setEditBusy] = useState(false);
+
   const pending = (orders || []).filter((o) => o.status === 'pending');
   const history = (orders || []).filter((o) => o.status !== 'pending');
 
+  async function handleSave(patch) {
+    if (!editOrder || !onModify) return;
+    setEditBusy(true);
+    try {
+      await onModify(editOrder.id, patch);
+      setEditOrder(null);
+    } finally {
+      setEditBusy(false);
+    }
+  }
+
   function renderRow(o) {
-    const price =
-      o.order_type === 'limit' && o.limit_price != null
-        ? o.limit_price
-        : o.avg_fill_price != null
-          ? o.avg_fill_price
-          : null;
+    const canEdit =
+      o.status === 'pending' &&
+      onModify &&
+      !o.metadata?.stop_triggered &&
+      ['limit', 'stop_market', 'stop_limit'].includes(String(o.order_type || '').toLowerCase());
+
     return (
       <tr key={o.id}>
         <td>
           <SidePill side={o.side} action={o.action} />
         </td>
-        <td className="paper-table__sym">{o.ticker}</td>
+        <td>
+          <Link
+            to={`/ticker/${encodeURIComponent(o.ticker)}`}
+            className="paper-table__sym paper-table__sym-link"
+          >
+            {o.ticker}
+          </Link>
+        </td>
         <td>{o.qty}</td>
-        <td style={{ textTransform: 'capitalize' }}>{o.order_type}</td>
-        <td>{price != null ? money(price) : '—'}</td>
+        <td>{paperOrderTypeLabel(o.order_type)}</td>
+        <td>{formatOrderPriceSummary(o)}</td>
         <td>
           <StatusPill status={o.status} />
         </td>
         <td>{formatTime(o.filled_at || o.submitted_at)}</td>
-        <td>
+        <td className="paper-table__actions">
+          {canEdit ? (
+            <button type="button" className="paper-order-action-btn" onClick={() => setEditOrder(o)}>
+              Edit
+            </button>
+          ) : null}
           {o.status === 'pending' && onCancel ? (
             <button type="button" className="paper-cancel-btn" onClick={() => void onCancel(o.id)}>
               Cancel
@@ -109,6 +132,16 @@ export function OrdersTable({ orders, loading, onCancel }) {
           </table>
         </div>
       )}
+
+      <PendingOrderEditModal
+        open={editOrder != null}
+        order={editOrder}
+        onClose={() => {
+          if (!editBusy) setEditOrder(null);
+        }}
+        onSave={handleSave}
+        busy={editBusy}
+      />
     </div>
   );
 }

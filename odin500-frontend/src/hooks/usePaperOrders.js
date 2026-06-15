@@ -61,8 +61,23 @@ export function usePaperOrders({ accountId = '' } = {}) {
       await refetch();
       return result;
     },
-    [refetch]
+    [refetch, accountId]
   );
 
-  return { orders, loading, placeOrder, cancelOrder, refetch };
+  const modifyOrder = useCallback(
+    async (orderId, patch) => {
+      const qs = accountId ? `?account_id=${encodeURIComponent(accountId)}` : '';
+      const res = await fetchWithAuth(apiUrl(`/api/paper/orders/${encodeURIComponent(orderId)}${qs}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch)
+      });
+      const result = await parseJson(res);
+      await refetch();
+      return result;
+    },
+    [refetch, accountId]
+  );
+
+  return { orders, loading, placeOrder, cancelOrder, modifyOrder, refetch };
 }

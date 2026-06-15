@@ -277,6 +277,14 @@ function buildSingleRulePayload(form, ticker) {
     if (Number.isFinite(maxVal) && maxVal > 0) {
       payload.params.max_position_value = maxVal;
     }
+    if (form.bracketEnabled) {
+      const sl = Number(form.bracketStopLoss);
+      const tp = Number(form.bracketTakeProfit);
+      const bracket = {};
+      if (Number.isFinite(sl) && sl > 0) bracket.stopLoss = sl;
+      if (Number.isFinite(tp) && tp > 0) bracket.takeProfit = tp;
+      if (Object.keys(bracket).length) payload.params.bracket = bracket;
+    }
   }
 
   if (rule_type === 'signal_bucket') {
@@ -338,6 +346,15 @@ export function validateRuleForm(form, context = {}) {
     if (Number.isFinite(qty) && qty > maxPos) {
       return 'Qty per run cannot exceed max position limit';
     }
+    if (form.bracketEnabled) {
+      const sl = Number(form.bracketStopLoss);
+      const tp = Number(form.bracketTakeProfit);
+      const hasSl = Number.isFinite(sl) && sl > 0;
+      const hasTp = Number.isFinite(tp) && tp > 0;
+      if (!hasSl && !hasTp) {
+        return 'Enter a stop-loss and/or take-profit price for the OCO bracket';
+      }
+    }
   }
 
   const uiType = form.uiRuleType || form.rule_type || 'always';
@@ -387,6 +404,30 @@ export function formatRuleQty(rule) {
   return Number.isFinite(q) ? String(q) : '—';
 }
 
+/** @param {object} [params] */
+export function parseRuleBracket(params) {
+  const b = params?.bracket;
+  if (!b || typeof b !== 'object') return null;
+  const stopLoss =
+    b.stopLoss != null ? Number(b.stopLoss) : b.stop_loss != null ? Number(b.stop_loss) : null;
+  const takeProfit =
+    b.takeProfit != null ? Number(b.takeProfit) : b.take_profit != null ? Number(b.take_profit) : null;
+  if ((!stopLoss || stopLoss <= 0) && (!takeProfit || takeProfit <= 0)) return null;
+  return {
+    stopLoss: stopLoss != null && stopLoss > 0 ? stopLoss : null,
+    takeProfit: takeProfit != null && takeProfit > 0 ? takeProfit : null
+  };
+}
+
+/** @param {ReturnType<typeof parseRuleBracket>} bracket */
+export function formatBracketNote(bracket) {
+  if (!bracket) return '';
+  const parts = [];
+  if (bracket.stopLoss != null) parts.push(`SL $${Number(bracket.stopLoss).toFixed(0)}`);
+  if (bracket.takeProfit != null) parts.push(`TP $${Number(bracket.takeProfit).toFixed(0)}`);
+  return parts.length ? ` · OCO ${parts.join(' / ')}` : '';
+}
+
 export function ruleSummary(rule) {
   const ui = apiRuleToUiType(rule);
   const opt = RULE_TYPE_OPTIONS.find((o) => o.id === ui);
@@ -408,7 +449,8 @@ export function ruleSummary(rule) {
     maxVal != null && Number.isFinite(Number(maxVal))
       ? ` · max $${Number(maxVal).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
       : '';
-  return `${typeLabel}${th}${bucket} · ${rule.ticker} · ${actionLabel} ×${qtyLabel}${maxNote}${maxValueNote}`;
+  const bracketNote = formatBracketNote(parseRuleBracket(rule.params));
+  return `${typeLabel}${th}${bucket} · ${rule.ticker} · ${actionLabel} ×${qtyLabel}${maxNote}${maxValueNote}${bracketNote}`;
 }
 
 /** Shorter summary for watchlist rows (ticker shown separately). */
@@ -432,7 +474,8 @@ export function ruleSummaryInline(rule) {
       : '';
   const actionLabel = paperActionLabel(rule.action);
   const qtyLabel = formatRuleQty(rule);
-  return `${typeLabel}${th} · ${actionLabel} ×${qtyLabel}`;
+  const bracketNote = formatBracketNote(parseRuleBracket(rule.params));
+  return `${typeLabel}${th} · ${actionLabel} ×${qtyLabel}${bracketNote}`;
 }
 
 /** Map API rule → StrategyRuleForm state (single ticker). */
@@ -456,7 +499,16 @@ export function ruleToForm(rule) {
       rule.threshold_value != null && Number.isFinite(Number(rule.threshold_value))
         ? String(rule.threshold_value)
         : '',
-    signalBuckets: parseRuleSignalBuckets(rule)
+    signalBuckets: parseRuleSignalBuckets(rule),
+    bracketEnabled: Boolean(parseRuleBracket(params)),
+    bracketStopLoss: (() => {
+      const b = parseRuleBracket(params);
+      return b?.stopLoss != null ? String(b.stopLoss) : '';
+    })(),
+    bracketTakeProfit: (() => {
+      const b = parseRuleBracket(params);
+      return b?.takeProfit != null ? String(b.takeProfit) : '';
+    })()
   };
 }
 

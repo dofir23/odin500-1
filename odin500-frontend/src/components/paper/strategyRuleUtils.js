@@ -273,6 +273,10 @@ function buildSingleRulePayload(form, ticker) {
     if (Number.isFinite(maxPos) && maxPos > 0) {
       payload.params.max_position_qty = maxPos;
     }
+    const maxVal = Number(form.maxPositionValue);
+    if (Number.isFinite(maxVal) && maxVal > 0) {
+      payload.params.max_position_value = maxVal;
+    }
   }
 
   if (rule_type === 'signal_bucket') {
@@ -322,6 +326,13 @@ export function validateRuleForm(form, context = {}) {
     const maxPos = Number(form.maxPositionQty);
     if (!Number.isFinite(maxPos) || maxPos <= 0) {
       return 'Max position limit is required for Buy and Short rules';
+    }
+    const maxValRaw = form.maxPositionValue;
+    if (maxValRaw !== '' && maxValRaw != null) {
+      const maxVal = Number(maxValRaw);
+      if (!Number.isFinite(maxVal) || maxVal <= 0) {
+        return 'Max position value must be greater than 0';
+      }
     }
     const qty = Number(form.qty);
     if (Number.isFinite(qty) && qty > maxPos) {
@@ -388,11 +399,40 @@ export function ruleSummary(rule) {
   const actionLabel = paperActionLabel(rule.action);
   const qtyLabel = formatRuleQty(rule);
   const maxPos = rule.params?.max_position_qty;
+  const maxVal = rule.params?.max_position_value;
   const maxNote =
     maxPos != null && Number.isFinite(Number(maxPos))
-      ? ` · max ${Number(maxPos)}`
+      ? ` · max ${Number(maxPos)} sh`
       : '';
-  return `${typeLabel}${th}${bucket} · ${rule.ticker} · ${actionLabel} ×${qtyLabel}${maxNote}`;
+  const maxValueNote =
+    maxVal != null && Number.isFinite(Number(maxVal))
+      ? ` · max $${Number(maxVal).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+      : '';
+  return `${typeLabel}${th}${bucket} · ${rule.ticker} · ${actionLabel} ×${qtyLabel}${maxNote}${maxValueNote}`;
+}
+
+/** Shorter summary for watchlist rows (ticker shown separately). */
+export function ruleSummaryInline(rule) {
+  const ui = apiRuleToUiType(rule);
+  const opt = RULE_TYPE_OPTIONS.find((o) => o.id === ui);
+  let typeLabel = opt?.label || rule.rule_type;
+  if (ui === 'signal_side_long') typeLabel = 'Long L1–L3';
+  else if (ui === 'signal_side_short') typeLabel = 'Short S1–S3';
+  else if (ui === 'signal_side_neutral') typeLabel = 'Neutral N';
+  else if (ui === 'signal_bucket') {
+    const buckets = parseRuleSignalBuckets(rule);
+    typeLabel = buckets.length ? `Signals ${buckets.join(',')}` : 'Signals';
+  } else if (ui === 'always') typeLabel = 'Always';
+  else if (ui === 'price_above') typeLabel = 'Price above';
+  else if (ui === 'price_below') typeLabel = 'Price below';
+
+  const th =
+    rule.threshold_value != null && Number.isFinite(Number(rule.threshold_value))
+      ? ` $${Number(rule.threshold_value).toFixed(0)}`
+      : '';
+  const actionLabel = paperActionLabel(rule.action);
+  const qtyLabel = formatRuleQty(rule);
+  return `${typeLabel}${th} · ${actionLabel} ×${qtyLabel}`;
 }
 
 /** Map API rule → StrategyRuleForm state (single ticker). */
@@ -407,6 +447,10 @@ export function ruleToForm(rule) {
       params.max_position_qty != null && Number.isFinite(Number(params.max_position_qty))
         ? String(params.max_position_qty)
         : '10',
+    maxPositionValue:
+      params.max_position_value != null && Number.isFinite(Number(params.max_position_value))
+        ? String(params.max_position_value)
+        : '',
     closeAll: Boolean(params.close_all),
     threshold_value:
       rule.threshold_value != null && Number.isFinite(Number(rule.threshold_value))

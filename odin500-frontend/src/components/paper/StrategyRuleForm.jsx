@@ -23,6 +23,7 @@ const EMPTY = {
   action: 'BTO',
   qty: '1',
   maxPositionQty: '10',
+  maxPositionValue: '',
   closeAll: false,
   threshold_value: '',
   signalBuckets: []
@@ -89,6 +90,7 @@ export function StrategyRuleForm({
       }
       if (isClosingPaperAction(nextAction)) {
         next.maxPositionQty = '';
+        next.maxPositionValue = '';
       }
       return next;
     });
@@ -206,6 +208,7 @@ export function StrategyRuleForm({
         }
         if (isClosingPaperAction(next.action)) {
           next.maxPositionQty = '';
+          next.maxPositionValue = '';
         }
       }
       return next;
@@ -420,21 +423,6 @@ export function StrategyRuleForm({
             qtyField
           )}
 
-          {isOpen ? (
-            <label className="paper-field paper-strategy-rule-form__field--max">
-              <span className="paper-field__label">Max position limit</span>
-              <input
-                type="number"
-                className="paper-input"
-                min="0.000001"
-                step="any"
-                value={form.maxPositionQty}
-                onChange={(e) => update({ maxPositionQty: e.target.value })}
-                placeholder="Never exceed this total size"
-              />
-            </label>
-          ) : null}
-
           {showThreshold ? (
             <label className="paper-field paper-strategy-rule-form__field--threshold">
               <span className="paper-field__label">Threshold ($)</span>
@@ -449,6 +437,35 @@ export function StrategyRuleForm({
             </label>
           ) : null}
         </div>
+
+        {isOpen ? (
+          <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--limits">
+            <label className="paper-field paper-strategy-rule-form__field--max">
+              <span className="paper-field__label">Max position limit</span>
+              <input
+                type="number"
+                className="paper-input"
+                min="0.000001"
+                step="any"
+                value={form.maxPositionQty}
+                onChange={(e) => update({ maxPositionQty: e.target.value })}
+                placeholder="Max shares"
+              />
+            </label>
+            <label className="paper-field paper-strategy-rule-form__field--max-value">
+              <span className="paper-field__label">Max position value</span>
+              <input
+                type="number"
+                className="paper-input"
+                min="0.01"
+                step="0.01"
+                value={form.maxPositionValue}
+                onChange={(e) => update({ maxPositionValue: e.target.value })}
+                placeholder="Max $ notional (optional)"
+              />
+            </label>
+          </div>
+        ) : null}
 
         {showBucket ? (
           <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--full">
@@ -465,8 +482,8 @@ export function StrategyRuleForm({
       {isOpen ? (
         <p className="paper-strategy-muted paper-strategy-rule-form__hint">
           {hideActions
-            ? 'Fill in the rule below, then click Create strategy account.'
-            : 'After filling the form please click on the "Add rule" button to add the rule.'}
+            ? 'Fill in the rule below, then click Create strategy account. Buys stop at max shares or max $ value — whichever is hit first.'
+            : 'After filling the form please click on the "Add rule" button to add the rule. Buys stop at max shares or max $ value — whichever is hit first.'}
         </p>
       ) : null}
       {isClose && form.closeAll ? (

@@ -15,6 +15,7 @@ export function StrategyRulesList({ rules = [], onEdit, onDelete, busy = false, 
       {rules.map((rule) => (
         <li
           key={rule.id}
+          data-strategy-rule-id={rule.id}
           className={
             'paper-strategy-rules-list__item' +
             (editingRuleId === rule.id ? ' paper-strategy-rules-list__item--editing' : '')

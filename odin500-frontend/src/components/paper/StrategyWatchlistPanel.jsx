@@ -3,7 +3,7 @@ import { apiUrl } from '../../utils/apiOrigin.js';
 import { fetchWithAuth } from '../../store/apiStore.js';
 import { useWatchlistOptions } from '../../hooks/useWatchlistOptions.js';
 import { pickWatchlistKeyForMerged, watchlistKindTag } from '../../utils/watchlistOptions.js';
-import { buildWatchlistQuickRule, ruleTickerKey } from './strategyRuleUtils.js';
+import { buildWatchlistQuickRule, ruleSummaryInline, ruleTickerKey } from './strategyRuleUtils.js';
 
 function IcoChevronDown({ className }) {
   return (
@@ -64,10 +64,19 @@ function sideFromBucket(bucket) {
   return 'long';
 }
 
-function WatchlistTickerList({ rows, rules, busy, onAddRule, onAddToForm, onScrollToRules }) {
+function WatchlistTickerList({ rows, rules, busy, onAddRule, onAddToForm, onScrollToRules, onScrollToRule }) {
   const [selected, setSelected] = useState(() => new Set());
   const checkAllRef = useRef(null);
-  const existing = new Set((rules || []).map(ruleTickerKey));
+
+  const rulesByTicker = useMemo(() => {
+    const map = new Map();
+    for (const rule of rules || []) {
+      const key = ruleTickerKey(rule);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(rule);
+    }
+    return map;
+  }, [rules]);
 
   useEffect(() => {
     setSelected(new Set());
@@ -114,19 +123,7 @@ function WatchlistTickerList({ rows, rules, busy, onAddRule, onAddToForm, onScro
 
   return (
     <div className="paper-strategy-wl__panel">
-      <div className="paper-strategy-wl__list-head">
-        <label className="paper-strategy-wl__check-all" title="Select all">
-          <input
-            ref={checkAllRef}
-            type="checkbox"
-            className="paper-strategy-wl__checkbox"
-            checked={allSelected}
-            disabled={busy || rows.length === 0}
-            onChange={(e) => toggleAll(e.target.checked)}
-            aria-label="Select all tickers"
-          />
-        </label>
-        <h5 className="paper-strategy-wl__list-title">Tickers</h5>
+      <div className="paper-strategy-wl__toolbar">
         <div className="paper-strategy-wl__col-actions">
           <button
             type="button"
@@ -151,44 +148,94 @@ function WatchlistTickerList({ rows, rules, busy, onAddRule, onAddToForm, onScro
       {rows.length === 0 ? (
         <p className="paper-strategy-muted">No tickers in this watchlist.</p>
       ) : (
-        <div className="paper-strategy-wl__list-scroll">
-          <ul className="paper-strategy-wl__list">
-            {rows.map((row) => {
-              const hasRule = existing.has(row.symbol);
-              const isChecked = selected.has(row.symbol);
-              const bucket = String(row.bucket || 'N').toUpperCase();
-              return (
-                <li key={row.symbol} className="paper-strategy-wl__row">
-                  <label className="paper-strategy-wl__row-check">
-                    <input
-                      type="checkbox"
-                      className="paper-strategy-wl__checkbox"
-                      checked={isChecked}
-                      disabled={busy}
-                      onChange={(e) => toggleOne(row.symbol, e.target.checked)}
-                      aria-label={`Select ${row.symbol}`}
-                    />
-                  </label>
-                  <span className="paper-strategy-wl__sym">{row.symbol}</span>
-                  <span className={'paper-strategy-wl__bucket ' + bucketToneClass(bucket)}>{bucket}</span>
-                  {hasRule ? (
-                    <span
-                      className="paper-strategy-wl__rule-tick-wrap"
-                      title="Rule already exists"
-                      aria-label="Rule exists"
-                    >
-                      <IcoRuleExists />
-                    </span>
-                  ) : (
-                    <span
-                      className="paper-strategy-wl__rule-tick-wrap paper-strategy-wl__rule-tick-wrap--empty"
-                      aria-hidden
-                    />
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+        <div className="paper-strategy-wl__table">
+          <div className="paper-strategy-wl__table-scroll">
+            <div className="paper-strategy-wl__table-head" role="row">
+              <div className="paper-strategy-wl__th paper-strategy-wl__th--ticker" role="columnheader">
+                <label className="paper-strategy-wl__check-all" title="Select all">
+                  <input
+                    ref={checkAllRef}
+                    type="checkbox"
+                    className="paper-strategy-wl__checkbox"
+                    checked={allSelected}
+                    disabled={busy || rows.length === 0}
+                    onChange={(e) => toggleAll(e.target.checked)}
+                    aria-label="Select all tickers"
+                  />
+                </label>
+                <span>Ticker</span>
+              </div>
+              <div className="paper-strategy-wl__th paper-strategy-wl__th--signal" role="columnheader">
+                Signal
+              </div>
+              <div className="paper-strategy-wl__th paper-strategy-wl__th--rule" role="columnheader">
+                Rule
+              </div>
+            </div>
+            <ul className="paper-strategy-wl__list">
+              {rows.map((row) => {
+                const tickerRules = rulesByTicker.get(row.symbol) || [];
+                const firstRule = tickerRules[0];
+                const extraCount = tickerRules.length > 1 ? tickerRules.length - 1 : 0;
+                const isChecked = selected.has(row.symbol);
+                const bucket = String(row.bucket || 'N').toUpperCase();
+                return (
+                  <li key={row.symbol} className="paper-strategy-wl__row">
+                    <div className="paper-strategy-wl__cell paper-strategy-wl__cell--ticker">
+                      <label className="paper-strategy-wl__row-check">
+                        <input
+                          type="checkbox"
+                          className="paper-strategy-wl__checkbox"
+                          checked={isChecked}
+                          disabled={busy}
+                          onChange={(e) => toggleOne(row.symbol, e.target.checked)}
+                          aria-label={`Select ${row.symbol}`}
+                        />
+                      </label>
+                      <span className="paper-strategy-wl__sym">{row.symbol}</span>
+                    </div>
+                    <div className="paper-strategy-wl__cell paper-strategy-wl__cell--signal">
+                      <span className={'paper-strategy-wl__bucket ' + bucketToneClass(bucket)}>{bucket}</span>
+                    </div>
+                    <div className="paper-strategy-wl__cell paper-strategy-wl__cell--rule">
+                      {firstRule ? (
+                        <button
+                          type="button"
+                          className="paper-strategy-wl__rule-link"
+                          disabled={busy}
+                          onClick={() => onScrollToRule?.(tickerRules.map((r) => r.id))}
+                          title={
+                            extraCount > 0
+                              ? `View all ${tickerRules.length} rules in Active rules`
+                              : 'View rule in Active rules'
+                          }
+                          aria-label={`View ${tickerRules.length} rule${
+                            tickerRules.length === 1 ? '' : 's'
+                          } for ${row.symbol}: ${ruleSummaryInline(firstRule)}${
+                            extraCount > 0 ? `, plus ${extraCount} more` : ''
+                          }`}
+                        >
+                          <IcoRuleExists />
+                          <span className="paper-strategy-wl__rule-link-text">
+                            {ruleSummaryInline(firstRule)}
+                          </span>
+                          {extraCount > 0 ? (
+                            <span className="paper-strategy-wl__rule-more" aria-hidden>
+                              +{extraCount}
+                            </span>
+                          ) : null}
+                        </button>
+                      ) : (
+                        <span className="paper-strategy-wl__rule-empty" aria-hidden>
+                          —
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </div>
       )}
     </div>
@@ -203,7 +250,8 @@ export function StrategyWatchlistPanel({
   onWatchlistKeyChange,
   onAddRule,
   onAddTickersToForm,
-  onScrollToRules
+  onScrollToRules,
+  onScrollToRule
 }) {
   const { options, loading: optionsLoading, error: optionsError } = useWatchlistOptions();
   const [selectedKey, setSelectedKey] = useState('');
@@ -303,8 +351,8 @@ export function StrategyWatchlistPanel({
       <div className="paper-strategy-section__head">
         <h4 className="paper-strategy-section__title">Watchlist signals</h4>
         <p className="paper-strategy-section__desc">
-          Pick a watchlist to see each ticker&apos;s Odin signal (L1–L3, S1–S3, or N). Check tickers, then use
-          + Add rule or + Form to create a rule in the modal.
+          Pick a watchlist to see each ticker&apos;s Odin signal (L1–L3, S1–S3, or N). Tickers with rules show a
+          summary on the right — tap to jump to Active rules.
         </p>
       </div>
 
@@ -366,6 +414,7 @@ export function StrategyWatchlistPanel({
           onAddRule={handleAddRules}
           onAddToForm={(syms) => onAddTickersToForm?.(syms)}
           onScrollToRules={onScrollToRules}
+          onScrollToRule={onScrollToRule}
         />
       )}
 

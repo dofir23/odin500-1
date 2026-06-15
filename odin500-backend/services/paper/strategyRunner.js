@@ -33,6 +33,56 @@ function parseParams(rule) {
   return {};
 }
 
+function round6(v) {
+  return Math.round(Number(v || 0) * 1000000) / 1000000;
+}
+
+/**
+ * Caps opening order qty by share count and/or dollar notional — whichever is tighter.
+ * @returns {{ ok: true, qty: number } | { ok: false, skipMessage: string }}
+ */
+function capOpeningOrderQty({ side, ruleQty, openQty, maxPosQty, maxPosValue, currentPrice }) {
+  const sideLabel = side === 'long' ? 'long' : 'short';
+  let qty = ruleQty;
+  const hasQtyCap = Number.isFinite(maxPosQty) && maxPosQty > 0;
+  const hasValueCap = Number.isFinite(maxPosValue) && maxPosValue > 0;
+
+  if (hasQtyCap) {
+    if (openQty >= maxPosQty) {
+      return { ok: false, skipMessage: `Max ${sideLabel} position limit reached` };
+    }
+    qty = Math.min(qty, maxPosQty - openQty);
+  }
+
+  if (hasValueCap) {
+    if (currentPrice == null || !Number.isFinite(currentPrice) || currentPrice <= 0) {
+      return { ok: false, skipMessage: 'No price available for max position value check' };
+    }
+    const currentValue = openQty * currentPrice;
+    if (currentValue >= maxPosValue) {
+      return { ok: false, skipMessage: `Max ${sideLabel} position value reached` };
+    }
+    qty = Math.min(qty, (maxPosValue - currentValue) / currentPrice);
+  }
+
+  if (!hasQtyCap && !hasValueCap && openQty > 0) {
+    return { ok: false, skipMessage: `Already in ${sideLabel} position — entry skipped` };
+  }
+
+  qty = round6(qty);
+  if (qty <= 0) {
+    if (hasValueCap && hasQtyCap) {
+      return { ok: false, skipMessage: `Max ${sideLabel} position limit or value reached` };
+    }
+    if (hasValueCap) {
+      return { ok: false, skipMessage: `Max ${sideLabel} position value reached` };
+    }
+    return { ok: false, skipMessage: `Max ${sideLabel} position limit reached` };
+  }
+
+  return { ok: true, qty };
+}
+
 async function evaluateRule(rule) {
   const ticker = String(rule.ticker || '').toUpperCase().trim();
   const type = String(rule.rule_type || '').toLowerCase();
@@ -98,11 +148,12 @@ async function evaluateRule(rule) {
 
 /**
  * Resolves order qty from rule + current position.
- * Opens: respects params.max_position_qty (accumulate up to cap) or flat-only when unset.
+ * Opens: respects params.max_position_qty and params.max_position_value (whichever caps first).
  * Closes: params.close_all closes entire side; otherwise min(rule qty, open qty).
+ * @param {number|null} [currentPrice] — latest close; required when max_position_value is set
  * @returns {{ ok: true, qty: number, action: string } | { ok: false, skipMessage: string }}
  */
-function resolveOrderFromRule(rule, position) {
+function resolveOrderFromRule(rule, position, currentPrice = null) {
   const action = normalizeAction(rule.action);
   const params = parseParams(rule);
   const closeAll = params.close_all === true;
@@ -115,39 +166,32 @@ function resolveOrderFromRule(rule, position) {
   const longQty = Number(position?.closableLongQty || 0);
   const shortQty = Number(position?.closableShortQty || 0);
   const maxPos = Number(params.max_position_qty);
+  const maxPosValue = Number(params.max_position_value);
 
   if (action === 'BTO') {
-    if (Number.isFinite(maxPos) && maxPos > 0) {
-      if (longQty >= maxPos) {
-        return { ok: false, skipMessage: 'Max long position limit reached' };
-      }
-      const buyQty = Math.min(ruleQty, maxPos - longQty);
-      if (buyQty <= 0) {
-        return { ok: false, skipMessage: 'Max long position limit reached' };
-      }
-      return { ok: true, qty: buyQty, action };
-    }
-    if (longQty > 0) {
-      return { ok: false, skipMessage: 'Already in long position — entry skipped' };
-    }
-    return { ok: true, qty: ruleQty, action };
+    const capped = capOpeningOrderQty({
+      side: 'long',
+      ruleQty,
+      openQty: longQty,
+      maxPosQty: maxPos,
+      maxPosValue,
+      currentPrice
+    });
+    if (!capped.ok) return capped;
+    return { ok: true, qty: capped.qty, action };
   }
 
   if (action === 'STO') {
-    if (Number.isFinite(maxPos) && maxPos > 0) {
-      if (shortQty >= maxPos) {
-        return { ok: false, skipMessage: 'Max short position limit reached' };
-      }
-      const sellQty = Math.min(ruleQty, maxPos - shortQty);
-      if (sellQty <= 0) {
-        return { ok: false, skipMessage: 'Max short position limit reached' };
-      }
-      return { ok: true, qty: sellQty, action };
-    }
-    if (shortQty > 0) {
-      return { ok: false, skipMessage: 'Already in short position — entry skipped' };
-    }
-    return { ok: true, qty: ruleQty, action };
+    const capped = capOpeningOrderQty({
+      side: 'short',
+      ruleQty,
+      openQty: shortQty,
+      maxPosQty: maxPos,
+      maxPosValue,
+      currentPrice
+    });
+    if (!capped.ok) return capped;
+    return { ok: true, qty: capped.qty, action };
   }
 
   if (action === 'STC') {
@@ -224,7 +268,18 @@ async function processBinding(binding) {
         closableShortQty: 0
       };
 
-      const resolved = resolveOrderFromRule(rule, position);
+      const params = parseParams(rule);
+      const action = normalizeAction(rule.action);
+      const needsPrice =
+        isOpeningAction(action) &&
+        Number.isFinite(Number(params.max_position_value)) &&
+        Number(params.max_position_value) > 0;
+      let price = evalOut.price;
+      if (needsPrice && (price == null || !Number.isFinite(price))) {
+        price = await getCurrentPrice(ticker);
+      }
+
+      const resolved = resolveOrderFromRule(rule, position, price);
       if (!resolved.ok) {
         await logStrategyEvent({
           strategyId: strategy.id,
@@ -333,6 +388,7 @@ module.exports = {
   runStrategiesForAccount,
   evaluateRule,
   resolveOrderFromRule,
+  capOpeningOrderQty,
   isOpeningAction,
   isClosingAction
 };

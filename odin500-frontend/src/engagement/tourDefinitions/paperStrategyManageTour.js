@@ -50,7 +50,7 @@ export function buildPaperStrategyManageSteps() {
       popover: {
         title: 'Execution log',
         description:
-          'See what the scheduler did: triggered orders, skips, and errors. Check here after Run now or on the ~5 minute schedule.',
+          'See what the scheduler did: triggered orders, skips, and errors. Check here after Run now or on the hourly schedule.',
         side: 'top',
         align: 'start',
         onNextClick: (_element, _step, { driver: tourDriver }) => {

@@ -10,7 +10,8 @@ const ENABLE = process.env.ENABLE_PAPER_JOBS !== '0';
 const SNAPSHOT_MS = Number(process.env.PAPER_SNAPSHOT_INTERVAL_MS || 86400000);
 /** Default: every 4 hours (14_400_000 ms). Override with PAPER_PENDING_ORDER_MS. */
 const PENDING_MS = Number(process.env.PAPER_PENDING_ORDER_MS || 14400000);
-const STRATEGY_MS = Number(process.env.PAPER_STRATEGY_INTERVAL_MS || 300000);
+/** Default 1 hour — Odin signals/prices update on a daily cadence; override via PAPER_STRATEGY_INTERVAL_MS. */
+const STRATEGY_MS = Number(process.env.PAPER_STRATEGY_INTERVAL_MS || 3600000);
 
 let snapshotTimer = null;
 let pendingTimer = null;
@@ -73,7 +74,7 @@ function startPaperJobs() {
 
   const snapMs = Number.isFinite(SNAPSHOT_MS) && SNAPSHOT_MS > 0 ? SNAPSHOT_MS : 86400000;
   const pendMs = Number.isFinite(PENDING_MS) && PENDING_MS > 0 ? PENDING_MS : 14400000;
-  const stratMs = Number.isFinite(STRATEGY_MS) && STRATEGY_MS > 0 ? STRATEGY_MS : 300000;
+  const stratMs = Number.isFinite(STRATEGY_MS) && STRATEGY_MS > 0 ? STRATEGY_MS : 3600000;
 
   void runSnapshotOnce();
   snapshotTimer = setInterval(() => {

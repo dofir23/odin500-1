@@ -348,7 +348,7 @@ export function StrategyPanel({
 
       <section className="paper-strategy-section paper-strategy-section--footnote" aria-label="Strategy help">
         <p className="paper-strategy-docs">
-          Strategies evaluate on the server schedule (~5 min by default). Odin signal rules use L1–S3 / N
+          Strategies evaluate on the server schedule (~1 hour by default). Odin signal rules use L1–S3 / N
           buckets. Buy/Short rules can add qty each run up to your <strong>max position limit</strong> (shares)
           and/or <strong>max position value</strong> ($) — whichever cap is hit first stops further entries.
           Sell/Cover

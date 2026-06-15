@@ -2,7 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiUrl } from '../utils/apiOrigin.js';
 import { fetchWithAuth, canFetchProtectedApi } from '../store/apiStore.js';
 
-const POLL_MS = 15000;
+/** Default 5 min — positions use daily close prices; override with VITE_PAPER_POSITIONS_POLL_MS. Set 0 to disable. */
+const POLL_MS = (() => {
+  const raw = import.meta.env.VITE_PAPER_POSITIONS_POLL_MS;
+  if (raw === '0' || raw === 0) return 0;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 300000;
+})();
 
 async function parseJson(res) {
   const payload = await res.json().catch(() => ({}));
@@ -45,6 +51,7 @@ export function usePaperPositions({ enabled = true, accountId = '' } = {}) {
       return undefined;
     }
     void refetch();
+    if (POLL_MS <= 0) return undefined;
     const t = window.setInterval(() => {
       void refetch();
     }, POLL_MS);

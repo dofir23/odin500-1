@@ -188,7 +188,7 @@ export function StrategyAccountWizard({
           }}
         >
           <p className="paper-strategy-wizard__intro">
-            Create a dedicated paper portfolio that runs automated rules on a server schedule (~5 min).
+            Create a dedicated paper portfolio that runs automated rules on a server schedule (~1 hour).
           </p>
           <label className="paper-field" htmlFor="paper-wizard-account-name">
             <span className="paper-field__label">Portfolio name</span>

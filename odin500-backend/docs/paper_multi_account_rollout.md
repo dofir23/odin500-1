@@ -83,7 +83,7 @@ Odin examples:
 { "rule_type": "signal_bucket", "ticker": "MSFT", "action": "BTO", "qty": 5, "params": { "bucket": "L2" } }
 ```
 
-Background runner: `strategyRunner` every ~5 min when `ENABLE_PAPER_JOBS` is not `0` (override with `PAPER_STRATEGY_INTERVAL_MS`).
+Background runner: `strategyRunner` every ~1 hour by default when `ENABLE_PAPER_JOBS` is not `0` (override with `PAPER_STRATEGY_INTERVAL_MS`; use `86400000` for once per day).
 
 **Position-aware execution (one cycle per trade):**
 

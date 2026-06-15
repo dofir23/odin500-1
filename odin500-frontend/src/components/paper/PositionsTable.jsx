@@ -1,6 +1,11 @@
 import { useState } from 'react';
-import { fmtAbsSigned, fmtPctSigned } from '../../utils/formatDisplayNumber.js';
+import { fmtAbsSigned, fmtNumber, fmtPctSigned } from '../../utils/formatDisplayNumber.js';
 import { PositionOrderModal, getClosableLegs } from './ClosePositionModal.jsx';
+
+function fmtQty(v) {
+  if (v == null || !Number.isFinite(Number(v))) return '0';
+  return fmtNumber(v, { decimals: 2, empty: '0' });
+}
 
 function money(v) {
   if (v == null || Number.isNaN(Number(v))) return '—';
@@ -107,9 +112,9 @@ export function PositionsTable({ positions, loading, onPlaceOrder }) {
               return (
                 <tr key={p.id || p.ticker}>
                   <td className="paper-table__sym">{p.ticker}</td>
-                  <td>{p.long_qty ?? 0}</td>
-                  <td>{p.short_qty ?? 0}</td>
-                  <td>{p.net_qty ?? 0}</td>
+                  <td>{fmtQty(p.long_qty)}</td>
+                  <td>{fmtQty(p.short_qty)}</td>
+                  <td>{fmtQty(p.net_qty)}</td>
                   <td>{money(p.avg_long_cost)}</td>
                   <td>{money(p.avg_short_cost)}</td>
                   <td>{money(lastPrice)}</td>

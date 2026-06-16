@@ -333,18 +333,18 @@ export function validateRuleForm(form, context = {}) {
   if (isOpeningPaperAction(action)) {
     const maxPos = Number(form.maxPositionQty);
     if (!Number.isFinite(maxPos) || maxPos <= 0) {
-      return 'Max position limit is required for Buy and Short rules';
+      return 'Max shares owned is required for Buy and Short rules';
     }
     const maxValRaw = form.maxPositionValue;
     if (maxValRaw !== '' && maxValRaw != null) {
       const maxVal = Number(maxValRaw);
       if (!Number.isFinite(maxVal) || maxVal <= 0) {
-        return 'Max position value must be greater than 0';
+        return 'Max dollar limit must be greater than 0';
       }
     }
     const qty = Number(form.qty);
     if (Number.isFinite(qty) && qty > maxPos) {
-      return 'Qty per run cannot exceed max position limit';
+      return 'Shares per trade cannot exceed max shares owned';
     }
     if (form.bracketEnabled) {
       const sl = Number(form.bracketStopLoss);
@@ -352,7 +352,7 @@ export function validateRuleForm(form, context = {}) {
       const hasSl = Number.isFinite(sl) && sl > 0;
       const hasTp = Number.isFinite(tp) && tp > 0;
       if (!hasSl && !hasTp) {
-        return 'Enter a stop-loss and/or take-profit price for the OCO bracket';
+        return 'Enter a stop-loss and/or take-profit price for auto-exits';
       }
     }
   }
@@ -423,9 +423,197 @@ export function parseRuleBracket(params) {
 export function formatBracketNote(bracket) {
   if (!bracket) return '';
   const parts = [];
-  if (bracket.stopLoss != null) parts.push(`SL $${Number(bracket.stopLoss).toFixed(0)}`);
-  if (bracket.takeProfit != null) parts.push(`TP $${Number(bracket.takeProfit).toFixed(0)}`);
-  return parts.length ? ` · OCO ${parts.join(' / ')}` : '';
+  if (bracket.stopLoss != null) parts.push(`stop $${Number(bracket.stopLoss).toFixed(0)}`);
+  if (bracket.takeProfit != null) parts.push(`target $${Number(bracket.takeProfit).toFixed(0)}`);
+  return parts.length ? ` · Auto-exits: ${parts.join(' / ')}` : '';
+}
+
+function pluralShares(qty) {
+  const n = Number(qty);
+  if (!Number.isFinite(n)) return 'shares';
+  return Math.abs(n) === 1 ? 'share' : 'shares';
+}
+
+function formatTriggerPhrase(uiType, formOrRule) {
+  const buckets = normalizeSignalBucketList(formOrRule.signalBuckets ?? parseRuleSignalBuckets(formOrRule));
+  const th = formOrRule.threshold_value;
+  const thNum = Number(th);
+
+  if (uiType === 'signal_side_long') return 'Odin signal is Long (L1–L3)';
+  if (uiType === 'signal_side_short') return 'Odin signal is Short (S1–S3)';
+  if (uiType === 'signal_side_neutral') return 'Odin signal is Neutral (N)';
+  if (uiType === 'signal_bucket') {
+    return buckets.length ? `Odin signal is ${buckets.join(', ')}` : 'Odin signal matches your picks';
+  }
+  if (uiType === 'price_above' && Number.isFinite(thNum) && thNum > 0) {
+    return `price rises above $${thNum.toFixed(2)}`;
+  }
+  if (uiType === 'price_below' && Number.isFinite(thNum) && thNum > 0) {
+    return `price falls below $${thNum.toFixed(2)}`;
+  }
+  if (uiType === 'always') return 'each scheduled market check';
+  return 'your rule condition is met';
+}
+
+function formatActionVerb(action, closeAll) {
+  const a = String(action || '').toUpperCase();
+  if (closeAll && isClosingPaperAction(a)) return a === 'STC' ? 'SELL ALL' : 'COVER ALL';
+  if (a === 'BTO') return 'BUY';
+  if (a === 'STO') return 'SHORT';
+  if (a === 'STC') return 'SELL';
+  if (a === 'BTC') return 'COVER';
+  return paperActionLabel(a).toUpperCase();
+}
+
+/** Starter presets for the strategy account wizard. */
+export const RULE_FORM_TEMPLATES = {
+  dip: {
+    uiRuleType: 'signal_bucket',
+    signalBuckets: ['L1'],
+    action: 'BTO',
+    qty: '1',
+    maxPositionQty: '10',
+    maxPositionValue: '',
+    closeAll: false,
+    threshold_value: '',
+    bracketEnabled: false,
+    bracketStopLoss: '',
+    bracketTakeProfit: ''
+  },
+  trend: {
+    uiRuleType: 'signal_bucket',
+    signalBuckets: ['L2', 'L3'],
+    action: 'BTO',
+    qty: '1',
+    maxPositionQty: '10',
+    maxPositionValue: '',
+    closeAll: false,
+    threshold_value: '',
+    bracketEnabled: false,
+    bracketStopLoss: '',
+    bracketTakeProfit: ''
+  }
+};
+
+/**
+ * Plain-English mad-libs preview for the rule form or API rule.
+ * @param {object} formOrRule
+ * @returns {string}
+ */
+export function buildRuleNaturalLanguagePreview(formOrRule) {
+  const uiType = formOrRule.uiRuleType || apiRuleToUiType(formOrRule);
+  const action = String(formOrRule.action || 'BTO').toUpperCase();
+  const closeAll = Boolean(formOrRule.closeAll ?? formOrRule.params?.close_all);
+  const tickers = Array.isArray(formOrRule.tickers)
+    ? formOrRule.tickers.map((t) => String(t || '').trim().toUpperCase()).filter(Boolean)
+    : [String(formOrRule.ticker || '').trim().toUpperCase()].filter(Boolean);
+  const tickerLabel = tickers.length
+    ? tickers.length <= 3
+      ? tickers.join(', ')
+      : `${tickers.length} tickers`
+    : 'your ticker';
+
+  const qtyRaw = closeAll && isClosingPaperAction(action) ? 'ALL' : formatRuleQty(formOrRule);
+  const qtyNum = Number(formOrRule.qty);
+  const qtyPhrase =
+    qtyRaw === 'ALL'
+      ? 'your full position'
+      : `${qtyRaw} ${pluralShares(qtyNum)}`;
+
+  const trigger = formatTriggerPhrase(uiType, formOrRule);
+  const verb = formatActionVerb(action, closeAll);
+  const isBuySide = action === 'BTO' || action === 'STC';
+  const lead = isBuySide ? '🟢 WHEN' : '🔴 WHEN';
+
+  let sentence = `${lead} ${trigger}, ${verb} ${qtyPhrase} of ${tickerLabel} every hour.`;
+
+  if (isOpeningPaperAction(action)) {
+    const limits = [];
+    const maxPos = Number(formOrRule.maxPositionQty ?? formOrRule.params?.max_position_qty);
+    const maxVal = Number(formOrRule.maxPositionValue ?? formOrRule.params?.max_position_value);
+    if (Number.isFinite(maxPos) && maxPos > 0) {
+      limits.push(`you own ${maxPos} ${pluralShares(maxPos)}`);
+    }
+    if (Number.isFinite(maxVal) && maxVal > 0) {
+      limits.push(`position value reaches $${maxVal.toLocaleString('en-US', { maximumFractionDigits: 0 })}`);
+    }
+    if (limits.length) {
+      sentence += ` STOP when ${limits.join(' or ')}.`;
+    }
+
+    const bracketFromParams = parseRuleBracket(formOrRule.params || formOrRule);
+    const bracketFromForm =
+      formOrRule.bracketEnabled &&
+      (formOrRule.bracketStopLoss || formOrRule.bracketTakeProfit)
+        ? {
+            stopLoss: Number(formOrRule.bracketStopLoss) > 0 ? Number(formOrRule.bracketStopLoss) : null,
+            takeProfit: Number(formOrRule.bracketTakeProfit) > 0 ? Number(formOrRule.bracketTakeProfit) : null
+          }
+        : null;
+    const bracketNote = formatBracketNote(bracketFromParams || bracketFromForm);
+    if (bracketNote) sentence += bracketNote.replace(' · ', ' ') + '.';
+  }
+
+  return sentence;
+}
+
+/**
+ * Chip labels for saved rules list.
+ * @param {object} rule
+ * @returns {{ ifLabel: string, actionLabel: string, tickerLabel: string, limitLabel: string | null, bracketLabel: string | null }}
+ */
+export function buildRuleChips(rule) {
+  const ui = apiRuleToUiType(rule);
+  const action = String(rule.action || 'BTO').toUpperCase();
+  const closeAll = Boolean(rule.params?.close_all);
+
+  let ifLabel = 'IF ';
+  if (ui === 'signal_side_long') ifLabel += 'Odin: L1–L3';
+  else if (ui === 'signal_side_short') ifLabel += 'Odin: S1–S3';
+  else if (ui === 'signal_side_neutral') ifLabel += 'Odin: N';
+  else if (ui === 'signal_bucket') {
+    const buckets = parseRuleSignalBuckets(rule);
+    ifLabel += buckets.length ? `Odin: ${buckets.join(', ')}` : 'Odin signals';
+  } else if (ui === 'price_above') {
+    const th = Number(rule.threshold_value);
+    ifLabel += Number.isFinite(th) ? `Price > $${th.toFixed(0)}` : 'Price above';
+  } else if (ui === 'price_below') {
+    const th = Number(rule.threshold_value);
+    ifLabel += Number.isFinite(th) ? `Price < $${th.toFixed(0)}` : 'Price below';
+  } else ifLabel += 'Every check';
+
+  const qty = formatRuleQty(rule);
+  const verb = formatActionVerb(action, closeAll);
+  const actionLabel =
+    qty === 'ALL' ? `${verb}` : `${verb} ${qty} ${pluralShares(qty)}`;
+
+  const tickerLabel = String(rule.ticker || '—').toUpperCase();
+
+  let limitLabel = null;
+  const maxPos = rule.params?.max_position_qty;
+  const maxVal = rule.params?.max_position_value;
+  if (isOpeningPaperAction(action)) {
+    const parts = [];
+    if (maxPos != null && Number.isFinite(Number(maxPos))) {
+      parts.push(`Max ${Number(maxPos)} shares`);
+    }
+    if (maxVal != null && Number.isFinite(Number(maxVal))) {
+      parts.push(`$${Number(maxVal).toLocaleString('en-US', { maximumFractionDigits: 0 })} cap`);
+    }
+    if (parts.length) limitLabel = parts.join(' · ');
+  }
+
+  const bracket = parseRuleBracket(rule.params);
+  const bracketLabel = bracket
+    ? [
+        bracket.stopLoss != null ? `Stop $${Number(bracket.stopLoss).toFixed(0)}` : null,
+        bracket.takeProfit != null ? `Target $${Number(bracket.takeProfit).toFixed(0)}` : null
+      ]
+        .filter(Boolean)
+        .join(' · ') || null
+    : null;
+
+  return { ifLabel, actionLabel, tickerLabel, limitLabel, bracketLabel };
 }
 
 export function ruleSummary(rule) {

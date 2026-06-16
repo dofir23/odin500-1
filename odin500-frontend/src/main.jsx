@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { AppShell } from './appRouter.jsx';
 import './index.css';
 import './styles/engagement.css';
+import './styles/stock-splits.css';
 import { initAuthSessionOnLoad } from './store/apiStore.js';
 
 initAuthSessionOnLoad();

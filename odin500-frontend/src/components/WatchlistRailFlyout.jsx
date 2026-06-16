@@ -497,12 +497,6 @@ export function WatchlistRailFlyout({ open, onClose, docked = false }) {
     setManagePanel('update-edit');
   };
 
-  const openUpdateForSelectedUserList = () => {
-    if (!selected || selected.kind !== 'user' || !selected.watchlistId) return;
-    setSettingsOpen(false);
-    beginUpdateEdit(selected);
-  };
-
   const submitCreate = async () => {
     const name = createName.trim();
     if (!name) {

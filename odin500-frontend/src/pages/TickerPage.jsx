@@ -27,7 +27,8 @@ import {
   isRouteNavigationStale,
   yieldToMain
 } from '../navigation/routeNavigationAbort.js';
-import { rowDateToTimeKey } from '../utils/chartData.js';
+import { rowDateToTimeKey, mapRowsToCandles } from '../utils/chartData.js';
+import { mapSplitsToChartMarkers, snapMarkersToNearestCandle } from '../utils/splitChartMarkers.js';
 import { readRowSignal, toSignalBucket } from '../utils/odinSignalTreemap.js';
 import { toDateInput } from '../utils/misc.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
@@ -37,6 +38,7 @@ import { formatRelativePerfPct } from '../utils/marketCalculations.js';
 import { fmtAbsSigned, fmtPctSigned, fmtPrice, fmtVolumeCompact } from '../utils/formatDisplayNumber.js';
 import { sectorFieldToEtfSlug } from '../utils/sectorEtfMatch.js';
 import { ModalCloseIcon } from '../components/ModalCloseIcon.jsx';
+import { TickerSplitBanner } from '../components/TickerSplitBanner.jsx';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { ReturnsChartClickableHeading } from '../components/ReturnsChartClickableTitle.jsx';
 import { ReturnsChartPieIcon } from '../components/returnsChartToolbarIcons.jsx';
@@ -717,6 +719,8 @@ export default function TickerPage() {
   const [companyOverview, setCompanyOverview] = useState(null);
   const [companyOverviewBusy, setCompanyOverviewBusy] = useState(false);
   const [companyOverviewExpanded, setCompanyOverviewExpanded] = useState(false);
+  const [splitSummary, setSplitSummary] = useState(null);
+  const [chartSplits, setChartSplits] = useState([]);
   const liveNews = useMemo(
     () => (tickerNewsItems.length ? tickerNewsItems.slice(0, MAX_NEWS_ITEMS) : FALLBACK_TICKER_NEWS),
     [tickerNewsItems]
@@ -1202,6 +1206,30 @@ export default function TickerPage() {
 
   useEffect(() => {
     let cancelled = false;
+    if (!canFetchProtectedApi() || !sym) {
+      setSplitSummary(null);
+      return undefined;
+    }
+    (async () => {
+      try {
+        const res = await fetchJsonCached({
+          path: `/api/splits/ticker/${encodeURIComponent(sym)}?recent_days=365`,
+          method: 'GET',
+          ttlMs: 10 * 60 * 1000
+        });
+        if (cancelled) return;
+        setSplitSummary(res?.data || null);
+      } catch {
+        if (!cancelled) setSplitSummary(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sym, authVersion]);
+
+  useEffect(() => {
+    let cancelled = false;
     const epochAtStart = getRouteNavigationEpoch();
     const stale = () => isRouteNavigationStale(cancelled, epochAtStart);
     if (!canFetchProtectedApi()) {
@@ -1395,6 +1423,50 @@ export default function TickerPage() {
   );
 
   const sortedChart = useMemo(() => sortRowsAsc(ohlcRows), [ohlcRows]);
+
+  const chartSplitRange = useMemo(() => {
+    if (!sortedChart.length) return null;
+    const from = rowDateToTimeKey(sortedChart[0]);
+    const to = rowDateToTimeKey(sortedChart[sortedChart.length - 1]);
+    if (!from || !to) return null;
+    return { from, to };
+  }, [sortedChart]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!canFetchProtectedApi() || !sym || !chartSplitRange) {
+      setChartSplits([]);
+      return undefined;
+    }
+    (async () => {
+      try {
+        const res = await fetchJsonCached({
+          path:
+            `/api/splits?ticker=${encodeURIComponent(sym)}` +
+            `&from=${encodeURIComponent(chartSplitRange.from)}` +
+            `&to=${encodeURIComponent(chartSplitRange.to)}` +
+            '&limit=50',
+          method: 'GET',
+          ttlMs: 10 * 60 * 1000
+        });
+        if (cancelled) return;
+        const list = Array.isArray(res?.data?.splits) ? res.data.splits : [];
+        setChartSplits(list);
+      } catch {
+        if (!cancelled) setChartSplits([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sym, chartSplitRange, authVersion]);
+
+  const splitChartMarkers = useMemo(() => {
+    if (!chartSplits.length || !sortedChart.length) return [];
+    const candles = mapRowsToCandles(sortedChart);
+    const raw = mapSplitsToChartMarkers(chartSplits);
+    return snapMarkersToNearestCandle(raw, candles);
+  }, [chartSplits, sortedChart]);
 
   useEffect(() => {
     const sync = () => {
@@ -1911,6 +1983,24 @@ export default function TickerPage() {
         </div>
       </header>
 
+      {splitSummary?.is_upcoming && splitSummary?.upcoming ? (
+        <TickerSplitBanner
+          ticker={sym}
+          split={splitSummary.upcoming}
+          variant="upcoming"
+          daysUntilSplit={splitSummary.days_until_split}
+        />
+      ) : null}
+      {splitSummary?.is_recent && splitSummary?.latest_past ? (
+        <TickerSplitBanner
+          ticker={sym}
+          split={splitSummary.latest_past}
+          variant="past"
+          daysSinceSplit={splitSummary.days_since_split}
+          adjCloseValidation={splitSummary.adj_close_validation}
+        />
+      ) : null}
+
       <div className="ticker-page__grid">
         <div className="ticker-page__main">
           <div className="ticker-page__stack-column">
@@ -2130,6 +2220,7 @@ export default function TickerPage() {
                     chartType={mainChartType}
                     onHoverOhlcChange={setChartHoverOhlc}
                     paperPosition={paperChartPosition}
+                    markers={splitChartMarkers}
                   />
                 ) : (
                   <div className="ticker-sparkline ticker-sparkline--empty">No OHLC rows in this range.</div>

@@ -40,6 +40,15 @@ function IconFlame() {
     </svg>
   );
 }
+function IconScissors() {
+  return (
+    <svg className="app-sidebar__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <circle cx="6" cy="6" r="2.25" />
+      <circle cx="6" cy="18" r="2.25" />
+      <path d="M8 7.5l14 9M8 16.5l14-9" strokeLinecap="round" />
+    </svg>
+  );
+}
 function IconPeople() {
   return (
     <svg className="app-sidebar__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
@@ -485,6 +494,7 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
                 onClick={onPaperTradingNavClick}
               />
               <NavRow to="/market-movers" icon={IconFlame} label="Market Movers" />
+              
               <NavRow to="/heatmap" icon={IconGrid} label="Heatmaps" />
               <NavRow
                 to="/sector-data/xlk"
@@ -625,6 +635,7 @@ export function AppSidebar({ expanded, setExpanded, mobileOpen = false, onReques
                 active={/^\/ticker-report\//i.test(location.pathname)}
               />
             </nav>
+            <NavRow to="/stock-splits" icon={IconScissors} label="Stock Splits" />
 
             <div className="app-sidebar__section-label">Data</div>
             <nav className="app-sidebar__nav" aria-label="Data">

@@ -8,6 +8,7 @@ export const SITEMAP_STATIC_PATHS = [
   '/news',
   '/heatmap',
   '/market-movers',
+  '/stock-splits',
   '/statistic-data',
   '/return-table',
   '/about',

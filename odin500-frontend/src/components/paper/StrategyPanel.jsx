@@ -7,7 +7,9 @@ import { StrategyRulesList } from './StrategyRulesList.jsx';
 import { StrategyExecutionLog } from './StrategyExecutionLog.jsx';
 import { StrategyWatchlistPanel } from './StrategyWatchlistPanel.jsx';
 import { AutomatedAccountBanner } from './AutomatedAccountBanner.jsx';
+import { StrategyNextRunCountdown } from './StrategyNextRunCountdown.jsx';
 import { scrollToStrategyAnchor, scrollToStrategyRules } from './strategyScroll.js';
+import { STRATEGY_SCHEDULE_HELP } from '../../utils/strategySchedule.js';
 
 export function StrategyPanel({
   strategy,
@@ -142,9 +144,12 @@ export function StrategyPanel({
               <span className={paused ? 'paper-strategy-paused' : 'paper-strategy-live'}>
                 {paused ? 'Paused' : 'Active'}
               </span>
+              {!paused ? (
+                <StrategyNextRunCountdown lastRunAt={binding?.last_run_at} active={strategyActive} />
+              ) : null}
               {binding?.last_run_at ? (
                 <span className="paper-strategy-panel__last-run">
-                  {' · Last run '}
+                  {' · Last check '}
                   {new Date(binding.last_run_at).toLocaleString()}
                 </span>
               ) : null}
@@ -205,7 +210,7 @@ export function StrategyPanel({
         <div className="paper-strategy-section__head">
           <h4 className="paper-strategy-section__title">Rules</h4>
           <p className="paper-strategy-section__desc">
-            Define when to buy, short, sell, or cover. Active rules run on the server schedule.
+            Define when to buy, short, sell, or cover. {STRATEGY_SCHEDULE_HELP}
           </p>
         </div>
 
@@ -348,12 +353,10 @@ export function StrategyPanel({
 
       <section className="paper-strategy-section paper-strategy-section--footnote" aria-label="Strategy help">
         <p className="paper-strategy-docs">
-          Strategies evaluate on the server schedule (~1 hour by default). Odin signal rules use L1–S3 / N
-          buckets. Buy/Short rules can add qty each run up to your <strong>max position limit</strong> (shares)
-          and/or <strong>max position value</strong> ($) — whichever cap is hit first stops further entries.
-          Sell/Cover
-          rules can use a fixed qty or <strong>ALL</strong> to close the full open position. Add exit rules (e.g.
-          Sell when signal turns short) to flatten before the next entry.
+          {STRATEGY_SCHEDULE_HELP} Odin signal rules use L1–S3 / N buckets. Buy/Short rules add shares
+          each check until your <strong>max shares owned</strong> and/or <strong>max dollar limit</strong> —
+          whichever cap is hit first stops further entries. Sell/Cover rules can use a fixed amount or{' '}
+          <strong>ALL</strong> to close the full open position.
         </p>
       </section>
     </div>

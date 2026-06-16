@@ -21,7 +21,15 @@ export function StrategyExecutionLog({ log = [], loading = false }) {
     return <p className="paper-strategy-muted">Loading execution log…</p>;
   }
   if (!log.length) {
-    return <p className="paper-strategy-muted">No strategy runs logged yet.</p>;
+    return (
+      <div className="paper-strategy-log-empty">
+        <p className="paper-strategy-log-empty__title">No trades yet</p>
+        <p className="paper-strategy-muted">
+          The system is actively monitoring your tickers. Any automated buys, sells, or skipped trades will
+          appear here.
+        </p>
+      </div>
+    );
   }
   return (
     <div className="paper-table-wrap">

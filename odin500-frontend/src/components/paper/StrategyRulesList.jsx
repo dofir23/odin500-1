@@ -1,7 +1,39 @@
 import { Pencil, Trash2 } from 'lucide-react';
-import { ruleSummary } from './strategyRuleUtils.js';
+import { buildRuleChips } from './strategyRuleUtils.js';
 
 const RULES_SCROLL_THRESHOLD = 10;
+
+function RuleChipRow({ rule }) {
+  const { ifLabel, actionLabel, tickerLabel, limitLabel, bracketLabel } = buildRuleChips(rule);
+  const isBuy = String(rule.action || '').toUpperCase() === 'BTO' || String(rule.action || '').toUpperCase() === 'STC';
+
+  return (
+    <div className="paper-rule-chips" aria-label={`Rule for ${tickerLabel}`}>
+      <span className="paper-rule-chip paper-rule-chip--if">{ifLabel}</span>
+      <span className="paper-rule-chip__arrow" aria-hidden>
+        →
+      </span>
+      <span className={'paper-rule-chip paper-rule-chip--action' + (isBuy ? '' : ' paper-rule-chip--exit')}>
+        {actionLabel}
+      </span>
+      <span className="paper-rule-chip__arrow" aria-hidden>
+        →
+      </span>
+      <span className="paper-rule-chip paper-rule-chip--ticker">{tickerLabel}</span>
+      {limitLabel ? (
+        <>
+          <span className="paper-rule-chip__arrow" aria-hidden>
+            →
+          </span>
+          <span className="paper-rule-chip paper-rule-chip--limit">{limitLabel}</span>
+        </>
+      ) : null}
+      {bracketLabel ? (
+        <span className="paper-rule-chip paper-rule-chip--bracket">{bracketLabel}</span>
+      ) : null}
+    </div>
+  );
+}
 
 export function StrategyRulesList({ rules = [], onEdit, onDelete, busy = false, editingRuleId = null }) {
   if (!rules.length) {
@@ -22,7 +54,7 @@ export function StrategyRulesList({ rules = [], onEdit, onDelete, busy = false, 
           }
         >
           <div className="paper-strategy-rules-list__text">
-            <span className="paper-strategy-rules-list__summary">{ruleSummary(rule)}</span>
+            <RuleChipRow rule={rule} />
             {rule.is_active === false ? (
               <span className="paper-strategy-rules-list__paused">Paused</span>
             ) : null}

@@ -31,6 +31,7 @@
   font-size: 1rem !important;
   font-weight: 700 !important;
   color: var(--odin-tour-text) !important;
+  padding-right: 2rem !important;
 }
 
 .odin-tour-popover .driver-popover-description {
@@ -51,18 +52,59 @@
   text-shadow: none !important;
 }
 
-.odin-tour-popover .driver-popover-next-btn,
-.odin-tour-popover .driver-popover-done-btn {
+.odin-tour-popover .driver-popover-next-btn {
   background: var(--odin-tour-btn) !important;
   color: #fff !important;
   border: none !important;
 }
 
-.odin-tour-popover .driver-popover-prev-btn,
-.odin-tour-popover .driver-popover-close-btn {
+.odin-tour-popover .driver-popover-prev-btn {
   background: transparent !important;
   color: var(--odin-tour-muted) !important;
   border: 1px solid rgba(148, 163, 184, 0.35) !important;
+}
+
+.odin-tour-popover .driver-popover-close-btn {
+  box-sizing: border-box;
+  position: absolute !important;
+  top: 5px !important;
+  right: 5px !important;
+  z-index: 3 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 28px !important;
+  height: 28px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  font-size: 1.25rem !important;
+  line-height: 1 !important;
+  font-weight: 500 !important;
+  color: var(--odin-tour-muted) !important;
+  background: transparent !important;
+  border: none !important;
+  text-shadow: none !important;
+  pointer-events: auto !important;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.odin-tour-popover .driver-popover-arrow {
+  z-index: 0;
+  pointer-events: none;
+}
+
+.odin-tour-popover .driver-popover-title,
+.odin-tour-popover .driver-popover-description {
+  position: relative;
+  z-index: 1;
+}
+
+.odin-tour-popover .driver-popover-close-btn:hover,
+.odin-tour-popover .driver-popover-close-btn:focus-visible {
+  color: var(--odin-tour-text) !important;
+  background: rgba(148, 163, 184, 0.12) !important;
 }
 
 .odin-tour-popover .driver-popover-footer,
@@ -156,10 +198,6 @@ body.engagement-signup-lock {
 [data-theme='light'] .engagement-signup-overlay--blocking .wl-manage-modal__head,
 [data-theme='light'] .engagement-signup-overlay--blocking .wl-manage-modal__foot {
   border-color: rgba(15, 23, 42, 0.08);
-}
-
-.tour-prompt-modal {
-  max-width: min(420px, calc(100vw - 24px));
 }
 
 @media (max-width: 768px) {

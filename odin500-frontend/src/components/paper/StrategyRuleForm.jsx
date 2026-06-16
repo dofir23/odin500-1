@@ -9,15 +9,18 @@ import { formatLatestClosePrice } from '../../utils/marketOhlcLatest.js';
 import { watchlistKindTag } from '../../utils/watchlistOptions.js';
 import {
   buildActionOptions,
+  buildRuleNaturalLanguagePreview,
   buildRulePayload,
   buildRulePayloads,
   buildRuleTypeOptions,
   coalesceActionForRuleType,
   getDisabledSignalBuckets,
   getExitSignalRestrictions,
+  RULE_FORM_TEMPLATES,
   ruleToForm,
   validateRuleForm
 } from './strategyRuleUtils.js';
+import { STRATEGY_SCHEDULE_HELP } from '../../utils/strategySchedule.js';
 
 const EMPTY = {
   uiRuleType: 'signal_side_long',
@@ -45,7 +48,9 @@ export function StrategyRuleForm({
   existingRules = [],
   variant = 'inline',
   formId,
-  hideActions = false
+  hideActions = false,
+  templatePreset = null,
+  showScheduleNote = false
 }) {
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState('');
@@ -162,6 +167,20 @@ export function StrategyRuleForm({
     }));
   }, [tickerSeed?.nonce]);
 
+  useEffect(() => {
+    if (!templatePreset || templatePreset === 'custom' || isEditing) return;
+    const preset = RULE_FORM_TEMPLATES[templatePreset];
+    if (!preset) return;
+    setForm((f) => ({
+      ...EMPTY,
+      ...preset,
+      tickers: f.tickers.length ? f.tickers : preset.tickers || []
+    }));
+    setError('');
+  }, [templatePreset, isEditing]);
+
+  const naturalPreview = useMemo(() => buildRuleNaturalLanguagePreview(form), [form]);
+
   const watchlistDropdownOptions = useMemo(
     () =>
       watchlistOptions.map((o) => ({
@@ -263,7 +282,7 @@ export function StrategyRuleForm({
 
   const qtyField = (
     <label className="paper-field paper-strategy-close-qty__qty paper-strategy-rule-form__field--qty">
-      <span className="paper-field__label">Qty per run</span>
+      <span className="paper-field__label">Shares per trade</span>
       <input
         type="number"
         className="paper-input"
@@ -296,6 +315,15 @@ export function StrategyRuleForm({
         <p className="paper-strategy-muted paper-strategy-rule-form__hint">
           Editing rule for <strong>{editingRule.ticker}</strong>
         </p>
+      ) : null}
+      {isModal ? (
+        <div className="paper-rule-preview" role="status" aria-live="polite">
+          <span className="paper-rule-preview__label">Rule preview</span>
+          <p className="paper-rule-preview__text">{naturalPreview}</p>
+        </div>
+      ) : null}
+      {showScheduleNote ? (
+        <p className="paper-strategy-muted paper-strategy-rule-form__schedule-note">{STRATEGY_SCHEDULE_HELP}</p>
       ) : null}
       <div className="paper-strategy-rule-form__layout">
         <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--tickers">
@@ -484,7 +512,7 @@ export function StrategyRuleForm({
           <>
             <div className="paper-strategy-rule-form__row paper-strategy-rule-form__row--limits">
               <label className="paper-field paper-strategy-rule-form__field--max">
-                <span className="paper-field__label">Max position limit</span>
+                <span className="paper-field__label">Max shares owned</span>
                 <input
                   type="number"
                   className="paper-input"
@@ -492,11 +520,11 @@ export function StrategyRuleForm({
                   step="any"
                   value={form.maxPositionQty}
                   onChange={(e) => update({ maxPositionQty: e.target.value })}
-                  placeholder="Max shares"
+                  placeholder="Stop buying at this size"
                 />
               </label>
               <label className="paper-field paper-strategy-rule-form__field--max-value">
-                <span className="paper-field__label">Max position value</span>
+                <span className="paper-field__label">Max dollar limit (optional)</span>
                 <input
                   type="number"
                   className="paper-input"
@@ -504,7 +532,7 @@ export function StrategyRuleForm({
                   step="0.01"
                   value={form.maxPositionValue}
                   onChange={(e) => update({ maxPositionValue: e.target.value })}
-                  placeholder="Max $ notional (optional)"
+                  placeholder="e.g. 5000"
                 />
               </label>
             </div>
@@ -517,7 +545,7 @@ export function StrategyRuleForm({
                     onChange={(e) => update({ bracketEnabled: e.target.checked })}
                     disabled={busy}
                   />
-                  <span>Add stop-loss / take-profit (OCO)</span>
+                  <span>Set auto-exits (stop-loss / take-profit)</span>
                 </label>
                 <p className="paper-bracket__hint">
                   After this rule buys or shorts, optional exit orders are placed. Filling one
@@ -573,8 +601,8 @@ export function StrategyRuleForm({
       {isOpen ? (
         <p className="paper-strategy-muted paper-strategy-rule-form__hint">
           {hideActions
-            ? 'Fill in the rule below, then click Create strategy account. Buys stop at max shares or max $ value — whichever is hit first.'
-            : 'After filling the form please click on the "Add rule" button to add the rule. Buys stop at max shares or max $ value — whichever is hit first.'}
+            ? 'Buys stop when you hit max shares or max dollar limit — whichever comes first.'
+            : 'Buys stop when you hit max shares or max dollar limit — whichever comes first. Click Add rule when ready.'}
         </p>
       ) : null}
       {isClose && form.closeAll ? (

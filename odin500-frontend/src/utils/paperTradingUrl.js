@@ -3,19 +3,6 @@ import { sanitizeTickerPageInput } from './tickerUrlSync.js';
 const VALID_TABS = new Set(['positions', 'orders', 'closed', 'insights', 'strategy']);
 
 /**
- * @param {{ ticker?: string, tab?: string }} [options]
- * @returns {string}
- */
-export function buildPaperTradingUrl({ ticker, tab } = {}) {
-  const params = new URLSearchParams();
-  const sym = sanitizeTickerPageInput(ticker);
-  if (sym) params.set('ticker', sym);
-  if (tab && VALID_TABS.has(tab)) params.set('tab', tab);
-  const qs = params.toString();
-  return qs ? `/paper-trading?${qs}` : '/paper-trading';
-}
-
-/**
  * @param {string} [search]
  * @returns {{ ticker: string, tab: string }}
  */

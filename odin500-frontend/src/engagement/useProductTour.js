@@ -3,7 +3,6 @@ import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import { markTourCompleted, markTourSkipped } from './tourStorage.js';
 import { buildPaperStrategyManageSteps } from './tourDefinitions/paperStrategyManageTour.js';
-import { buildPaperStrategyCreateSteps } from './tourDefinitions/paperStrategyCreateTour.js';
 import { TOUR_IDS } from './tourStorage.js';
 
 function themePopoverClass() {
@@ -23,7 +22,6 @@ function filterExistingSteps(steps) {
 }
 
 function stepsForTourId(tourId) {
-  if (tourId === TOUR_IDS.PAPER_STRATEGY_CREATE) return buildPaperStrategyCreateSteps();
   if (tourId === TOUR_IDS.PAPER_STRATEGY_MANAGE) return buildPaperStrategyManageSteps();
   return [];
 }
@@ -75,7 +73,7 @@ export function useProductTour() {
         showProgress: true,
         animate: true,
         smoothScroll: false,
-        allowClose: false,
+        allowClose: true,
         overlayClickBehavior: () => {},
         disableActiveInteraction: true,
         overlayOpacity: 0.55,
@@ -125,5 +123,5 @@ export function useProductTour() {
     [destroy]
   );
 
-  return { startTour, destroyTour: destroy };
+  return { startTour };
 }

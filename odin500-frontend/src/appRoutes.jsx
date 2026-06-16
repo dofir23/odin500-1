@@ -74,7 +74,8 @@ function ProtectedRoute({ children }) {
  *   Pricing: React.ComponentType,
  *   AboutPage: React.ComponentType,
  *   AccountsPage: React.ComponentType,
- *   PaperTradingPage: React.ComponentType
+ *   PaperTradingPage: React.ComponentType,
+ *   StockSplitsPage: React.ComponentType
  * }} pages
  */
 export function createAppRoutes(pages) {
@@ -106,7 +107,8 @@ export function createAppRoutes(pages) {
     Pricing,
     AboutPage,
     AccountsPage,
-    PaperTradingPage
+    PaperTradingPage,
+    StockSplitsPage
   } = pages;
 
   return (
@@ -135,6 +137,7 @@ export function createAppRoutes(pages) {
         <Route path="/sector-data/:sectorKey" element={<IndexPage />} />
         <Route path="/heatmap" element={<MarketHeatmapPage />} />
         <Route path="/market-movers" element={<MarketMoversPage />} />
+        <Route path="/stock-splits" element={<StockSplitsPage />} />
         <Route path="/news" element={<NewsPage />} />
         <Route path="/odin-signals" element={<OdinSignalsPage />} />
         <Route path="/statistic-data" element={<StatisticDataPage />} />

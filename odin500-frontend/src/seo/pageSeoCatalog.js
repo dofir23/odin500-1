@@ -35,6 +35,11 @@ export const PAGE_SEO_CATALOG = {
     description:
       'Track top gaining and losing stocks today with sortable market-movers tables and performance charts for U.S. equities.'
   },
+  '/stock-splits': {
+    title: 'Stock Split Tracker | Corporate Actions | Odin500',
+    description:
+      'Track recent U.S. stock splits and reverse splits with execution dates, ratios, and links to affected tickers.'
+  },
   '/statistic-data': {
     title: 'Stock Statistics Tables | Returns & OHLC Analytics | Odin500',
     description:

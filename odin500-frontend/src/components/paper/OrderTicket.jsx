@@ -288,8 +288,8 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
       <div className="paper-card__body paper-order">
         {strategyActive ? (
           <p className="paper-order__strategy-warn" role="status">
-            This portfolio also runs an automated strategy. Manual orders may conflict with strategy
-            trades.
+            <strong>Automation active:</strong> This portfolio buys and sells automatically. You can place
+            manual trades here, but they may override your strategy rules.
           </p>
         ) : null}
         <div className="paper-order__symbol-block">
@@ -419,7 +419,7 @@ export function OrderTicket({ onPlaceOrder, positions = [], strategyActive = fal
                 onChange={(e) => setBracketEnabled(e.target.checked)}
                 disabled={busy}
               />
-              <span>Add stop-loss / take-profit (OCO)</span>
+              <span>Set auto-exits (stop-loss / take-profit)</span>
             </label>
             <p className="paper-bracket__hint">
               After your entry fills, optional exit orders are placed. Filling one cancels the other.

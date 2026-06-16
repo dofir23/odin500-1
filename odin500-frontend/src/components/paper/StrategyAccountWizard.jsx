@@ -2,6 +2,13 @@ import { useMemo, useState } from 'react';
 import { PaperManageModal } from './PaperManageModal.jsx';
 import { StrategyRuleForm } from './StrategyRuleForm.jsx';
 import { buildRulePayloads, validateRuleForm } from './strategyRuleUtils.js';
+import { STRATEGY_SCHEDULE_HELP } from '../../utils/strategySchedule.js';
+
+const WIZARD_TEMPLATES = [
+  { id: 'dip', label: 'Buy the Dip', hint: 'Enter on L1 (deepest pullback)' },
+  { id: 'trend', label: 'Ride the Trend', hint: 'Enter on L2–L3 (stronger trend)' },
+  { id: 'custom', label: 'Custom', hint: 'Build your own rule' }
+];
 
 const WIZARD_STEPS = [
   { key: 'account', label: 'Portfolio' },
@@ -22,6 +29,7 @@ export function StrategyAccountWizard({
   const [accountName, setAccountName] = useState('');
   const [strategyName, setStrategyName] = useState('');
   const [draftRuleForm, setDraftRuleForm] = useState(null);
+  const [ruleTemplate, setRuleTemplate] = useState('custom');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -35,6 +43,7 @@ export function StrategyAccountWizard({
     setAccountName('');
     setStrategyName('');
     setDraftRuleForm(null);
+    setRuleTemplate('custom');
     setError('');
     setBusy(false);
   }
@@ -188,7 +197,7 @@ export function StrategyAccountWizard({
           }}
         >
           <p className="paper-strategy-wizard__intro">
-            Create a dedicated paper portfolio that runs automated rules on a server schedule (~1 hour).
+            Create a dedicated paper portfolio with automated rules. {STRATEGY_SCHEDULE_HELP}
           </p>
           <label className="paper-field" htmlFor="paper-wizard-account-name">
             <span className="paper-field__label">Portfolio name</span>
@@ -254,12 +263,32 @@ export function StrategyAccountWizard({
 
           <section className="paper-strategy-wizard__section">
             <h4 className="paper-strategy-wizard__section-title">Add rule</h4>
+            <div className="paper-rule-templates" role="group" aria-label="Rule templates">
+              {WIZARD_TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={
+                    'paper-rule-templates__btn' +
+                    (ruleTemplate === t.id ? ' paper-rule-templates__btn--active' : '')
+                  }
+                  disabled={busy}
+                  onClick={() => setRuleTemplate(t.id)}
+                >
+                  <span className="paper-rule-templates__label">{t.label}</span>
+                  <span className="paper-rule-templates__hint">{t.hint}</span>
+                </button>
+              ))}
+            </div>
             <StrategyRuleForm
+              key={`wizard-rule-${ruleTemplate}`}
               formId="paper-wizard-add-rule-form"
               variant="modal"
               busy={busy}
               hideActions
               existingRules={[]}
+              templatePreset={ruleTemplate}
+              showScheduleNote
               onFormChange={setDraftRuleForm}
             />
           </section>

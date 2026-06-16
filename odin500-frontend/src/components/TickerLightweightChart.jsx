@@ -157,14 +157,15 @@ function ohlcFromMainPoint(chartType, md) {
 
 /**
  * TradingView **Lightweight Charts™** — main series type controlled by parent (line, area, candles, bars) + volume.
- * @param {{ rows: unknown[], height?: number, chartType?: TickerChartType, paperPosition?: PaperChartPosition|null }} props
+ * @param {{ rows: unknown[], height?: number, chartType?: TickerChartType, paperPosition?: PaperChartPosition|null, markers?: Array<{ time: string, position?: string, shape?: string, color?: string, text?: string }> }} props
  */
 export function TickerLightweightChart({
   rows,
   height = 320,
   chartType = 'line',
   onHoverOhlcChange = null,
-  paperPosition = null
+  paperPosition = null,
+  markers = null
 }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
@@ -406,8 +407,11 @@ export function TickerLightweightChart({
       main.setData(candles);
     }
     volSeries.setData(volumes);
+    if (typeof main.setMarkers === 'function') {
+      main.setMarkers(Array.isArray(markers) && markers.length ? markers : []);
+    }
     chart.timeScale().fitContent();
-  }, [linePoints, candles, volumes, chartType, chartTheme]);
+  }, [linePoints, candles, volumes, chartType, chartTheme, markers]);
 
   useEffect(() => {
     const main = mainSeriesRef.current;

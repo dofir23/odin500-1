@@ -1,8 +1,7 @@
 const PREFIX = 'odin.tour';
 
 export const TOUR_IDS = {
-  PAPER_STRATEGY_MANAGE: 'paper-strategy-manage-v1',
-  PAPER_STRATEGY_CREATE: 'paper-strategy-create-v1'
+  PAPER_STRATEGY_MANAGE: 'paper-strategy-manage-v1'
 };
 
 function key(tourId) {
@@ -25,9 +24,6 @@ function safeSet(k, v) {
   }
 }
 
-export function isTourCompleted(tourId) {
-  return safeGet(key(tourId)) === 'done';
-}
 
 export function isTourSkipped(tourId) {
   const v = safeGet(key(tourId));
@@ -40,12 +36,4 @@ export function markTourCompleted(tourId) {
 
 export function markTourSkipped(tourId) {
   safeSet(key(tourId), 'skipped');
-}
-
-export function resetTour(tourId) {
-  try {
-    localStorage.removeItem(key(tourId));
-  } catch {
-    /* ignore */
-  }
 }

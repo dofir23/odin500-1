@@ -29,6 +29,7 @@ import { usePaperStrategy } from '../../hooks/usePaperStrategy.js';
 import { ProductTourProvider, useProductTourContext } from '../../context/ProductTourContext.jsx';
 import { isTourSkipped, TOUR_IDS } from '../../engagement/tourStorage.js';
 import { readPaperTradingSearchParams } from '../../utils/paperTradingUrl.js';
+import { DataInfoTip } from '../../components/DataInfoTip.jsx';
 import '../../styles/paper-trading.css';
 
 function PaperTradingPageContent() {
@@ -259,8 +260,15 @@ function PaperTradingPageContent() {
             ) : null}
           </div>
           <p className="paper-header__sub">
-            Simulate trades with $100,000 virtual capital. Market orders fill at the latest Odin daily close with
-            realistic slippage.
+            Simulate trades with $100,000 virtual capital. Market orders fill at the latest Odin daily close
+            with realistic slippage
+            <DataInfoTip align="end" ariaLabel="What is slippage?">
+              <p className="ticker-data-tip__p">
+                We simulate real-world conditions where the fill price may be slightly different from the
+                reference price you saw — the same way live markets can move between quote and execution.
+              </p>
+            </DataInfoTip>
+            .
           </p>
         </div>
         <div className="paper-header__actions">

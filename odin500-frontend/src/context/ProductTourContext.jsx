@@ -5,7 +5,7 @@ import { TOUR_IDS } from '../engagement/tourStorage.js';
 const ProductTourContext = createContext(null);
 
 export function ProductTourProvider({ children }) {
-  const { startTour, destroyTour } = useProductTour();
+  const { startTour } = useProductTour();
   const prepareManageRef = useRef(null);
 
   const registerManageTourPrepare = useCallback((fn) => {
@@ -20,20 +20,12 @@ export function ProductTourProvider({ children }) {
     [startTour]
   );
 
-  const startPaperStrategyCreateTour = useCallback(
-    (opts) => startTour(TOUR_IDS.PAPER_STRATEGY_CREATE, opts),
-    [startTour]
-  );
-
   const value = useMemo(
     () => ({
       startPaperStrategyManageTour,
-      startPaperStrategyCreateTour,
-      registerManageTourPrepare,
-      destroyTour,
-      TOUR_IDS
+      registerManageTourPrepare
     }),
-    [startPaperStrategyManageTour, startPaperStrategyCreateTour, registerManageTourPrepare, destroyTour]
+    [startPaperStrategyManageTour, registerManageTourPrepare]
   );
 
   return <ProductTourContext.Provider value={value}>{children}</ProductTourContext.Provider>;
@@ -43,8 +35,4 @@ export function useProductTourContext() {
   const ctx = useContext(ProductTourContext);
   if (!ctx) throw new Error('useProductTourContext must be used within ProductTourProvider');
   return ctx;
-}
-
-export function useProductTourOptional() {
-  return useContext(ProductTourContext);
 }

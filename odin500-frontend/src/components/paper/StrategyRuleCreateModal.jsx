@@ -51,7 +51,7 @@ export function StrategyRuleCreateModal({
         </p>
       ) : (
         <p className="paper-strategy-muted paper-rule-edit-modal__summary">
-          Configure when this strategy should buy, short, sell, or cover.
+          Configure when this strategy should buy, short, sell, or cover. The preview updates as you type.
         </p>
       )}
       <StrategyRuleForm
@@ -62,6 +62,7 @@ export function StrategyRuleCreateModal({
         busy={busy}
         existingRules={existingRules}
         tickerSeed={tickerSeed}
+        showScheduleNote
         onSubmit={onSubmit}
         submitLabel="Create rule"
       />

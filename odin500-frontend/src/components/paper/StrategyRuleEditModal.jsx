@@ -1,6 +1,6 @@
 import { PaperManageModal } from './PaperManageModal.jsx';
 import { StrategyRuleForm } from './StrategyRuleForm.jsx';
-import { ruleSummary } from './strategyRuleUtils.js';
+import { buildRuleNaturalLanguagePreview } from './strategyRuleUtils.js';
 
 const EDIT_FORM_ID = 'paper-strategy-rule-edit-form';
 
@@ -44,7 +44,7 @@ export function StrategyRuleEditModal({
     >
       <div className="paper-rule-edit-modal__summary-card">
         <span className="paper-rule-edit-modal__summary-label">Current rule</span>
-        <p className="paper-rule-edit-modal__summary">{ruleSummary(rule)}</p>
+        <p className="paper-rule-edit-modal__summary">{buildRuleNaturalLanguagePreview(rule)}</p>
       </div>
       <StrategyRuleForm
         formId={EDIT_FORM_ID}

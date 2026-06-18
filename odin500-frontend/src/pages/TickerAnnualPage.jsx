@@ -16,6 +16,7 @@ import { pickRelatedByCategory, RELATED_INDEX_LINKS } from '../utils/relatedTick
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { coerceYearRange, yearOptionsForEnd, yearOptionsForStart } from '../utils/dateRangeConstraints.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { statPeriodTitle } from '../seo/pageTitles.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { alignComparisonRows, filterRowsByYearRange, normalizePeriodReturnsRows } from '../utils/statisticsComparisonSeries.js';
 import { formatRelativePerfPct } from '../utils/marketCalculations.js';
@@ -332,7 +333,7 @@ export default function TickerAnnualPage() {
   }, [symbolParam]);
 
   usePageSeo({
-    title: `${String(sym).toUpperCase()} Annual Returns | Odin500`,
+    title: statPeriodTitle(sym, 'Annual'),
     description: `Annual return charts for ${String(sym).toUpperCase()} on Odin500.`,
     canonicalPath: `/statistic/ticker-annual/${String(sym || 'aapl').toLowerCase()}`
   });

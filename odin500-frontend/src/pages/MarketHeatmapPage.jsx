@@ -15,6 +15,7 @@ import { returnToHeatColor } from '../utils/heatmapColors.js';
 import { useChartSnapshotExport } from '../hooks/useChartSnapshotExport.js';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { STATIC_TITLES } from '../seo/pageTitles.js';
 import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 import { buildHeatmapNarrative, buildTableNarrative } from '../utils/seoChartNarratives.js';
 
@@ -180,7 +181,7 @@ function rowWeight(row) {
 export default function MarketHeatmapPage() {
   const navigate = useNavigate();
   usePageSeo({
-    title: 'Market Heatmap by Index and Sector | Odin500',
+    title: STATIC_TITLES['/heatmap'](),
     description:
       'Explore index heatmaps with sector and industry breakdowns using live market return snapshots.',
     canonicalPath: '/heatmap'

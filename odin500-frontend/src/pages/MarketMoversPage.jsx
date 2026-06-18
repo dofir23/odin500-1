@@ -11,6 +11,7 @@ import {fetchJsonCached, getAuthToken, canFetchProtectedApi} from '../store/apiS
 import { MarketMoversSplitBarsSkeleton } from '../components/ChartSkeletons.jsx';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { STATIC_TITLES } from '../seo/pageTitles.js';
 import { buildTickerChartExportFilename } from '../utils/chartExportFilename.js';
 import { getRelativeStrengthExportBackground } from '../utils/relativeStrengthChartExport.js';
 import { DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
@@ -1247,7 +1248,7 @@ function MarketMoversScatter({ points, volumeNote, axisReturnTitle, tooltipRetur
 
 export default function MarketMoversPage() {
   usePageSeo({
-    title: 'Market Movers — Top Gainers and Losers | Odin500',
+    title: STATIC_TITLES['/market-movers'](),
     description:
       'Track top gainers and losers across index universes with return intervals and relative volume context.',
     canonicalPath: '/market-movers'

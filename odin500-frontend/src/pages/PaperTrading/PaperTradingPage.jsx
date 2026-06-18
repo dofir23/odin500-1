@@ -30,9 +30,17 @@ import { ProductTourProvider, useProductTourContext } from '../../context/Produc
 import { isTourSkipped, TOUR_IDS } from '../../engagement/tourStorage.js';
 import { readPaperTradingSearchParams } from '../../utils/paperTradingUrl.js';
 import { DataInfoTip } from '../../components/DataInfoTip.jsx';
+import { usePageSeo } from '../../seo/usePageSeo.js';
+import { STATIC_TITLES } from '../../seo/pageTitles.js';
 import '../../styles/paper-trading.css';
 
 function PaperTradingPageContent() {
+  usePageSeo({
+    title: STATIC_TITLES['/paper-trading'](),
+    description: 'Practice stock trading with a paper portfolio, simulated orders, positions, and strategy rules.',
+    canonicalPath: '/paper-trading',
+    noindex: true
+  });
   const {
     account,
     accounts,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchJsonCached, canFetchProtectedApi } from '../store/apiStore.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { STATIC_TITLES } from '../seo/pageTitles.js';
 import { fmtNumber } from '../utils/formatDisplayNumber.js';
 
 const DAY_OPTIONS = [
@@ -41,7 +42,7 @@ function isUpcomingSplit(executionDate) {
 
 export default function StockSplitsPage() {
   usePageSeo({
-    title: 'Stock Splits',
+    title: STATIC_TITLES['/stock-splits'](),
     description: 'Track recent U.S. stock splits and reverse splits with execution dates and ratios.',
     canonicalPath: '/stock-splits'
   });

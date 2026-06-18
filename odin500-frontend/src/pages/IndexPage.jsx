@@ -36,6 +36,7 @@ import {
 } from '../navigation/routeNavigationAbort.js';
 import { rowDateToTimeKey } from '../utils/chartData.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { indexPageTitle, sectorPageTitle } from '../seo/pageTitles.js';
 import { ModalCloseIcon } from '../components/ModalCloseIcon.jsx';
 import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
 import { formatRelativePerfPct } from '../utils/marketCalculations.js';
@@ -754,8 +755,8 @@ export default function IndexPage() {
 
   usePageSeo({
     title: isSectorDataRoute
-      ? `${activeMeta.label} (${activeSector?.ticker ?? ''}) · Sector data | Odin500`
-      : `${activeMeta.label} Signals & Heatmap | Odin500`,
+      ? sectorPageTitle(activeMeta.label, activeSector?.ticker)
+      : indexPageTitle(activeMeta.label),
     description: isSectorDataRoute
       ? `Sector ETF ${activeSector?.ticker ?? ''} and S&P 500 constituents in ${activeMeta.label}.`
       : `Daily Odin500 signal distribution, heatmap views, and constituent analytics for ${activeMeta.label}.`,

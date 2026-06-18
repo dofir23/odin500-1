@@ -13,11 +13,12 @@ import {
   extractOdinMarkersByTicker
 } from './utils/chartData.js';
 import { usePageSeo } from './seo/usePageSeo.js';
+import { STATIC_TITLES } from './seo/pageTitles.js';
 import { applyDateEndChange, applyDateStartChange } from './utils/dateRangeConstraints.js';
 
 export default function App() {
   usePageSeo({
-    title: 'Odin500 Market Dashboard — Quant Signals, Heatmap, and Snapshots',
+    title: STATIC_TITLES['/market'](),
     description:
       'Daily market dashboard with Odin500 quant signals, charts, and index-level snapshots for U.S. equities and ETFs.',
     canonicalPath: '/market'

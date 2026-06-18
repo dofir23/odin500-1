@@ -46,9 +46,8 @@ import {
   getRelativeStrengthExportBackground,
   getRelativeStrengthPlotBackground
 } from '../utils/relativeStrengthChartExport.js';
-import { TickerChartResizeScope } from '../components/TickerChartResizeScope.jsx';
-
-/** Main index benchmark symbols for the RS table/bars selectors (not ETF tickers). */
+import { usePageSeo } from '../seo/usePageSeo.js';
+import { relativePerformanceTitle } from '../seo/pageTitles.js';
 const INDEX_BENCHMARK_OPTIONS = [
   { id: 'SPX', label: 'S&P 500' },
   { id: 'DJI', label: 'Dow Jones' },
@@ -566,6 +565,13 @@ export default function RelativeStrengthTickerPage() {
   const [benchCmpPeriodic, setBenchCmpPeriodic] = useState('SPX');
   const [tickerSymbols, setTickerSymbols] = useState(() => [...routeTickers]);
   const tickerSymbol = tickerSymbols[0] || '';
+
+  usePageSeo({
+    title: relativePerformanceTitle(tickerSymbol || routeTickers[0] || 'AAPL'),
+    description: `${String(tickerSymbol || routeTickers[0] || 'AAPL').toUpperCase()} relative stock performance versus index benchmarks with excess return charts and period-by-period statistics.`,
+    canonicalPath: buildRelativePerformanceTickerHref(tickerSymbols.length ? tickerSymbols : routeTickers)
+  });
+
   const [mode, setMode] = useState('monthly');
   const [seriesData, setSeriesData] = useState({});
   const [dailyStart, setDailyStart] = useState(() => {

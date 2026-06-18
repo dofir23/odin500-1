@@ -18,6 +18,7 @@ import { isoYearWeekFromIsoDate } from '../utils/isoWeek.js';
 import { pickRelatedByCategory, RELATED_INDEX_LINKS } from '../utils/relatedTickers.js';
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { statPeriodTitle } from '../seo/pageTitles.js';
 import { filterReturnsRows } from '../utils/returnsDateRange.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { alignComparisonRows, filterRowsByDateRange, filterRowsByYearRange, normalizePeriodReturnsRows } from '../utils/statisticsComparisonSeries.js';
@@ -418,7 +419,7 @@ export default function TickerMonthlyPage({ periodMode = 'monthly' }) {
   }, [symbolParam]);
 
   usePageSeo({
-    title: `${String(sym).toUpperCase()} ${modeLabel} Returns | Odin500`,
+    title: statPeriodTitle(sym, modeLabel),
     description: `${modeLabel} return charts and table for ${String(sym).toUpperCase()} on Odin500.`,
     canonicalPath: `/statistic/ticker-${modeSlug}/${String(sym || 'aapl').toLowerCase()}`
   });

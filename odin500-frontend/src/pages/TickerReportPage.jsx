@@ -12,6 +12,7 @@ import {
   isMonthlyReportYear
 } from '../data/tickerReports/registry.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { tickerReportPeriodTitle } from '../seo/pageTitles.js';
 import { downloadTickerReportCsv, downloadTickerReportPdf } from '../utils/tickerReportExport.js';
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { apiUrl } from '../utils/apiOrigin.js';
@@ -98,8 +99,8 @@ export default function TickerReportPage() {
   usePageSeo({
     title:
       reportKind === 'annual'
-        ? `${sym} Annual Stock Report — ${selectedYear} | Odin500`
-        : `${sym} Monthly Stock Report — ${periodLabel} | Odin500`,
+        ? tickerReportPeriodTitle(sym, 'annual', String(selectedYear))
+        : tickerReportPeriodTitle(sym, 'monthly', periodLabel),
     description:
       reportKind === 'annual'
         ? `${sym} annual performance report for ${selectedYear}: trailing returns, drawdown, relative strength vs S&P 500, and FAQs on Odin500.`

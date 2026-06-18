@@ -16,6 +16,7 @@ import { rowDateToTimeKey } from '../utils/chartData.js';
 import { pickRelatedByCategory, RELATED_INDEX_LINKS } from '../utils/relatedTickers.js';
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { statPeriodTitle } from '../seo/pageTitles.js';
 import { getDocumentTheme, subscribeDocumentTheme } from '../utils/documentTheme.js';
 import { alignComparisonRows, filterRowsByYearRange, normalizePeriodReturnsRows } from '../utils/statisticsComparisonSeries.js';
 import { formatRelativePerfPct } from '../utils/marketCalculations.js';
@@ -338,7 +339,7 @@ export default function TickerQuarterlyPage() {
   }, [symbolParam]);
 
   usePageSeo({
-    title: `${String(sym).toUpperCase()} Quarterly Returns | Odin500`,
+    title: statPeriodTitle(sym, 'Quarterly'),
     description: `Quarterly return charts and table for ${String(sym).toUpperCase()} on Odin500.`,
     canonicalPath: `/statistic/ticker-quarterly/${String(sym || 'aapl').toLowerCase()}`
   });

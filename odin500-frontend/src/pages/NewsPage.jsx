@@ -5,6 +5,7 @@ import { TickerSymbolCombobox } from '../components/TickerSymbolCombobox.jsx';
 import { useGeneralNewsFeed } from '../hooks/useGeneralNewsFeed.js';
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { STATIC_TITLES } from '../seo/pageTitles.js';
 
 const FINNHUB_BASE = 'https://finnhub.io/api/v1/company-news';
 const FINNHUB_TOKEN = String(
@@ -158,7 +159,7 @@ export default function NewsPage() {
   const tickerFromQuery = searchParams.get('ticker');
 
   usePageSeo({
-    title: 'Market News, Index News, and Ticker News | Odin500',
+    title: STATIC_TITLES['/news'](),
     description:
       'Read general market headlines plus index-specific and ticker-specific news streams in Odin500.',
     canonicalPath: '/news'

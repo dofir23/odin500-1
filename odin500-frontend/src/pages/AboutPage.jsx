@@ -10,6 +10,7 @@ import {
 } from '../services/authApi.js';
 import { clearApiCache, clearAuthToken } from '../store/apiStore.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { STATIC_TITLES } from '../seo/pageTitles.js';
 import {
   mapAboutProfileApiError,
   validateAboutProfile,
@@ -74,7 +75,7 @@ function initialsFor(name, email) {
 
 export default function AboutPage() {
   usePageSeo({
-    title: 'Your Odin500 Profile & Account Settings',
+    title: STATIC_TITLES['/about'](),
     description: 'Manage your Odin500 account profile, subscription plan, email, and security settings.',
     canonicalPath: '/about'
   });

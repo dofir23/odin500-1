@@ -9,6 +9,7 @@ import { rowDateToTimeKey } from '../utils/chartData.js';
 import { sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { STATIC_TITLES } from '../seo/pageTitles.js';
 import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 
 const DEFAULT_SYMBOL = 'AAPL';
@@ -456,7 +457,7 @@ export default function StatisticDataPage() {
   }, [location.pathname, location.search, location.key]);
 
   usePageSeo({
-    title: 'Statistic Tables — Daily, Weekly, Monthly, Quarterly, Annual | Odin500',
+    title: STATIC_TITLES['/statistic-data'](),
     description:
       'Table-focused return analytics with CSV downloads across daily, weekly, monthly, quarterly, and annual ranges.',
     canonicalPath: '/statistic-data',

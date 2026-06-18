@@ -17,6 +17,7 @@ import {
 } from '../utils/tickerUrlSync.js';
 import { useGatedCsvDownload } from '../hooks/useGatedCsvDownload.js';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { historicalDataTitle } from '../seo/pageTitles.js';
 import { fmtPctSigned, fmtPrice } from '../utils/formatDisplayNumber.js';
 import { buildTableNarrative } from '../utils/seoChartNarratives.js';
 import {
@@ -401,11 +402,10 @@ export default function HistoricalDataPage() {
     [navigate]
   );
   /** @type {[OhlcFrequency, function]} */
-  const seoTitle = useMemo(() => {
-    const name = String(previewMeta?.company_name || '').trim();
-    const label = name ? `${name} (${sym})` : sym;
-    return `${label} Historical OHLC Data & CSV Export | Odin500`;
-  }, [sym, previewMeta?.company_name]);
+  const seoTitle = useMemo(
+    () => historicalDataTitle(sym, previewMeta?.company_name),
+    [sym, previewMeta?.company_name]
+  );
 
   const seoDescription = useMemo(
     () =>

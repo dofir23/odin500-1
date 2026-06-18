@@ -4,6 +4,16 @@ import {
   SEO_BRAND_NAME,
   SITE_ORIGIN
 } from '../src/seo/siteConfig.js';
+import {
+  STATIC_TITLES,
+  historicalDataTitle,
+  indexPageTitle,
+  relativePerformanceTitle,
+  sectorPageTitle,
+  statPeriodTitle,
+  tickerPageTitle,
+  tickerReportTitle
+} from '../src/seo/pageTitles.js';
 import { absoluteSiteUrl } from '../src/seo/sitemapRoutes.js';
 
 const HOMEPAGE_JSON_LD = {
@@ -17,140 +27,131 @@ const HOMEPAGE_JSON_LD = {
   operatingSystem: 'Web'
 };
 
+function staticEntry(path, description, extra = {}) {
+  return {
+    title: STATIC_TITLES[path]?.() || DEFAULT_SITE_TITLE,
+    description,
+    canonical: `${SITE_ORIGIN}${path === '/' ? '/' : path}`,
+    ...extra
+  };
+}
+
 /** @type {Record<string, { title: string, description: string, canonical?: string, noindex?: boolean, jsonLd?: object }>} */
 export const ROUTE_METADATA = {
-  '/': {
-    title: DEFAULT_SITE_TITLE,
-    description: DEFAULT_SITE_DESCRIPTION,
-    canonical: `${SITE_ORIGIN}/`,
-    jsonLd: HOMEPAGE_JSON_LD
-  },
-  '/market': {
-    title: 'Odin500 - Stock Market Dashboard, Heatmap & Trading Signals ',
-    description:
-      'Live U.S. stock market dashboard with sector heatmap, index snapshots, OHLC analytics, and trading signals for active traders.',
-    canonical: `${SITE_ORIGIN}/market`
-  },
-  '/odin-signals': {
-    title: 'Odin500 | Stock Signal Screener Treemap | Trading Signals ',
-    description:
-      'Explore stock trading signals with an interactive treemap and filters to find bullish and bearish setups across U.S. equities.',
-    canonical: `${SITE_ORIGIN}/odin-signals`
-  },
-  '/news': {
-    title: 'Odin500 | Stock Market News by Ticker  ',
-    description:
-      'Read market news and ticker-specific headlines for U.S. stocks and ETFs with quick symbol-level context for traders.',
-    canonical: `${SITE_ORIGIN}/news`
-  },
-  '/heatmap': {
-    title: 'Odin500 | Stock Heatmap | Sector & Industry Performance ',
-    description:
-      'Interactive stock heatmap of U.S. equities by sector and industry with price change, market cap weighting, and drill-down ticker lists.',
-    canonical: `${SITE_ORIGIN}/heatmap`
-  },
-  '/market-movers': {
-    title: 'Odin500 | Top Gainers and Losers Today | Market Movers ',
-    description:
-      'Track top gaining and losing stocks today with sortable market-movers tables and performance charts for U.S. equities.',
-    canonical: `${SITE_ORIGIN}/market-movers`
-  },
-  '/statistic-data': {
-    title: 'Odin500 | Stock Statistics Tables | Returns & OHLC Analytics ',
-    description:
-      'Download stock statistics and returns across daily, weekly, monthly, quarterly, and annual horizons with OHLC-based analytics.',
-    canonical: `${SITE_ORIGIN}/statistic-data`
-  },
-  '/historical-data': {
-    title: 'Odin500 | OHLC Historical Data Download for Stocks ',
-    description:
-      'Search ticker historical data and export OHLC price history for U.S. stocks and ETFs, including open, high, low, close, and date.',
-    canonical: `${SITE_ORIGIN}/historical-data`
-  },
+  '/': staticEntry('/', DEFAULT_SITE_DESCRIPTION, { jsonLd: HOMEPAGE_JSON_LD }),
+  '/market': staticEntry(
+    '/market',
+    'Live U.S. stock market dashboard with sector heatmap, index snapshots, stock charts, OHLC analytics, and trading signals for active traders.'
+  ),
+  '/odin-signals': staticEntry(
+    '/odin-signals',
+    'Explore stock trading signals with an interactive treemap and filters to find bullish and bearish setups across U.S. equities.'
+  ),
+  '/news': staticEntry(
+    '/news',
+    'Read market news and ticker-specific headlines for U.S. stocks and ETFs with quick symbol-level context for traders.'
+  ),
+  '/heatmap': staticEntry(
+    '/heatmap',
+    'Interactive stock heatmap of U.S. equities by sector and industry with price change, market cap weighting, and drill-down ticker lists.'
+  ),
+  '/market-movers': staticEntry(
+    '/market-movers',
+    'Track top gaining and losing stocks today with sortable market-movers tables and performance charts for U.S. equities.'
+  ),
+  '/statistic-data': staticEntry(
+    '/statistic-data',
+    'Download stock statistics and returns across daily, weekly, monthly, quarterly, and annual horizons with OHLC-based analytics.'
+  ),
+  '/return-table': staticEntry(
+    '/return-table',
+    'Compare multi-period returns for U.S. stocks, indices, sectors, and ETFs across 1D to long-term horizons in one return table.'
+  ),
+  '/stock-splits': staticEntry(
+    '/stock-splits',
+    'Track recent U.S. stock splits and reverse splits with execution dates, ratios, and links to affected tickers.'
+  ),
+  '/historical-data': staticEntry(
+    '/historical-data',
+    'Search ticker historical data and export OHLC price history for U.S. stocks and ETFs, including open, high, low, close, and date.'
+  ),
+  '/paper-trading': staticEntry(
+    '/paper-trading',
+    'Practice stock trading with a paper portfolio, simulated orders, positions, and strategy rules on Odin500.',
+    { noindex: true }
+  ),
   '/relative-performance/ticker/aapl': {
-    title: 'Odin500 | Ticker Relative Performance vs Index ',
+    title: relativePerformanceTitle('AAPL'),
     description:
       'Compare ticker performance versus indices and sectors with excess return charts and period-by-period relative strength tables.',
     canonical: `${SITE_ORIGIN}/relative-performance/ticker/aapl`
   },
-  '/about': {
-    title: 'Your Odin500 Profile & Account Settings',
-    description:
-      'Manage your Odin500 account profile, subscription plan, email preferences, and security settings from your personal dashboard.',
-    canonical: `${SITE_ORIGIN}/about`
-  },
-  '/premium': {
-    title: 'Odin500 Premium Plans | Odin500',
-    description:
-      'Compare Odin500 Basic, Premium, and Pro plans for index signals, ETF coverage, and full Odin trading-signal access across the platform.',
-    canonical: `${SITE_ORIGIN}/premium`
-  },
-  '/accounts': {
-    title: 'Account Management | Odin500',
-    description:
-      'View and manage your Odin500 account details, billing preferences, and linked authentication settings in one secure place.',
-    canonical: `${SITE_ORIGIN}/accounts`
-  },
+  '/about': staticEntry(
+    '/about',
+    'Manage your Odin500 account profile, subscription plan, email preferences, and security settings from your personal dashboard.'
+  ),
+  '/premium': staticEntry(
+    '/premium',
+    'Compare Odin500 Basic, Premium, and Pro plans for index signals, ETF coverage, and full Odin trading-signal access across the platform.'
+  ),
+  '/accounts': staticEntry(
+    '/accounts',
+    'View and manage your Odin500 account details, billing preferences, and linked authentication settings in one secure place.',
+    { noindex: true }
+  ),
   '/indices/sp500': {
-    title: 'Odin500 | S&P 500 Index Data, Returns & Signals ',
+    title: indexPageTitle('S&P 500'),
     description:
       'Analyze S&P 500 index returns, signals, historical data, and constituent-level context for U.S. market research.',
     canonical: `${SITE_ORIGIN}/indices/sp500`
   },
   '/indices/dow-jones': {
-    title: 'Odin500 | Dow Jones Index Data, Returns & Signals ',
+    title: indexPageTitle('Dow Jones'),
     description:
       'Track Dow Jones index returns, OHLC trends, and signal context with chart-ready analytics for traders and investors.',
     canonical: `${SITE_ORIGIN}/indices/dow-jones`
   },
   '/indices/nasdaq-100': {
-    title: 'Odin500 | Nasdaq 100 Index Data, Returns & Signals ',
+    title: indexPageTitle('Nasdaq 100'),
     description:
       'View Nasdaq 100 returns, trend signals, and historical index analytics with constituent-aware market context.',
     canonical: `${SITE_ORIGIN}/indices/nasdaq-100`
   },
-  '/login': {
-    title: 'Sign In | Odin500',
-    description: 'Sign in to your Odin500 account to access market signals, charts, watchlists, and quant analytics.',
-    canonical: `${SITE_ORIGIN}/login`,
-    noindex: true
-  },
-  '/signup': {
-    title: 'Create Account | Odin500',
-    description: 'Create a free Odin500 account to explore U.S. equity signals, market heatmaps, and ticker analytics.',
-    canonical: `${SITE_ORIGIN}/signup`,
-    noindex: true
-  },
-  '/signup/verify-email': {
-    title: 'Verify Email | Odin500',
-    description: 'Verify your email address to continue setting up your Odin500 account and unlock market analytics.',
-    canonical: `${SITE_ORIGIN}/signup/verify-email`,
-    noindex: true
-  },
-  '/signup/enter-code': {
-    title: 'Enter Verification Code | Odin500',
-    description: 'Enter the verification code sent to your email to complete Odin500 account registration.',
-    canonical: `${SITE_ORIGIN}/signup/enter-code`,
-    noindex: true
-  },
-  '/signup/username': {
-    title: 'Choose Username | Odin500',
-    description: 'Pick a username for your Odin500 profile before accessing signals, charts, and watchlist features.',
-    canonical: `${SITE_ORIGIN}/signup/username`,
-    noindex: true
-  },
-  '/forgot-password': {
-    title: 'Reset Password | Odin500',
-    description: 'Reset your Odin500 account password securely and regain access to market signals and analytics.',
-    canonical: `${SITE_ORIGIN}/forgot-password`,
-    noindex: true
-  },
-  '/auth/callback': {
-    title: 'Signing In | Odin500',
-    description: 'Completing sign-in to your Odin500 account. You will be redirected to the market dashboard shortly.',
-    canonical: `${SITE_ORIGIN}/auth/callback`,
-    noindex: true
-  }
+  '/login': staticEntry(
+    '/login',
+    'Sign in to your Odin500 account to access market signals, charts, watchlists, and quant analytics.',
+    { noindex: true }
+  ),
+  '/signup': staticEntry(
+    '/signup',
+    'Create a free Odin500 account to explore U.S. equity signals, market heatmaps, and ticker analytics.',
+    { noindex: true }
+  ),
+  '/signup/verify-email': staticEntry(
+    '/signup/verify-email',
+    'Verify your email address to continue setting up your Odin500 account and unlock market analytics.',
+    { noindex: true }
+  ),
+  '/signup/enter-code': staticEntry(
+    '/signup/enter-code',
+    'Enter the verification code sent to your email to complete Odin500 account registration.',
+    { noindex: true }
+  ),
+  '/signup/username': staticEntry(
+    '/signup/username',
+    'Pick a username for your Odin500 profile before accessing signals, charts, and watchlist features.',
+    { noindex: true }
+  ),
+  '/forgot-password': staticEntry(
+    '/forgot-password',
+    'Reset your Odin500 account password securely and regain access to market signals and analytics.',
+    { noindex: true }
+  ),
+  '/auth/callback': staticEntry(
+    '/auth/callback',
+    'Completing sign-in to your Odin500 account. You will be redirected to the market dashboard shortly.',
+    { noindex: true }
+  )
 };
 
 export const INDEX_SLUG_LABELS = {
@@ -203,8 +204,8 @@ export function resolveDynamicRouteMetadata(pathname) {
   if (historicalDataMatch) {
     const symbol = decodeURIComponent(historicalDataMatch[1]).toUpperCase();
     return {
-      title: `${symbol} Historical OHLC Data & CSV Export | Odin500`,
-      description: `Query and export historical OHLC data for ${symbol}: daily, weekly, monthly, quarterly, and annual price history with open, high, low, and close.`,
+      title: historicalDataTitle(symbol),
+      description: `Download and query historical OHLC stock price data for ${symbol}: daily, weekly, monthly, quarterly, and annual open, high, low, close tables with CSV export.`,
       canonical: `${SITE_ORIGIN}/historical-data/${encodeURIComponent(symbol.toLowerCase())}`
     };
   }
@@ -213,7 +214,7 @@ export function resolveDynamicRouteMetadata(pathname) {
   if (tickerReportMatch) {
     const symbol = decodeURIComponent(tickerReportMatch[1]).toUpperCase();
     return {
-      title: `${symbol} Monthly Stock Report | Odin500`,
+      title: tickerReportTitle(symbol),
       description: `${symbol} monthly performance report with trailing returns, drawdown, relative strength, seasonality heatmap, and investor FAQs.`,
       canonical: `${SITE_ORIGIN}/ticker-report/${encodeURIComponent(symbol.toLowerCase())}`
     };
@@ -223,9 +224,20 @@ export function resolveDynamicRouteMetadata(pathname) {
   if (tickerMatch) {
     const symbol = decodeURIComponent(tickerMatch[1]).toUpperCase();
     return {
-      title: `${symbol} Historical Data, OHLC Chart & Trading Signals | Odin500`,
-      description: `${symbol} ticker historical data, OHLC price chart trends, returns, and trading signals for stock market research.`,
+      title: tickerPageTitle(symbol),
+      description: `${symbol} stock price, OHLC chart, daily, weekly, monthly and annual returns, historical data, and trading signals for stock market research.`,
       canonical: `${SITE_ORIGIN}/ticker/${encodeURIComponent(symbol)}`
+    };
+  }
+
+  const relPerfMatch = path.match(/^\/relative-performance\/ticker\/([A-Za-z0-9.,]+)$/i);
+  if (relPerfMatch) {
+    const raw = decodeURIComponent(relPerfMatch[1]);
+    const primary = raw.split(',')[0].toUpperCase();
+    return {
+      title: relativePerformanceTitle(primary),
+      description: `${primary} relative stock performance versus index benchmarks with excess return charts and period-by-period statistics.`,
+      canonical: `${SITE_ORIGIN}/relative-performance/ticker/${encodeURIComponent(raw.toLowerCase())}`
     };
   }
 
@@ -234,7 +246,7 @@ export function resolveDynamicRouteMetadata(pathname) {
     const slug = decodeURIComponent(indexMatch[1]).toLowerCase();
     const label = INDEX_SLUG_LABELS[slug] || slug.replace(/-/g, ' ');
     return {
-      title: `${label} Index Data, Returns & OHLC Signals | Odin500`,
+      title: indexPageTitle(label),
       description: `${label} index historical data, OHLC chart trends, returns, and signal analytics for traders and investors.`,
       canonical: `${SITE_ORIGIN}/indices/${encodeURIComponent(slug)}`
     };
@@ -245,7 +257,7 @@ export function resolveDynamicRouteMetadata(pathname) {
     const slug = decodeURIComponent(sectorMatch[1]).toLowerCase();
     const label = SECTOR_SLUG_LABELS[slug] || slug.toUpperCase();
     return {
-      title: `${label} Sector ETF Data, Returns & Signals | Odin500`,
+      title: sectorPageTitle(label, slug),
       description: `${label} sector ETF historical data, returns, heatmap context, and signal analytics for sector rotation research.`,
       canonical: `${SITE_ORIGIN}/sector-data/${encodeURIComponent(slug)}`
     };
@@ -257,8 +269,8 @@ export function resolveDynamicRouteMetadata(pathname) {
     const symbol = decodeURIComponent(statMatch[2]).toUpperCase();
     const horizon = STAT_KIND_LABELS[kind] || 'Periodic';
     return {
-      title: `${symbol} ${horizon} Return Statistics & Historical Data | Odin500`,
-      description: `${symbol} ${horizon.toLowerCase()} return statistics, historical performance tables, and OHLC-based analytics for U.S. equity research.`,
+      title: statPeriodTitle(symbol, horizon),
+      description: `${symbol} ${horizon.toLowerCase()} stock returns, price history, OHLC statistics and return tables for U.S. equity research.`,
       canonical: `${SITE_ORIGIN}/statistic/${kind}/${encodeURIComponent(symbol)}`
     };
   }
@@ -290,12 +302,10 @@ export function enrichHistoricalDataMetadata(meta, preview) {
     closeBit = ` Latest close $${closeStr} on ${preview.latest_date}.`;
   }
 
-  const titleSuffix = name ? `${name} (${sym})` : sym;
-
   return {
     ...meta,
-    title: `${titleSuffix} Historical OHLC Data & CSV Export | Odin500`,
-    description: `${label} historical OHLC preview, date-range tables, and CSV export.${rangeBit}${closeBit} View ${sym} charts and signals on Odin500.`
+    title: historicalDataTitle(sym, name),
+    description: `${label} historical OHLC stock price preview, date-range tables, and CSV export.${rangeBit}${closeBit} View ${sym} charts and signals on Odin500.`
   };
 }
 

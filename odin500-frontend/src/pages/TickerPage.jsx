@@ -40,6 +40,7 @@ import { sectorFieldToEtfSlug } from '../utils/sectorEtfMatch.js';
 import { ModalCloseIcon } from '../components/ModalCloseIcon.jsx';
 import { TickerSplitBanner } from '../components/TickerSplitBanner.jsx';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { tickerPageTitle } from '../seo/pageTitles.js';
 import { ReturnsChartClickableHeading } from '../components/ReturnsChartClickableTitle.jsx';
 import { ReturnsChartPieIcon } from '../components/returnsChartToolbarIcons.jsx';
 import { ReturnsChartToolbar, ReturnsChartToolbarIconButton } from '../components/ReturnsChartToolbar.jsx';
@@ -668,8 +669,8 @@ export default function TickerPage() {
   }, []);
 
   usePageSeo({
-    title: `${String(sym).toUpperCase()} Odin500 Signal, Returns & Market Statistics`,
-    description: `Live Odin500 signal, returns, OHLC market data, and strategy comparison for ${String(sym).toUpperCase()}.`,
+    title: tickerPageTitle(sym),
+    description: `${String(sym).toUpperCase()} stock price, OHLC chart, daily, weekly, monthly and annual returns, historical data, and trading signals.`,
     canonicalPath: `/ticker/${canonicalSym}`,
     breadcrumbItems: [
       { name: 'Market', path: '/market' },

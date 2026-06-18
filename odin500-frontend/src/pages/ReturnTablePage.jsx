@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { MarketReturnsSummaryTable } from '../components/MarketReturnsSummaryTable.jsx';
 import { ReturnTableIndexUniverse } from '../components/ReturnTableIndexUniverse.jsx';
 import { usePageSeo } from '../seo/usePageSeo.js';
+import { STATIC_TITLES } from '../seo/pageTitles.js';
 import {
   RETURN_TABLE_INDEX_UNIVERSES,
   allReturnTableRowDefs,
@@ -16,7 +17,7 @@ const PRIORITY_SECTION_IDS = new Set(['us', 'index']);
 
 export default function ReturnTablePage() {
   usePageSeo({
-    title: 'Return Table — Index, Sector & ETF Period Returns | Odin500',
+    title: STATIC_TITLES['/return-table'](),
     description:
       'Multi-period return tables for US indices, S&P 500 sectors, index ETFs, S&P 500 / Dow / Nasdaq constituents, and other market series across 1D through 20Y horizons.',
     canonicalPath: '/return-table'

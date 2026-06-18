@@ -46,6 +46,7 @@ import {
   getRelativeStrengthExportBackground,
   getRelativeStrengthPlotBackground
 } from '../utils/relativeStrengthChartExport.js';
+import { TickerChartResizeScope } from '../components/TickerChartResizeScope.jsx';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { relativePerformanceTitle } from '../seo/pageTitles.js';
 const INDEX_BENCHMARK_OPTIONS = [

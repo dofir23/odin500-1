@@ -11,7 +11,7 @@ const {
   startForgotPassword
 } = require('../controllers/authController');
 const { loginLimiter } = require('../middleware/rateLimitMiddleware'); // <-- Import this
-const requireAuth = require('../middleware/authMiddleware');
+const { requireAuthStrict } = require('../middleware/authMiddleware');
 
 router.post('/signup', signUp);
 router.post('/verify-signup-otp', verifySignUpOtp);
@@ -20,6 +20,6 @@ router.post('/forgot-password/start', startForgotPassword);
 router.post('/login', loginLimiter, login);
 router.post('/refresh', refresh);
 router.post('/logout', logout);
-router.patch('/me/display-name', requireAuth, updateDisplayName);
+router.patch('/me/display-name', requireAuthStrict, updateDisplayName);
 
 module.exports = router;

@@ -127,22 +127,22 @@ const refresh = async (req, res) => {
 /** PATCH display name in `public.user_profiles` by authenticated user ID. */
 const updateDisplayName = async (req, res) => {
     try {
+        if (!req.user?.id) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
         const displayName = extractDisplayName(req.body);
         if (!displayName || displayName.length < 2) {
             return res.status(400).json({ error: 'displayName must be at least 2 characters' });
         }
 
-        const { data, error } = await req.supabase
+        const { data, error } = await supabaseService
             .from('user_profiles')
-            .update({ display_name: displayName })
-            .eq('id', req.user.id)
+            .upsert({ id: req.user.id, display_name: displayName }, { onConflict: 'id' })
             .select('id, display_name')
-            .maybeSingle();
+            .single();
 
         if (error) throw error;
-        if (!data) {
-            return res.status(404).json({ error: 'No user_profiles row found for this user id' });
-        }
 
         res.status(200).json({
             success: true,

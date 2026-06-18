@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { ProtectedLayout } from './components/ProtectedLayout.jsx';
-import { isAuthDisabled } from './store/apiStore.js';
+import { getAuthToken, isAuthDisabled } from './store/apiStore.js';
 import { buildRelativePerformanceTickerHref } from './utils/relativeStrengthNavigation.js';
 import { DEFAULT_INDEX_ROUTE_SLUG, DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput } from './utils/tickerUrlSync.js';
 
@@ -32,7 +32,7 @@ function ProtectedRoute({ children }) {
   const [authState, setAuthState] = useState('pending');
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     setAuthState(token || allowPaperTradingShell ? 'allowed' : 'denied');
   }, [allowPaperTradingShell, pathname]);
 
@@ -41,6 +41,23 @@ function ProtectedRoute({ children }) {
   }
   if (authState === 'denied') {
     return <Navigate to="/login" replace />;
+  }
+  return children;
+}
+
+/** Logged-in users cannot open login/signup entry pages (session = auth_token in storage). */
+function GuestOnlyRoute({ children, redirectTo = '/market' }) {
+  const [hasSession, setHasSession] = useState(() => Boolean(getAuthToken()));
+
+  useEffect(() => {
+    const sync = () => setHasSession(Boolean(getAuthToken()));
+    sync();
+    window.addEventListener('odin-auth-updated', sync);
+    return () => window.removeEventListener('odin-auth-updated', sync);
+  }, []);
+
+  if (hasSession) {
+    return <Navigate to={redirectTo} replace />;
   }
   return children;
 }
@@ -113,8 +130,22 @@ export function createAppRoutes(pages) {
 
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/signup" element={<SignupPage />} />
+      <Route
+        path="/login"
+        element={
+          <GuestOnlyRoute>
+            <LoginPage />
+          </GuestOnlyRoute>
+        }
+      />
+      <Route
+        path="/signup"
+        element={
+          <GuestOnlyRoute>
+            <SignupPage />
+          </GuestOnlyRoute>
+        }
+      />
       <Route path="/signup/verify-email" element={<SignupVerifyEmailPage />} />
       <Route path="/signup/enter-code" element={<SignupEnterCodePage />} />
       <Route path="/signup/username" element={<SignupUsernamePage />} />

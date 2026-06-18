@@ -95,7 +95,7 @@ router.patch('/profile', requireAuthStrict, async (req, res) => {
             country: toStringOrEmpty(req.body?.country) || null
         };
 
-        const { data, error } = await req.supabase
+        const { data, error } = await supabaseService
             .from('user_profiles')
             .upsert({ id: req.user.id, ...patch }, { onConflict: 'id' })
             .select('display_name, phone, address_line1, address_line2, city, state, postal_code, country, plan_name, plan_status, plan_renewal_at, avatar_path')

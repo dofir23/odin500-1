@@ -12850,6 +12850,19 @@ h3.returns-chart-title-heading {
   max-height: none;
 }
 
+.ticker-annual-figma__section--chartjs.ticker-annual-figma__section--resize .stats-ticker-returns-bar-chart__scroll--active {
+  height: calc(var(--ticker-resize-plot-h, 260px) + 14px);
+  box-sizing: border-box;
+  padding-bottom: 14px;
+}
+
+.ticker-annual-figma__section--chartjs.ticker-annual-figma__section--resize
+  .stats-ticker-returns-bar-chart__scroll--active
+  .stats-ticker-returns-bar-chart {
+  height: var(--ticker-resize-plot-h, 260px);
+  min-height: 0;
+}
+
 .ticker-annual-figma__section--chartjs.ticker-annual-figma__section--resize
   .stats-ticker-returns-bar-chart__scroll
   .stats-ticker-returns-bar-chart {
@@ -12875,6 +12888,8 @@ h3.returns-chart-title-heading {
 .stats-ticker-returns-bar-chart__scroll--active {
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  box-sizing: border-box;
+  padding-bottom: 14px;
 }
 
 .stats-ticker-returns-bar-chart__scroll--active::-webkit-scrollbar {
@@ -12915,6 +12930,25 @@ h3.returns-chart-title-heading {
   display: block;
   width: 100% !important;
   height: 100% !important;
+}
+
+[data-theme='light'] .ticker-annual-figma__chart-card {
+  background: #ffffff;
+}
+
+[data-theme='light'] .stats-ticker-returns-bar-chart__scroll,
+[data-theme='light'] .stats-ticker-returns-bar-chart,
+[data-theme='light'] .stats-ticker-returns-summary-bar-chart,
+[data-theme='light'] .stats-period-slot-returns-bar-chart,
+[data-theme='light'] .stats-ticker-returns-posneg-donut {
+  background: #ffffff;
+}
+
+[data-theme='light'] .ticker-annual-figma__chart-card--chartjs .stats-ticker-returns-bar-chart canvas,
+[data-theme='light'] .ticker-annual-figma__chart-card--chartjs .stats-ticker-returns-summary-bar-chart canvas,
+[data-theme='light'] .ticker-annual-figma__chart-card--chartjs .stats-ticker-returns-posneg-donut canvas,
+[data-theme='light'] .ticker-annual-figma__chart-card--chartjs .stats-period-slot-returns-bar-chart canvas {
+  background: #ffffff;
 }
 
 .ticker-annual-figma__chart-card.ticker-annual-figma__chart-card--summary > .stats-ticker-returns-summary-bar-chart {
@@ -15268,6 +15302,52 @@ h3.returns-chart-title-heading {
 [data-theme="light"] .ticker-monthly {
   background: white;
   border-radius: 10px;
+}
+
+/* Statistic ticker routes: one white card per section (toolbar + chart + legend), like ticker-card on TickerPage */
+[data-theme="light"] .ticker-page .ticker-annual-figma__section,
+[data-theme="light"] .ticker-page .ticker-annual-donut .ticker-annual-figma__section,
+[data-theme="light"] .ticker-page .ticker-monthly .ticker-annual-figma__section,
+[data-theme="light"] .ticker-page .ticker-quarterly .ticker-annual-figma__section,
+[data-theme="light"] .ticker-page .ticker-monthly-adv .ticker-annual-figma__section {
+  background: #ffffff;
+  border-color: var(--ticker-border, #dbe3ef);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .ticker-page .ticker-annual-figma,
+[data-theme="light"] .ticker-page .ticker-monthly,
+[data-theme="light"] .ticker-page .ticker-quarterly,
+[data-theme="light"] .ticker-page .ticker-annual-donut,
+[data-theme="light"] .ticker-page .ticker-monthly-adv {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+[data-theme="light"] .ticker-page .ticker-annual-figma__section .ticker-annual-figma__chart-card,
+[data-theme="light"] .ticker-page .ticker-annual-figma__section .stats-ticker-returns-bar-chart__scroll,
+[data-theme="light"] .ticker-page .ticker-annual-figma__section .stats-ticker-returns-bar-chart,
+[data-theme="light"] .ticker-page .ticker-annual-figma__section .stats-ticker-returns-summary-bar-chart,
+[data-theme="light"] .ticker-page .ticker-annual-figma__section .stats-period-slot-returns-bar-chart,
+[data-theme="light"] .ticker-page .ticker-annual-figma__section .stats-ticker-returns-posneg-donut,
+[data-theme="light"] .ticker-page .ticker-annual-figma__section .ticker-annual-donut__panel.ticker-annual-figma__chart-card,
+[data-theme="light"] .ticker-page .ticker-annual-figma__section .ticker-quarterly__panel.ticker-annual-figma__chart-card,
+[data-theme="light"] .ticker-page .ticker-annual-figma__section .ticker-monthly-adv__panel.ticker-annual-figma__chart-card {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+[data-theme="light"] .ticker-page .ticker-annual-figma__section .ticker-annual-figma__chart-card--chartjs canvas,
+[data-theme="light"] .ticker-page .ticker-annual-figma__section .stats-period-slot-returns-bar-chart canvas {
+  background: #ffffff;
+}
+
+[data-theme="light"] .ticker-page .statistic-data__card {
+  background: #ffffff;
+  border-color: var(--ticker-border, #dbe3ef);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 [data-theme="light"] .ticker-chart-legend__name {

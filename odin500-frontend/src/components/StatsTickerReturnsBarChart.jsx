@@ -211,7 +211,7 @@ export function StatsTickerReturnsBarChart({
   rows = [],
   periodMode = 'annual',
   avgReturn = null,
-  plotHeight = 260,
+  plotHeight = 250,
   chartFullscreen = false,
   className = ''
 }) {
@@ -353,6 +353,14 @@ export function StatsTickerReturnsBarChart({
       responsive: !scrollable,
       maintainAspectRatio: false,
       animation: false,
+      layout: {
+        padding: {
+          top: 4,
+          right: scrollable ? 8 : 4,
+          bottom: scrollable ? 6 : 2,
+          left: 0
+        }
+      },
       datasets: {
         bar: {
           barPercentage: 0.85,
@@ -389,6 +397,7 @@ export function StatsTickerReturnsBarChart({
             maxRotation: 0,
             color: CHART_CMP_COLOR_AXIS,
             font: { size: 11, weight: '600' },
+            padding: scrollable ? 8 : 4,
             callback: (_val, index) => labels[index] ?? ''
           }
         },

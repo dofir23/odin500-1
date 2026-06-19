@@ -14,7 +14,7 @@ import {
 } from '../utils/dateRangeConstraints.js';
 
 /**
- * Start / end date inputs + Submit (+ Clear) for client-side chart filtering.
+ * Start / end date or year dropdowns for client-side chart filtering (applies on change).
  * @param {{
  *   idPrefix: string,
  *   maxDate?: string,
@@ -91,26 +91,14 @@ export function ChartDateApplyRow({
     [maxDate, mode, onApply]
   );
 
-  const submit = useCallback(() => {
-    applyRange(start, end);
-  }, [applyRange, start, end]);
-
-  const clear = useCallback(() => {
-    setStart('');
-    setEnd('');
-    lastAppliedRef.current = { start: '', end: '' };
-    onApply({ start: '', end: '' });
-  }, [onApply]);
-
   useEffect(() => {
     setStart(String(initialStart || ''));
     setEnd(String(initialEnd || ''));
   }, [idPrefix, initialStart, initialEnd]);
 
   useEffect(() => {
-    if (mode !== 'year') return;
     applyRange(start, end);
-  }, [mode, start, end, applyRange]);
+  }, [start, end, applyRange]);
 
   const dateBounds = dateInputBounds(start, end, { globalMax: maxDate ? String(maxDate).slice(0, 10) : '' });
 
@@ -202,12 +190,6 @@ export function ChartDateApplyRow({
           max={dateBounds.endMax}
         />
       )}
-      <button type="button" className="ticker-outline-btn ticker-outline-btn--sm" onClick={submit}>
-        Submit
-      </button>
-      <button type="button" className="ticker-outline-btn ticker-outline-btn--sm" onClick={clear}>
-        Clear
-      </button>
     </div>
   );
 }

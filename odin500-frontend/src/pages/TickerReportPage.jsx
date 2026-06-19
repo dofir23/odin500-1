@@ -37,11 +37,18 @@ export default function TickerReportPage() {
 
   const selectedYear = Number.isFinite(yearParam) && yearParam > 2000 ? yearParam : latest.year;
   const isAnnualPeriod = !isMonthlyReportYear(selectedYear);
+  const availableMonths = useMemo(
+    () => (isMonthlyReportYear(selectedYear) ? getMonthsForYear(selectedYear) : []),
+    [selectedYear]
+  );
   const selectedMonth = isAnnualPeriod
     ? null
-    : Number.isFinite(monthParam) && monthParam >= 1 && monthParam <= 12
-      ? monthParam
-      : latest.month;
+    : (() => {
+        if (!availableMonths.length) return null;
+        const requested =
+          Number.isFinite(monthParam) && monthParam >= 1 && monthParam <= 12 ? monthParam : latest.month;
+        return availableMonths.includes(requested) ? requested : availableMonths[availableMonths.length - 1];
+      })();
 
   const [expandedYear, setExpandedYear] = useState(
     isMonthlyReportYear(selectedYear) ? selectedYear : null

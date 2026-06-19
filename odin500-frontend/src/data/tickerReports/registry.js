@@ -50,12 +50,19 @@ export function getReportYears() {
 
 /**
  * @param {number} year
- * @returns {number[]} 1-based month numbers (current year only, through present month)
+ * @returns {number[]} 1-based month numbers for completed months only (current year).
  */
 export function getMonthsForYear(year) {
   if (!isMonthlyReportYear(year)) return [];
-  const currentMonth = new Date().getMonth() + 1;
-  return Array.from({ length: currentMonth }, (_, i) => i + 1);
+  const lastCompletedMonth = new Date().getMonth();
+  if (lastCompletedMonth < 1) return [];
+  return Array.from({ length: lastCompletedMonth }, (_, i) => i + 1);
+}
+
+/** Latest completed month for `year`, or null when none exist yet. */
+export function getLatestCompletedMonthForYear(year) {
+  const months = getMonthsForYear(year);
+  return months.length ? months[months.length - 1] : null;
 }
 
 export function periodKey(year, month) {
@@ -151,7 +158,20 @@ export function getLatestReportPeriod(symbol) {
   const keys = Object.keys(REPORTS_BY_SYMBOL[sym] || REPORTS_BY_SYMBOL.AAPL || {}).sort();
   const latest = keys[keys.length - 1] || '2026-04';
   const [y, m] = latest.split('-');
-  return { year: Number(y), month: Number(m) };
+  let year = Number(y);
+  let month = Number(m);
+
+  if (isMonthlyReportYear(year)) {
+    const allowed = getMonthsForYear(year);
+    if (!allowed.length) {
+      year -= 1;
+      month = 12;
+    } else if (!allowed.includes(month)) {
+      month = allowed[allowed.length - 1];
+    }
+  }
+
+  return { year, month };
 }
 
 export function hasExactReport(symbol, year, month) {

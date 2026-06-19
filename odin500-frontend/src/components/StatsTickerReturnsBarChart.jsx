@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chart } from 'react-chartjs-2';
 import '../utils/chartJsSetup.js';
 import { formatWeekAxisDate } from '../utils/isoWeek.js';
@@ -166,6 +166,36 @@ function barColorsForRows(displayRows, periodMode) {
   return displayRows.map((r) => yearColors.get(r.year) || TICKER_RETURNS_COL_BAR);
 }
 
+/** Minimum horizontal space per bar before enabling side scroll. */
+function minSlotPxForMode(periodMode) {
+  switch (periodMode) {
+    case 'daily':
+      return 14;
+    case 'weekly':
+      return 16;
+    case 'monthly':
+      return 18;
+    case 'quarterly':
+      return 26;
+    case 'annual':
+    default:
+      return 32;
+  }
+}
+
+function computeScrollLayout({ barCount, periodMode, containerWidth, chartFullscreen }) {
+  if (chartFullscreen || barCount <= 0 || containerWidth <= 0) {
+    return { scrollable: false, chartWidth: null };
+  }
+  const slotPx = minSlotPxForMode(periodMode);
+  const desiredWidth = Math.ceil(barCount * slotPx + 40);
+  const scrollable = desiredWidth > containerWidth + 4;
+  return {
+    scrollable,
+    chartWidth: scrollable ? desiredWidth : null
+  };
+}
+
 /**
  * Ticker period returns bar chart with average return line (Chart.js).
  * @param {{
@@ -186,8 +216,47 @@ export function StatsTickerReturnsBarChart({
   className = ''
 }) {
   const chartRef = useRef(/** @type {import('chart.js').Chart | null} */ (null));
+  const scrollRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const [containerWidth, setContainerWidth] = useState(0);
   const n = rows.length;
   const showBarLabels = chartFullscreen;
+  const chartHeight = Math.max(140, plotHeight);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => setContainerWidth(el.clientWidth);
+    update();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    ro?.observe(el);
+    window.addEventListener('resize', update);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
+  const { scrollable, chartWidth } = useMemo(
+    () =>
+      computeScrollLayout({
+        barCount: n,
+        periodMode,
+        containerWidth,
+        chartFullscreen
+      }),
+    [n, periodMode, containerWidth, chartFullscreen]
+  );
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !scrollable) return;
+    const scrollToEnd = () => {
+      el.scrollLeft = Math.max(0, el.scrollWidth - el.clientWidth);
+    };
+    scrollToEnd();
+    const id = requestAnimationFrame(scrollToEnd);
+    return () => cancelAnimationFrame(id);
+  }, [scrollable, chartWidth, rows, plotHeight]);
 
   const labels = useMemo(() => buildSparseXLabels(rows, periodMode), [rows, periodMode]);
   const categoryLabels = useMemo(() => rows.map((r) => r.xLabel || r.rowKey), [rows]);
@@ -281,7 +350,7 @@ export function StatsTickerReturnsBarChart({
   const options = useMemo(() => {
     const { yMin, yMax } = yExtent;
     return {
-      responsive: true,
+      responsive: !scrollable,
       maintainAspectRatio: false,
       animation: false,
       datasets: {
@@ -346,24 +415,43 @@ export function StatsTickerReturnsBarChart({
         }
       }
     };
-  }, [yExtent, labels, rows, avgReturn]);
+  }, [yExtent, labels, rows, avgReturn, scrollable]);
 
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
     chart.resize();
     chart.update('none');
-  }, [plotHeight, chartFullscreen, rows, avgReturn]);
+  }, [plotHeight, chartFullscreen, rows, avgReturn, scrollable, chartWidth]);
 
-  const heightStyle = chartFullscreen ? '100%' : `${Math.max(140, plotHeight)}px`;
+  const heightStyle = chartFullscreen ? '100%' : `${chartHeight}px`;
+  const widthStyle = scrollable && chartWidth ? `${chartWidth}px` : '100%';
 
   return (
     <div
-      className={'stats-ticker-returns-bar-chart' + (className ? ` ${className}` : '')}
-      style={{ width: '100%', height: heightStyle, display: 'block', minHeight: chartFullscreen ? 180 : 140 }}
-      aria-label={`${periodMode} returns bar chart`}
+      ref={scrollRef}
+      className={
+        'stats-ticker-returns-bar-chart__scroll' + (scrollable ? ' stats-ticker-returns-bar-chart__scroll--active' : '')
+      }
+      tabIndex={scrollable ? 0 : undefined}
+      aria-label={scrollable ? `${periodMode} returns chart, scroll horizontally for more periods` : undefined}
     >
-      <Chart ref={chartRef} type="bar" data={data} options={options} />
+      <div
+        className={
+          'stats-ticker-returns-bar-chart' +
+          (scrollable ? ' stats-ticker-returns-bar-chart--scrollable' : '') +
+          (className ? ` ${className}` : '')
+        }
+        style={{
+          width: widthStyle,
+          height: heightStyle,
+          display: 'block',
+          minHeight: chartFullscreen ? 180 : 140
+        }}
+        aria-label={`${periodMode} returns bar chart`}
+      >
+        <Chart ref={chartRef} type="bar" data={data} options={options} />
+      </div>
     </div>
   );
 }

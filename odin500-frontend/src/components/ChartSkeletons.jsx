@@ -15,21 +15,77 @@ export function badgeLabelForPeriodMode(periodMode) {
   return 'Annual returns';
 }
 
+function AnnualStatsSectionSkeleton({ periodMode = 'annual' }) {
+  const summaryHeights = [48, 62, 40, 70, 52, 58, 45, 65];
+  return (
+    <div className="ticker-annual-figma__section ticker-annual-figma__section--skeleton">
+      <div className="ticker-annual-figma__stats-head">
+        <span className="ticker-annual-figma__skel-pill ticker-annual-figma__skel-pill--stats-title" />
+        <div className="ticker-annual-figma__stats-actions">
+          <span className="ticker-annual-figma__skel-pill ticker-annual-figma__skel-pill--icon" />
+        </div>
+      </div>
+      <div className="ticker-annual-figma__split">
+        <div className="ticker-annual-figma__chart-card ticker-annual-figma__chart-card--donut ticker-annual-figma__chart-card--skeleton ticker-annual-figma__skel-stats-donut-card">
+          <div className="ticker-annual-donut__skel-donut-ring" />
+          <span className="ticker-annual-figma__skel-pill ticker-annual-figma__skel-pill--legend" />
+          <div className="ticker-annual-donut__skel-legend-row">
+            <span className="ticker-annual-figma__skel-pill ticker-annual-figma__skel-pill--legend" />
+            <span className="ticker-annual-figma__skel-pill ticker-annual-figma__skel-pill--legend" />
+          </div>
+        </div>
+        <div className="ticker-annual-figma__chart-card ticker-annual-figma__chart-card--summary ticker-annual-figma__chart-card--skeleton">
+          <div className="ticker-annual-figma__skel-chart ticker-annual-figma__skel-chart--summary">
+            <div className="ticker-annual-figma__skel-y-axis" aria-hidden>
+              {[40, 20, 0, -20].map((t) => (
+                <span key={t} className="ticker-annual-figma__skel-y-tick-label">
+                  {t}%
+                </span>
+              ))}
+            </div>
+            <div className="ticker-annual-figma__skel-plot" aria-hidden>
+              <div className="ticker-annual-figma__skel-grid" />
+              <div className="ticker-annual-figma__skel-zero" />
+              <div className="ticker-annual-figma__skel-bars">
+                {summaryHeights.map((pct, i) => (
+                  <div key={i} className="ticker-annual-figma__skel-bar-wrap">
+                    <div
+                      className="ticker-annual-figma__skel-bar"
+                      style={{ height: `${pct}%`, animationDelay: `${i * 0.05}s` }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Figma-style annual/quarterly/monthly/weekly/daily combo chart placeholder. */
 export function AnnualReturnsFigmaChartSkeleton({
   periodMode,
   plotHeightPx,
   toolbarControls,
   showOpenPeriodPageButton,
-  enableInlineYearDropdowns
+  enableInlineYearDropdowns,
+  hideStatsSection = false,
+  resizeEnabled = false
 }) {
   const h = Math.max(200, Math.min(520, Number(plotHeightPx) || 260));
   const barCount = periodMode === 'daily' ? 18 : periodMode === 'weekly' ? 14 : periodMode === 'monthly' ? 12 : 10;
   const heightsPct = [42, 68, 55, 72, 38, 61, 48, 75, 52, 66, 44, 58, 50, 63, 41, 56, 47, 64].slice(0, barCount);
 
   return (
-    <div className="ticker-annual-figma">
-      <div className="ticker-annual-figma__section ticker-annual-figma__section--skeleton">
+    <div className="ticker-annual-figma ticker-annual-figma--skeleton">
+      <div
+        className={
+          'ticker-annual-figma__section ticker-annual-figma__section--skeleton' +
+          (resizeEnabled ? ' ticker-annual-figma__section--resize' : '')
+        }
+      >
         <div className="ticker-annual-figma__toolbar">
           <span className="ticker-annual-figma__badge">{badgeLabelForPeriodMode(periodMode)}</span>
           <div className="returns-chart-toolbar ticker-annual-figma__actions--skeleton">
@@ -92,6 +148,7 @@ export function AnnualReturnsFigmaChartSkeleton({
           </span>
         </div>
       </div>
+      {!hideStatsSection ? <AnnualStatsSectionSkeleton periodMode={periodMode} /> : null}
     </div>
   );
 }

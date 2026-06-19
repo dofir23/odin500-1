@@ -16,6 +16,27 @@ function isMostlyOpaqueCssColor(c) {
   return Number.isFinite(a) && a >= 0.85;
 }
 
+function isValidCaptureCanvas(canvas) {
+  return canvas instanceof HTMLCanvasElement && canvas.width >= 8 && canvas.height >= 8;
+}
+
+function doubleRaf() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  });
+}
+
+/** Wait until plot host has a painted chart canvas (fast path: first frame). */
+async function waitForPlotCanvas(host, maxMs = 4000) {
+  const deadline = performance.now() + maxMs;
+  while (performance.now() < deadline) {
+    const canvas = host.querySelector('canvas');
+    if (isValidCaptureCanvas(canvas)) return canvas;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
+  return null;
+}
+
 /**
  * Capture chart area → preview modal → PNG download (NormalizedPerformanceCard flow).
  * @param {{
@@ -74,54 +95,68 @@ export function useChartSnapshotExport({
     setExportFilename(filename);
     setExportModalError('');
 
-    const fallbackCanvas = () => {
-      if (typeof getFallbackCanvas === 'function') {
-        const c = getFallbackCanvas();
-        if (c) return c;
-      }
-      const canvas = host.querySelector('canvas');
-      return canvas instanceof HTMLCanvasElement ? canvas : null;
-    };
-
     setExportingSnapshot(true);
     try {
-      await new Promise((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
-      });
+      const resolveFallbackCanvas = () => {
+        if (typeof getFallbackCanvas === 'function') {
+          const c = getFallbackCanvas();
+          if (isValidCaptureCanvas(c)) return c;
+        }
+        const canvas = host.querySelector('canvas');
+        return isValidCaptureCanvas(canvas) ? canvas : null;
+      };
 
+      const captureOnce = async () => {
+        await waitForPlotCanvas(host);
+        await doubleRaf();
+
+        let canvas = null;
+        if (root) {
+          const isLight = chartTheme === 'light';
+          let exportBg = getBackgroundColor(isLight);
+          if (typeof window !== 'undefined') {
+            const c = window.getComputedStyle(root).backgroundColor;
+            if (isMostlyOpaqueCssColor(c)) exportBg = c;
+          }
+          try {
+            canvas = await html2canvas(root, {
+              backgroundColor: exportBg,
+              scale: 1,
+              useCORS: true,
+              allowTaint: false,
+              logging: false,
+              foreignObjectRendering: false,
+              imageTimeout: 20000,
+              onclone: onclone
+                ? (clonedDoc, clonedRoot) => {
+                    if (clonedRoot instanceof HTMLElement) onclone(clonedDoc, clonedRoot);
+                  }
+                : undefined
+            });
+          } catch (e) {
+            console.warn('[useChartSnapshotExport] html2canvas failed', e);
+            canvas = null;
+          }
+        }
+
+        if (!isValidCaptureCanvas(canvas)) {
+          canvas = resolveFallbackCanvas();
+        }
+        return isValidCaptureCanvas(canvas) ? canvas : null;
+      };
+
+      const maxAttempts = 3;
+      const retryDelayMs = 200;
       let canvas = null;
-      if (root) {
-        const isLight = chartTheme === 'light';
-        let exportBg = getBackgroundColor(isLight);
-        if (typeof window !== 'undefined') {
-          const c = window.getComputedStyle(root).backgroundColor;
-          if (isMostlyOpaqueCssColor(c)) exportBg = c;
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        if (attempt > 0) {
+          await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
         }
-        try {
-          canvas = await html2canvas(root, {
-            backgroundColor: exportBg,
-            scale: 1,
-            useCORS: true,
-            allowTaint: false,
-            logging: false,
-            foreignObjectRendering: false,
-            imageTimeout: 20000,
-            onclone: onclone
-              ? (clonedDoc, clonedRoot) => {
-                  if (clonedRoot instanceof HTMLElement) onclone(clonedDoc, clonedRoot);
-                }
-              : undefined
-          });
-        } catch (e) {
-          console.warn('[useChartSnapshotExport] html2canvas failed', e);
-          canvas = null;
-        }
+        canvas = await captureOnce();
+        if (canvas) break;
       }
 
-      if (!canvas || canvas.width < 8 || canvas.height < 8) {
-        canvas = fallbackCanvas();
-      }
-      if (!canvas || canvas.width < 8 || canvas.height < 8) {
+      if (!canvas) {
         setExportModalError('Could not capture the chart. Try again after the chart finishes loading.');
         setExportModalStatus('error');
         return;

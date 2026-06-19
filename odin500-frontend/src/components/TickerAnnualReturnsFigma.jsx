@@ -620,6 +620,8 @@ export function TickerAnnualReturnsFigma({
           toolbarControls={toolbarControls}
           showOpenPeriodPageButton={showOpenPeriodPageButton}
           enableInlineYearDropdowns={enableInlineYearDropdowns}
+          hideStatsSection={hideStatsSection}
+          resizeEnabled={Boolean(resizeStorageKey)}
         />
       );
     }

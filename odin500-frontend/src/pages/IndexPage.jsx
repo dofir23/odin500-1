@@ -1605,6 +1605,11 @@ export default function IndexPage() {
   const dayChg =
     lastClose != null && prevClose != null && prevClose !== 0 ? ((lastClose - prevClose) / prevClose) * 100 : null;
   const dayAbs = lastClose != null && prevClose != null ? lastClose - prevClose : null;
+  /** 1D pill loads extra sessions for context; legend still shows prior session → latest (matches watchlist). */
+  const chartLegendChgPct =
+    timeframe === '1D' && dayChg != null && Number.isFinite(dayChg) ? dayChg : chartRangeChgPct;
+  const chartLegendChgAbs =
+    timeframe === '1D' && dayAbs != null && Number.isFinite(dayAbs) ? dayAbs : chartRangeChgAbs;
   const lastSignal = lastRow && lastRow.signal != null ? String(lastRow.signal) : 'N';
   const activeBucket = signalBucket(lastSignal);
 
@@ -2182,13 +2187,13 @@ export default function IndexPage() {
                     <span className="ticker-chart-legend__sym">{displaySym}</span>
                     <span className="ticker-chart-legend__name">{activeMeta.label}</span>
                     <span className="ticker-chart-legend__price">{fmtPrice(lastClose)} USD</span>
-                    {chartRangeChgAbs != null && Number.isFinite(chartRangeChgAbs) ? (
-                      <span className={'ticker-chart-legend__chg ' + pctClass(chartRangeChgAbs)}>
-                        {fmtAbsSigned(chartRangeChgAbs)}
+                    {chartLegendChgAbs != null && Number.isFinite(chartLegendChgAbs) ? (
+                      <span className={'ticker-chart-legend__chg ' + pctClass(chartLegendChgAbs)}>
+                        {fmtAbsSigned(chartLegendChgAbs)}
                       </span>
                     ) : null}
-                    {chartRangeChgPct != null && Number.isFinite(chartRangeChgPct) ? (
-                      <span className={'ticker-chart-legend__chg ' + pctClass(chartRangeChgPct)}>{fmtPctSigned(chartRangeChgPct)}</span>
+                    {chartLegendChgPct != null && Number.isFinite(chartLegendChgPct) ? (
+                      <span className={'ticker-chart-legend__chg ' + pctClass(chartLegendChgPct)}>{fmtPctSigned(chartLegendChgPct)}</span>
                     ) : null}
                   </div>
                 </div>

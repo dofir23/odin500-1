@@ -8,10 +8,11 @@ import compression from 'compression';
 import express from 'express';
 import sirv from 'sirv';
 import { injectAppIntoRoot, injectSeoIntoTemplate } from './buildSeoHead.mjs';
-import { resolveRequestMetadata, enrichHistoricalDataMetadata } from './routeMetadata.mjs';
+import { resolveRequestMetadata, enrichHistoricalDataMetadata, enrichTickerMetadata } from './routeMetadata.mjs';
 import {
   fetchHistoricalDataPreview,
-  parseHistoricalDataSymbol
+  parseHistoricalDataSymbol,
+  parseTickerSymbol
 } from '../src/ssr/fetchHistoricalDataPreview.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -51,7 +52,8 @@ function isStaticAssetPath(pathname) {
   const p = String(pathname || '').split('?')[0];
   if (!p || p === '/') return false;
   if (p.startsWith('/assets/')) return true;
-  if (p === '/favicon.png' || p === '/robots.txt' || p === '/sitemap.xml') return true;
+  if (p === '/favicon.png' || p === '/robots.txt') return true;
+  if (/^\/sitemap(-[a-z]+)?\.xml$/i.test(p)) return true;
   return /\.[a-z0-9]{1,8}$/i.test(p);
 }
 
@@ -93,10 +95,16 @@ async function sendSsrHtml(req, res, next) {
   const requestUrl = req.originalUrl || req.url;
   let meta = resolveRequestMetadata(req.path);
   const histSymbol = parseHistoricalDataSymbol(req.path);
+  const tickerSymbol = parseTickerSymbol(req.path);
   if (histSymbol) {
     const preview = await fetchHistoricalDataPreview(histSymbol);
     if (preview) {
       meta = enrichHistoricalDataMetadata(meta, preview);
+    }
+  } else if (tickerSymbol) {
+    const preview = await fetchHistoricalDataPreview(tickerSymbol, 10);
+    if (preview) {
+      meta = enrichTickerMetadata(meta, preview);
     }
   }
 

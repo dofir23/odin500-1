@@ -27,10 +27,29 @@ export function sanitizeTickerPageInput(raw) {
     .slice(0, 20);
 }
 
+/** Canonical `/ticker/:symbol` path (lowercase URL segment). */
+export function buildTickerHref(symbol) {
+  const s = sanitizeTickerPageInput(symbol) || DEFAULT_TICKER_ROUTE_SYMBOL;
+  return `/ticker/${encodeURIComponent(s.toLowerCase())}`;
+}
+
 /** Canonical `/historical-data/:symbol` path (lowercase segment, same as ticker reports). */
 export function buildHistoricalDataHref(symbol) {
   const s = sanitizeTickerPageInput(symbol) || DEFAULT_TICKER_ROUTE_SYMBOL;
   return `/historical-data/${encodeURIComponent(s.toLowerCase())}`;
+}
+
+/** Canonical `/ticker-report/:symbol` path. */
+export function buildTickerReportHref(symbol) {
+  const s = sanitizeTickerPageInput(symbol) || DEFAULT_TICKER_ROUTE_SYMBOL;
+  return `/ticker-report/${encodeURIComponent(s.toLowerCase())}`;
+}
+
+/** Canonical `/statistic/:kind/:symbol` path. */
+export function buildStatisticHref(kind, symbol) {
+  const s = sanitizeTickerPageInput(symbol) || DEFAULT_TICKER_ROUTE_SYMBOL;
+  const k = String(kind || 'ticker-annual').toLowerCase();
+  return `/statistic/${k}/${encodeURIComponent(s.toLowerCase())}`;
 }
 
 /** For ticker search APIs: keep spaces (company names); case sent as typed (DB ilike is case-insensitive). */

@@ -7,5 +7,6 @@ Disallow: /signup
 Disallow: /forgot-password
 Disallow: /auth/
 Disallow: /accounts
+Disallow: /paper-trading
 
 Sitemap: https://www.odin500.com/sitemap.xml

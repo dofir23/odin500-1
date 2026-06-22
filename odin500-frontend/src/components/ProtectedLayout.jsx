@@ -12,6 +12,7 @@ import { MarketMoversRailFlyout } from './MarketMoversRailFlyout.jsx';
 import { useSitewideSeo } from '../seo/usePageSeo.js';
 import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
 import { RouteNavigationGate } from './RouteNavigationGate.jsx';
+import { SeoSiteFooter } from './SeoSiteFooter.jsx';
 
 function ProtectedLayoutShell() {
   useSitewideSeo();
@@ -147,6 +148,7 @@ function ProtectedLayoutShell() {
                   <Outlet />
                 </RouteNavigationGate>
               </main>
+              <SeoSiteFooter />
             </div>
             {isDockOpen && isMobile ? (
               <button

@@ -31,7 +31,8 @@ import { rowDateToTimeKey, mapRowsToCandles } from '../utils/chartData.js';
 import { mapSplitsToChartMarkers, snapMarkersToNearestCandle } from '../utils/splitChartMarkers.js';
 import { readRowSignal, toSignalBucket } from '../utils/odinSignalTreemap.js';
 import { toDateInput } from '../utils/misc.js';
-import { DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput } from '../utils/tickerUrlSync.js';
+import { DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput, buildTickerHref } from '../utils/tickerUrlSync.js';
+import { normalizePreviewRows } from '../utils/historicalDataPreview.js';
 import { pickRelatedByCategory, RELATED_INDEX_LINKS } from '../utils/relatedTickers.js';
 import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
 import { formatRelativePerfPct } from '../utils/marketCalculations.js';
@@ -39,6 +40,8 @@ import { fmtAbsSigned, fmtPctSigned, fmtPrice, fmtVolumeCompact } from '../utils
 import { sectorFieldToEtfSlug } from '../utils/sectorEtfMatch.js';
 import { ModalCloseIcon } from '../components/ModalCloseIcon.jsx';
 import { TickerSplitBanner } from '../components/TickerSplitBanner.jsx';
+import { TickerSeoCrossLinks } from '../components/TickerSeoCrossLinks.jsx';
+import { useSsrPageData } from '../context/SsrPageDataContext.jsx';
 import { usePageSeo } from '../seo/usePageSeo.js';
 import { tickerPageTitle } from '../seo/pageTitles.js';
 import { ReturnsChartClickableHeading } from '../components/ReturnsChartClickableTitle.jsx';
@@ -641,6 +644,25 @@ export default function TickerPage() {
   const [activeSymbol, setActiveSymbol] = useState(() => sanitizeTickerPageInput(symbolParam) || 'AAPL');
   const sym = activeSymbol;
   const canonicalSym = String(sym || 'AAPL').toLowerCase();
+  const ssrData = useSsrPageData();
+  const ssrTickerPreview =
+    ssrData?.tickerPreview?.symbol === String(sym).toUpperCase() ? ssrData.tickerPreview : null;
+  const ssrPreviewRows = useMemo(
+    () => (ssrTickerPreview ? normalizePreviewRows(ssrTickerPreview).slice(0, 5) : []),
+    [ssrTickerPreview]
+  );
+
+  useEffect(() => {
+    if (!symbolParam) return;
+    const s = sanitizeTickerPageInput(symbolParam);
+    if (!s) {
+      navigate(buildTickerHref(DEFAULT_TICKER_ROUTE_SYMBOL), { replace: true });
+      return;
+    }
+    if (symbolParam !== s.toLowerCase()) {
+      navigate(buildTickerHref(s), { replace: true });
+    }
+  }, [symbolParam, navigate]);
 
   const onAddTickerToWatchlist = useCallback(() => {
     const ticker = String(sym || '').toUpperCase().trim();
@@ -2005,6 +2027,45 @@ export default function TickerPage() {
           daysSinceSplit={splitSummary.days_since_split}
           adjCloseValidation={splitSummary.adj_close_validation}
         />
+      ) : null}
+
+      <TickerSeoCrossLinks symbol={sym} />
+
+      {ssrPreviewRows.length > 0 ? (
+        <section className="ticker-ssr-preview" aria-label={`${sym} recent prices`}>
+          <h2 className="ticker-ssr-preview__title">
+            {ssrTickerPreview?.company_name
+              ? `${ssrTickerPreview.company_name} (${String(sym).toUpperCase()})`
+              : String(sym).toUpperCase()}
+          </h2>
+          {ssrTickerPreview?.latest_close != null && ssrTickerPreview?.latest_date ? (
+            <p className="ticker-ssr-preview__meta">
+              Latest close ${Number(ssrTickerPreview.latest_close).toFixed(2)} on {ssrTickerPreview.latest_date}
+            </p>
+          ) : null}
+          <table className="ticker-ssr-preview__table">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Open</th>
+                <th scope="col">High</th>
+                <th scope="col">Low</th>
+                <th scope="col">Close</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ssrPreviewRows.map((row) => (
+                <tr key={row.period}>
+                  <td>{row.period}</td>
+                  <td>{row.open != null ? row.open.toFixed(2) : '—'}</td>
+                  <td>{row.high != null ? row.high.toFixed(2) : '—'}</td>
+                  <td>{row.low != null ? row.low.toFixed(2) : '—'}</td>
+                  <td>{row.close != null ? row.close.toFixed(2) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
       ) : null}
 
       <div className="ticker-page__grid">

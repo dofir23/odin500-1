@@ -39,6 +39,7 @@ const AboutPage = lazyPage(() => import('./pages/AboutPage.jsx'));
 const AccountsPage = lazyPage(() => import('./pages/AccountsPage.jsx'));
 const PaperTradingPage = lazyPage(() => import('./pages/PaperTrading/PaperTradingPage.jsx'));
 const StockSplitsPage = lazyPage(() => import('./pages/StockSplitsPage.jsx'));
+const SeoBrowsePage = lazyPage(() => import('./pages/SeoBrowsePage.jsx'));
 
 const lazyPages = {
   App,
@@ -69,7 +70,8 @@ const lazyPages = {
   AboutPage,
   AccountsPage,
   PaperTradingPage,
-  StockSplitsPage
+  StockSplitsPage,
+  SeoBrowsePage
 };
 
 function ClientAppRoutes() {

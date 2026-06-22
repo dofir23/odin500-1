@@ -53,6 +53,7 @@ export const STATIC_TITLES = {
   '/historical-data': () =>
     withBrand('Download Stock OHLC Historical Data, Historical Prices and CSV Export'),
   '/premium': () => withBrand('Premium Plans, Pro Quant Signals and Market Data Pricing'),
+  '/browse': () => withBrand('Site Map, Market Dashboards, Indices, Sectors and Ticker Pages'),
   '/about': () => withBrand('Account Profile and Settings'),
   '/accounts': () => withBrand('Account Management'),
   '/paper-trading': () => withBrand('Paper Trading Simulator, Practice Portfolio and Orders'),

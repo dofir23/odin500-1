@@ -15,6 +15,7 @@ import {
   tickerReportTitle
 } from '../src/seo/pageTitles.js';
 import { absoluteSiteUrl } from '../src/seo/sitemapRoutes.js';
+import { tickerPathSegment } from '../src/seo/tickerCanonical.js';
 
 const HOMEPAGE_JSON_LD = {
   '@context': 'https://schema.org',
@@ -93,6 +94,10 @@ export const ROUTE_METADATA = {
   '/premium': staticEntry(
     '/premium',
     'Compare Odin500 Basic, Premium, and Pro plans for index signals, ETF coverage, and full Odin trading-signal access across the platform.'
+  ),
+  '/browse': staticEntry(
+    '/browse',
+    'HTML site map of Odin500 market dashboards, U.S. index pages, sector ETFs, and popular stock ticker analytics.'
   ),
   '/accounts': staticEntry(
     '/accounts',
@@ -226,7 +231,7 @@ export function resolveDynamicRouteMetadata(pathname) {
     return {
       title: tickerPageTitle(symbol),
       description: `${symbol} stock price, OHLC chart, daily, weekly, monthly and annual returns, historical data, and trading signals for stock market research.`,
-      canonical: `${SITE_ORIGIN}/ticker/${encodeURIComponent(symbol)}`
+      canonical: `${SITE_ORIGIN}/ticker/${encodeURIComponent(tickerPathSegment(symbol))}`
     };
   }
 
@@ -271,18 +276,13 @@ export function resolveDynamicRouteMetadata(pathname) {
     return {
       title: statPeriodTitle(symbol, horizon),
       description: `${symbol} ${horizon.toLowerCase()} stock returns, price history, OHLC statistics and return tables for U.S. equity research.`,
-      canonical: `${SITE_ORIGIN}/statistic/${kind}/${encodeURIComponent(symbol)}`
+      canonical: `${SITE_ORIGIN}/statistic/${kind}/${encodeURIComponent(tickerPathSegment(symbol))}`
     };
   }
 
   return null;
 }
 
-/**
- * Enrich historical-data meta with company name, date range, and latest close when preview is available.
- * @param {{ title: string, description: string, canonical: string, noindex?: boolean, jsonLd?: object }} meta
- * @param {{ symbol?: string, company_name?: string | null, min_date?: string, max_date?: string, latest_date?: string, latest_close?: number | null }} preview
- */
 export function enrichHistoricalDataMetadata(meta, preview) {
   if (!preview?.symbol) return meta;
 
@@ -306,6 +306,28 @@ export function enrichHistoricalDataMetadata(meta, preview) {
     ...meta,
     title: historicalDataTitle(sym, name),
     description: `${label} historical OHLC stock price preview, date-range tables, and CSV export.${rangeBit}${closeBit} View ${sym} charts and signals on Odin500.`
+  };
+}
+
+/**
+ * @param {{ title: string, description: string, canonical: string }} meta
+ * @param {{ symbol?: string, company_name?: string | null, latest_date?: string, latest_close?: number | null }} preview
+ */
+export function enrichTickerMetadata(meta, preview) {
+  if (!preview?.symbol) return meta;
+  const sym = String(preview.symbol).toUpperCase();
+  const name = String(preview.company_name || '').trim();
+  const label = name ? `${name} (${sym})` : sym;
+  let closeBit = '';
+  if (preview.latest_close != null && preview.latest_date) {
+    const close = Number(preview.latest_close);
+    const closeStr = Number.isFinite(close) ? close.toFixed(2) : String(preview.latest_close);
+    closeBit = ` Latest close $${closeStr} on ${preview.latest_date}.`;
+  }
+  return {
+    ...meta,
+    title: tickerPageTitle(sym, name),
+    description: `${label} stock price, OHLC chart, daily, weekly, monthly and annual returns, historical data, and trading signals.${closeBit}`
   };
 }
 

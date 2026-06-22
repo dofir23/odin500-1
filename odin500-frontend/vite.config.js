@@ -20,7 +20,20 @@ export default defineConfig(({ mode, isSsrBuild }) => {
   const proxyTarget = apiMode === 'dev' ? dev : prod;
 
   const shared = {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      {
+        name: 'html-google-site-verification',
+        transformIndexHtml(html) {
+          const token = env.VITE_GOOGLE_SITE_VERIFICATION?.trim();
+          if (!token) return html;
+          const tag = `<meta name="google-site-verification" content="${token}" />`;
+          if (html.includes('google-site-verification')) return html;
+          return html.replace('</head>', `    ${tag}\n  </head>`);
+        }
+      }
+    ],
     resolve: {
       alias: isSsrBuild
         ? {

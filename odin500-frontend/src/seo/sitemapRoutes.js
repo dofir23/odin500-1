@@ -12,7 +12,8 @@ export const SITEMAP_STATIC_PATHS = [
   '/statistic-data',
   '/return-table',
   '/about',
-  '/premium'
+  '/premium',
+  '/browse'
 ];
 
 export const SITEMAP_INDEX_SLUGS = ['sp500', 'dow-jones', 'nasdaq-100'];
@@ -120,25 +121,58 @@ export function uniquePaths(paths) {
  * @param {string[]} tickers Uppercase symbols.
  * @returns {string[]}
  */
-export function buildDynamicSitemapPaths(tickers) {
-  const syms = [...new Set(tickers.map((s) => String(s).trim().toUpperCase()).filter(Boolean))];
+export function buildSitemapCorePaths() {
   const paths = [...SITEMAP_STATIC_PATHS];
-
   for (const slug of SITEMAP_INDEX_SLUGS) {
     paths.push(`/indices/${slug}`);
   }
   for (const slug of SITEMAP_SECTOR_SLUGS) {
     paths.push(`/sector-data/${slug}`);
   }
+  return uniquePaths(paths);
+}
+
+/**
+ * High-priority per-symbol URLs (main ticker surfaces).
+ * @param {string[]} tickers Uppercase symbols.
+ */
+export function buildSitemapTickerPaths(tickers) {
+  const syms = [...new Set(tickers.map((s) => String(s).trim().toUpperCase()).filter(Boolean))];
+  const paths = [];
   for (const sym of syms) {
     const enc = encodeURIComponent(sym.toLowerCase());
     paths.push(`/ticker/${enc}`);
     paths.push(`/historical-data/${enc}`);
     paths.push(`/relative-performance/ticker/${enc}`);
+    paths.push(`/ticker-report/${enc}`);
+  }
+  return uniquePaths(paths);
+}
+
+/**
+ * Secondary statistic URLs (linked from ticker pages; lower crawl priority).
+ * @param {string[]} tickers Uppercase symbols.
+ */
+export function buildSitemapStatisticPaths(tickers) {
+  const syms = [...new Set(tickers.map((s) => String(s).trim().toUpperCase()).filter(Boolean))];
+  const paths = [];
+  for (const sym of syms) {
+    const enc = encodeURIComponent(sym.toLowerCase());
     for (const kind of SITEMAP_STAT_KINDS) {
       paths.push(`/statistic/${kind}/${enc}`);
     }
   }
-
   return uniquePaths(paths);
+}
+
+/**
+ * @param {string[]} tickers Uppercase symbols.
+ * @returns {string[]}
+ */
+export function buildDynamicSitemapPaths(tickers) {
+  return uniquePaths([
+    ...buildSitemapCorePaths(),
+    ...buildSitemapTickerPaths(tickers),
+    ...buildSitemapStatisticPaths(tickers)
+  ]);
 }

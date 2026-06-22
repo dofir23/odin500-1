@@ -3,7 +3,7 @@ import { Navigate, Route, Routes, useLocation, useParams, useSearchParams } from
 import { ProtectedLayout } from './components/ProtectedLayout.jsx';
 import { getAuthToken, isAuthDisabled } from './store/apiStore.js';
 import { buildRelativePerformanceTickerHref } from './utils/relativeStrengthNavigation.js';
-import { DEFAULT_INDEX_ROUTE_SLUG, DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput } from './utils/tickerUrlSync.js';
+import { DEFAULT_INDEX_ROUTE_SLUG, DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput, buildTickerHref } from './utils/tickerUrlSync.js';
 
 const AUTH_DISABLED = isAuthDisabled();
 
@@ -11,7 +11,7 @@ const AUTH_DISABLED = isAuthDisabled();
 function LegacyTickerStatRedirect({ kind }) {
   const { symbol } = useParams();
   const sym = symbol || DEFAULT_TICKER_ROUTE_SYMBOL;
-  return <Navigate to={`/statistic/${kind}/${encodeURIComponent(sym)}`} replace />;
+  return <Navigate to={`/statistic/${kind}/${encodeURIComponent(String(sym).toLowerCase())}`} replace />;
 }
 
 /** `/relative-strength/ticker` (+ optional `?ticker=` or `:symbol`) → `/relative-performance/ticker/SYM`. */
@@ -92,7 +92,8 @@ function GuestOnlyRoute({ children, redirectTo = '/market' }) {
  *   AboutPage: React.ComponentType,
  *   AccountsPage: React.ComponentType,
  *   PaperTradingPage: React.ComponentType,
- *   StockSplitsPage: React.ComponentType
+ *   StockSplitsPage: React.ComponentType,
+ *   SeoBrowsePage: React.ComponentType
  * }} pages
  */
 export function createAppRoutes(pages) {
@@ -125,7 +126,8 @@ export function createAppRoutes(pages) {
     AboutPage,
     AccountsPage,
     PaperTradingPage,
-    StockSplitsPage
+    StockSplitsPage,
+    SeoBrowsePage
   } = pages;
 
   return (
@@ -160,7 +162,7 @@ export function createAppRoutes(pages) {
       >
         <Route path="/market" element={<App />} />
         <Route path="/tickers" element={<Navigate to="/odin-signals" replace />} />
-        <Route path="/ticker" element={<Navigate to={`/ticker/${DEFAULT_TICKER_ROUTE_SYMBOL}`} replace />} />
+        <Route path="/ticker" element={<Navigate to={buildTickerHref(DEFAULT_TICKER_ROUTE_SYMBOL)} replace />} />
         <Route path="/ticker/:symbol" element={<TickerPage />} />
         <Route path="/indices" element={<Navigate to={`/indices/${DEFAULT_INDEX_ROUTE_SLUG}`} replace />} />
         <Route path="/indices/:indexSlug" element={<IndexPage />} />
@@ -169,6 +171,7 @@ export function createAppRoutes(pages) {
         <Route path="/heatmap" element={<MarketHeatmapPage />} />
         <Route path="/market-movers" element={<MarketMoversPage />} />
         <Route path="/stock-splits" element={<StockSplitsPage />} />
+        <Route path="/browse" element={<SeoBrowsePage />} />
         <Route path="/news" element={<NewsPage />} />
         <Route path="/odin-signals" element={<OdinSignalsPage />} />
         <Route path="/statistic-data" element={<StatisticDataPage />} />

@@ -7,6 +7,12 @@ export function parseHistoricalDataSymbol(pathname) {
   return decodeURIComponent(m[1]).toUpperCase();
 }
 
+export function parseTickerSymbol(pathname) {
+  const m = String(pathname || '').match(/^\/ticker\/([A-Za-z0-9.]+)$/i);
+  if (!m) return null;
+  return decodeURIComponent(m[1]).toUpperCase();
+}
+
 function getApiOriginForSsr() {
   if (typeof process !== 'undefined' && process.env?.SSR_API_ORIGIN) {
     return String(process.env.SSR_API_ORIGIN).replace(/\/$/, '');

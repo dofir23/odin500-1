@@ -5,6 +5,7 @@ import { AppShell } from './appRouter.jsx';
 import './index.css';
 import './styles/engagement.css';
 import './styles/stock-splits.css';
+import './styles/seo-indexing.css';
 import { initAuthSessionOnLoad } from './store/apiStore.js';
 
 initAuthSessionOnLoad();

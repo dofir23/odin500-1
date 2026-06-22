@@ -41,7 +41,7 @@ import { ModalCloseIcon } from '../components/ModalCloseIcon.jsx';
 import { notifyChartFullscreenLayout } from '../utils/chartFullscreenLayout.js';
 import { formatRelativePerfPct } from '../utils/marketCalculations.js';
 import { fmtAbsSigned, fmtNumber, fmtPctSigned, fmtPrice, fmtVolumeCompact } from '../utils/formatDisplayNumber.js';
-import { DEFAULT_INDEX_ROUTE_SLUG } from '../utils/tickerUrlSync.js';
+import { DEFAULT_INDEX_ROUTE_SLUG, DEFAULT_TICKER_ROUTE_SYMBOL, sanitizeTickerPageInput, buildTickerHref } from '../utils/tickerUrlSync.js';
 import { MARKET_SERIES } from '../components/marketSeriesRegistry.js';
 import { rowMatchesSectorEtf } from '../utils/sectorEtfMatch.js';
 import { ChartFullscreenToggleIcon } from '../components/ChartFullscreenToggleIcon.jsx';
@@ -2441,15 +2441,12 @@ export default function IndexPage() {
                     {indexTickersDisplayRows.map((row) => (
                       <tr key={row.symbol}>
                         <td>
-                          <button
-                            type="button"
+                          <Link
+                            to={buildTickerHref(row.symbol)}
                             className="index-constituents-link"
-                            onClick={() =>
-                              navigate(`/ticker/${encodeURIComponent(row.symbol)}?ticker=${encodeURIComponent(row.symbol)}`)
-                            }
                           >
                             {row.symbol}
-                          </button>
+                          </Link>
                         </td>
                         <td>{fmtPrice(row.close)}</td>
                         <td className={pctClass(row.ret1d)}>{fmtPctSigned(row.ret1d)}</td>

@@ -1,13 +1,16 @@
 import { Link } from 'react-router-dom';
+import { SITEMAP_FALLBACK_TICKERS } from '../seo/sitemapRoutes.js';
+import { buildTickerHref } from '../utils/tickerUrlSync.js';
 
 const FOOTER_SECTIONS = [
   {
     title: 'Markets',
     links: [
-      { to: '/market', label: 'Market Dashboard' },
+      { to: '/market', label: 'Market dashboard' },
       { to: '/odin-signals', label: 'Odin Signals' },
       { to: '/heatmap', label: 'Heatmap' },
       { to: '/market-movers', label: 'Market Movers' },
+      { to: '/stock-splits', label: 'Stock splits' },
       { to: '/news', label: 'News' }
     ]
   },
@@ -17,24 +20,29 @@ const FOOTER_SECTIONS = [
       { to: '/indices/sp500', label: 'S&P 500' },
       { to: '/indices/nasdaq-100', label: 'Nasdaq 100' },
       { to: '/indices/dow-jones', label: 'Dow Jones' },
-      { to: '/sector-data/xlk', label: 'Sector Data (XLK)' }
+      { to: '/sector-data/xlk', label: 'Technology (XLK)' },
+      { to: '/sector-data/xlf', label: 'Financials (XLF)' },
+      { to: '/sector-data/xle', label: 'Energy (XLE)' }
     ]
   },
   {
     title: 'Statistics',
     links: [
-      { to: '/ticker/aapl', label: 'Ticker Analytics' },
-      { to: '/statistic/ticker-annual/aapl', label: 'Annual Returns' },
-      { to: '/statistic-data', label: 'Statistic Tables' },
-      { to: '/historical-data', label: 'Historical Data' },
-      { to: '/relative-performance/ticker/aapl', label: 'Relative Performance' }
+      { to: '/ticker/aapl', label: 'Ticker analytics (AAPL)' },
+      { to: '/historical-data/aapl', label: 'Historical OHLC (AAPL)' },
+      { to: '/ticker-report/aapl', label: 'Investor report (AAPL)' },
+      { to: '/statistic/ticker-annual/aapl', label: 'Annual returns (AAPL)' },
+      { to: '/statistic-data', label: 'Statistic tables' },
+      { to: '/return-table', label: 'Return table' },
+      { to: '/relative-performance/ticker/aapl', label: 'Relative performance' }
     ]
   },
   {
     title: 'Account',
     links: [
-      { to: '/premium', label: 'Premium Plans' },
-      { to: '/about', label: 'Your Profile' }
+      { to: '/premium', label: 'Premium plans' },
+      { to: '/about', label: 'Your profile' },
+      { to: '/browse', label: 'Site map' }
     ]
   }
 ];
@@ -58,12 +66,28 @@ export function SeoSiteFooter() {
             </ul>
           </nav>
         ))}
+        <nav className="seo-site-footer__col" aria-label="Popular tickers">
+          <h2 className="seo-site-footer__heading">Popular tickers</h2>
+          <ul className="seo-site-footer__list seo-site-footer__list--cols">
+            {SITEMAP_FALLBACK_TICKERS.map((sym) => (
+              <li key={sym}>
+                <Link to={buildTickerHref(sym)} className="seo-site-footer__link">
+                  {sym}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
       </div>
       <p className="seo-site-footer__copy">
         © {new Date().getFullYear()} Odin500 ·{' '}
         <a href="https://www.odin500.com/" className="seo-site-footer__link">
           www.odin500.com
         </a>
+        {' · '}
+        <Link to="/browse" className="seo-site-footer__link">
+          Site map
+        </Link>
       </p>
     </footer>
   );

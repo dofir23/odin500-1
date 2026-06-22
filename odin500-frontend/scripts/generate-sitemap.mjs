@@ -1,16 +1,21 @@
 /**
  * Build-time sitemap generator. Run: node scripts/generate-sitemap.mjs
- * Writes public/sitemap.xml (valid XML, no script tags).
+ * Writes sitemap index + tiered child sitemaps under public/.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SITE_ORIGIN } from '../src/seo/siteConfig.js';
-import { SITEMAP_FALLBACK_TICKERS, buildDynamicSitemapPaths } from '../src/seo/sitemapRoutes.js';
+import {
+  SITEMAP_FALLBACK_TICKERS,
+  buildSitemapCorePaths,
+  buildSitemapStatisticPaths,
+  buildSitemapTickerPaths
+} from '../src/seo/sitemapRoutes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
-const outFile = path.join(root, 'public', 'sitemap.xml');
+const publicDir = path.join(root, 'public');
 
 function escapeXml(s) {
   return String(s)
@@ -76,27 +81,54 @@ async function resolveTickers() {
   return SITEMAP_FALLBACK_TICKERS;
 }
 
-function toLoc(path) {
-  if (path === '/') return `${SITE_ORIGIN}/`;
-  return `${SITE_ORIGIN}${path}`;
+function toLoc(pathname) {
+  if (pathname === '/') return `${SITE_ORIGIN}/`;
+  return `${SITE_ORIGIN}${pathname}`;
+}
+
+function writeUrlset(filename, paths, lastmod) {
+  const urls = paths
+    .map((p) => {
+      return `  <url>\n    <loc>${escapeXml(toLoc(p))}</loc>\n    <lastmod>${lastmod}</lastmod>\n  </url>`;
+    })
+    .join('\n');
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+  const out = path.join(publicDir, filename);
+  fs.writeFileSync(out, xml, 'utf8');
+  return paths.length;
+}
+
+function writeSitemapIndex(files, lastmod) {
+  const entries = files
+    .map(
+      (f) =>
+        `  <sitemap>\n    <loc>${escapeXml(`${SITE_ORIGIN}/${f}`)}</loc>\n    <lastmod>${lastmod}</lastmod>\n  </sitemap>`
+    )
+    .join('\n');
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</sitemapindex>\n`;
+  fs.writeFileSync(path.join(publicDir, 'sitemap.xml'), xml, 'utf8');
 }
 
 async function main() {
   const tickers = await resolveTickers();
-  const paths = buildDynamicSitemapPaths(tickers);
   const today = new Date().toISOString().slice(0, 10);
 
-  const urls = paths
-    .map((p) => {
-      return `  <url>\n    <loc>${escapeXml(toLoc(p))}</loc>\n    <lastmod>${today}</lastmod>\n  </url>`;
-    })
-    .join('\n');
+  const corePaths = buildSitemapCorePaths();
+  const tickerPaths = buildSitemapTickerPaths(tickers);
+  const statPaths = buildSitemapStatisticPaths(tickers);
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+  fs.mkdirSync(publicDir, { recursive: true });
 
-  fs.mkdirSync(path.dirname(outFile), { recursive: true });
-  fs.writeFileSync(outFile, xml, 'utf8');
-  console.log(`[sitemap] Wrote ${paths.length} URLs to ${outFile}`);
+  const coreCount = writeUrlset('sitemap-core.xml', corePaths, today);
+  const tickerCount = writeUrlset('sitemap-tickers.xml', tickerPaths, today);
+  const statCount = writeUrlset('sitemap-statistics.xml', statPaths, today);
+
+  writeSitemapIndex(['sitemap-core.xml', 'sitemap-tickers.xml', 'sitemap-statistics.xml'], today);
+
+  const total = coreCount + tickerCount + statCount;
+  console.log(
+    `[sitemap] Wrote index + ${total} URLs (core=${coreCount}, tickers=${tickerCount}, statistics=${statCount})`
+  );
 }
 
 main().catch((err) => {

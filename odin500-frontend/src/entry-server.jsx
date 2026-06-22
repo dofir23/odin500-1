@@ -31,10 +31,12 @@ import Pricing from './pages/Pricing.jsx';
 import AboutPage from './pages/AboutPage.jsx';
 import AccountsPage from './pages/AccountsPage.jsx';
 import PaperTradingPage from './pages/PaperTrading/PaperTradingPage.jsx';
+import SeoBrowsePage from './pages/SeoBrowsePage.jsx';
 import { SsrPageDataProvider } from './context/SsrPageDataContext.jsx';
 import {
   fetchHistoricalDataPreview,
-  parseHistoricalDataSymbol
+  parseHistoricalDataSymbol,
+  parseTickerSymbol
 } from './ssr/fetchHistoricalDataPreview.js';
 
 const eagerPages = {
@@ -64,7 +66,8 @@ const eagerPages = {
   Pricing,
   AboutPage,
   AccountsPage,
-  PaperTradingPage
+  PaperTradingPage,
+  SeoBrowsePage
 };
 
 const ssrRoutes = createAppRoutes(eagerPages);
@@ -78,10 +81,16 @@ export async function render(url) {
 
   let ssrPageData = null;
   const histSymbol = parseHistoricalDataSymbol(pathname);
+  const tickerSymbol = parseTickerSymbol(pathname);
   if (histSymbol) {
     const preview = await fetchHistoricalDataPreview(histSymbol);
     if (preview) {
       ssrPageData = { historicalDataPreview: preview };
+    }
+  } else if (tickerSymbol) {
+    const preview = await fetchHistoricalDataPreview(tickerSymbol, 10);
+    if (preview) {
+      ssrPageData = { tickerPreview: preview };
     }
   }
 

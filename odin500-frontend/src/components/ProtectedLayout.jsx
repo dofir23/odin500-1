@@ -148,7 +148,7 @@ function ProtectedLayoutShell() {
                   <Outlet />
                 </RouteNavigationGate>
               </main>
-              <SeoSiteFooter />
+              {location.pathname.replace(/\/+$/, '') === '/browse' ? <SeoSiteFooter /> : null}
             </div>
             {isDockOpen && isMobile ? (
               <button
